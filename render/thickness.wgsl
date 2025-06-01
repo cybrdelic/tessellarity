@@ -1,41 +1,41 @@
 struct RenderUniforms {
-    texel_size: vec2f, 
-    sphere_size: f32, 
-    inv_projection_matrix: mat4x4f, 
-    projection_matrix: mat4x4f, 
-    view_matrix: mat4x4f, 
-    inv_view_matrix: mat4x4f, 
+    texel_size: vec2f,
+    sphere_size: f32,
+    inv_projection_matrix: mat4x4f,
+    projection_matrix: mat4x4f,
+    view_matrix: mat4x4f,
+    inv_view_matrix: mat4x4f,
 }
 
 struct VertexOutput {
-    @builtin(position) position: vec4f, 
-    @location(0) uv: vec2f, 
+    @builtin(position) position: vec4f,
+    @location(0) uv: vec2f,
 }
 
 struct FragmentInput {
-    @location(0) uv: vec2f, 
+    @location(0) uv: vec2f,
 }
 
 struct PosVel {
-    position: vec3f, 
-    v: vec3f, 
+    position: vec3f,
+    v: vec3f,
 }
 
 @group(0) @binding(0) var<storage> particles: array<PosVel>;
 @group(0) @binding(1) var<uniform> uniforms: RenderUniforms;
 
 @vertex
-fn vs(    
-    @builtin(vertex_index) vertex_index: u32, 
+fn vs(
+    @builtin(vertex_index) vertex_index: u32,
     @builtin(instance_index) instance_index: u32
 ) -> VertexOutput {
     var corner_positions = array(
-        vec2( 0.5,  0.5),
-        vec2( 0.5, -0.5),
+        vec2(0.5, 0.5),
+        vec2(0.5, -0.5),
         vec2(-0.5, -0.5),
-        vec2( 0.5,  0.5),
+        vec2(0.5, 0.5),
         vec2(-0.5, -0.5),
-        vec2(-0.5,  0.5),
+        vec2(-0.5, 0.5),
     );
 
 
@@ -56,11 +56,10 @@ fn vs(
 fn fs(input: FragmentInput) -> @location(0) vec4f {
     var normalxy: vec2f = input.uv * 2.0 - 1.0;
     var r2: f32 = dot(normalxy, normalxy);
-    if (r2 > 1.0) {
+    if r2 > 1.0 {
         discard;
-    }
-    var thickness: f32 = sqrt(1.0 - r2);
-    let particle_alpha = 0.05;
+    }    var thickness: f32 = sqrt(1.0 - r2);
+    let particle_alpha = 0.08; // Increased from 0.05 for better fluid visibility
 
     return vec4f(vec3f(particle_alpha * thickness), 1.0);
 }
