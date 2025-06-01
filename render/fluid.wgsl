@@ -220,7 +220,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var refractedBgColor: vec3f = textureSampleLevel(envmap_texture, texture_sampler, refractionDirWorld, 0.).rgb;
 
     // Chromatic dispersion
-    var dispersionStrength = 0.003 * thickness;
+    var dispersionStrength = 0.4 * thickness;
     var redEta = eta * 0.999;
     var blueEta = eta * 1.001;
 
@@ -305,7 +305,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var enhancedRefractedColor = mix(flowBasedRefraction, causticsColor, causticsIntensity * 0.6);
 
     // Use enhanced refraction
-    var properRefractedColor = mix(enhancedRefractedColor, dispersedRefraction, dispersionStrength * clamp(thickness - 0.5, 0.0, 1.0));
+    var properRefractedColor = mix(enhancedRefractedColor, dispersedRefraction, dispersionStrength * clamp(thickness, 0.0, 1.0));
 
     // FIX DEPTH COLORING - use thickness for depth-based effects instead of redeclaring depthFactor
     var thicknessBasedDepth = clamp(thickness * 2.0, 0.0, 1.0); // Use different variable name

@@ -435,7 +435,7 @@ export class FluidRenderer {
             colorAttachments: [
                 {
                     view: context.getCurrentTexture().createView(),
-                    clearValue: { r: 0.8, g: 0.8, b: 0.8, a: 1.0 },
+                    clearValue: { r: 0.1, g: 0.1, b: 0.15, a: 1.0 }, // Darker background for realism
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
