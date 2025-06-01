@@ -4,7 +4,7 @@ import { mat4 } from 'wgpu-matrix'
 import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax } from './common'
+import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews } from './common'
 import { FluidRenderer } from './render/fluidRender'
 
 /// <reference types="@webgpu/types" />
@@ -30,12 +30,12 @@ async function init() {
 	const context = canvas.getContext('webgpu') as GPUCanvasContext
 
 	if (!context) {
-		throw new Error()	
+		throw new Error()
 	}
 
 	// const { devicePixelRatio } = window
 	// let devicePixelRatio  = 3.0;
-	let devicePixelRatio  = 0.7;
+	let devicePixelRatio = 0.7;
 	canvas.width = devicePixelRatio * canvas.clientWidth
 	canvas.height = devicePixelRatio * canvas.clientHeight
 
@@ -83,9 +83,9 @@ async function main() {
 			size: [imageBitmaps[0].width, imageBitmaps[0].height, 6],
 			format: 'rgba8unorm',
 			usage:
-			GPUTextureUsage.TEXTURE_BINDING |
-			GPUTextureUsage.COPY_DST |
-			GPUTextureUsage.RENDER_ATTACHMENT,
+				GPUTextureUsage.TEXTURE_BINDING |
+				GPUTextureUsage.COPY_DST |
+				GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
 		for (let i = 0; i < imageBitmaps.length; i++) {
@@ -108,18 +108,23 @@ async function main() {
 	// storage buffer を作る
 	const maxParticleStructSize = Math.max(mlsmpmParticleStructSize, sphParticleStructSize)
 	const particleBuffer = device.createBuffer({
-		label: 'particles buffer', 
-		size: maxParticleStructSize * numParticlesMax, 
+		label: 'particles buffer',
+		size: maxParticleStructSize * numParticlesMax,
 		usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 	})
 	const posvelBuffer = device.createBuffer({
-		label: 'position buffer', 
+		label: 'position buffer',
 		size: 32 * numParticlesMax,  // 32 = 2 x vec3f + padding
 		usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 	})
 	const renderUniformBuffer = device.createBuffer({
-		label: 'filter uniform buffer', 
-		size: renderUniformsValues.byteLength, 
+		label: 'filter uniform buffer',
+		size: renderUniformsValues.byteLength,
+		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+	})
+	const waterAppearanceBuffer = device.createBuffer({
+		label: 'water appearance buffer',
+		size: waterAppearanceValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	})
 
@@ -135,7 +140,7 @@ async function main() {
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
 	const mlsmpmFov = 45 * Math.PI / 180
-	const mlsmpmRadius = 0.6 
+	const mlsmpmRadius = 0.6
 	const mlsmpmDiameter = 2 * mlsmpmRadius
 	const mlsmpmZoomRate = 1.5
 	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device)
@@ -145,8 +150,29 @@ async function main() {
 	const sphZoomRate = 0.05
 	const sphSimulator = new SPHSimulator(particleBuffer, posvelBuffer, sphDiameter, device)
 
-	const mlsmpmRenderer = new FluidRenderer(device, canvas, presentationFormat, mlsmpmRadius, mlsmpmFov, posvelBuffer, renderUniformBuffer, cubemapTextureView)
-	const sphRenderer = new FluidRenderer(device, canvas, presentationFormat, sphRadius, sphFov, posvelBuffer, renderUniformBuffer, cubemapTextureView)
+	const mlsmpmRenderer = new FluidRenderer(
+		device,
+		canvas,
+		presentationFormat,
+		mlsmpmRadius,
+		mlsmpmFov,
+		posvelBuffer,
+		renderUniformBuffer,
+		cubemapTextureView,
+		waterAppearanceBuffer // Add this parameter
+	);
+
+	const sphRenderer = new FluidRenderer(
+		device,
+		canvas,
+		presentationFormat,
+		sphRadius,
+		sphFov,
+		posvelBuffer,
+		renderUniformBuffer,
+		cubemapTextureView,
+		waterAppearanceBuffer // Add this parameter
+	);
 
 	console.log("simulator initialization done")
 
@@ -156,23 +182,23 @@ async function main() {
 	let numberButtonForm = document.getElementById('number-button') as HTMLFormElement;
 	let numberButtonPressed = false;
 	let numberButtonPressedButton = "1"
-	numberButtonForm.addEventListener('change', function(event) {
+	numberButtonForm.addEventListener('change', function (event) {
 		const target = event.target as HTMLInputElement
 		if (target?.name === 'options') {
 			numberButtonPressed = true
 			numberButtonPressedButton = target.value
 		}
-	}); 
+	});
 	let simulationModeForm = document.getElementById('simulation-mode') as HTMLFormElement;
 	let simulationModePressed = false;
 	let simulationModePressedButton = "mls-mpm"
-	simulationModeForm.addEventListener('change', function(event) {
+	simulationModeForm.addEventListener('change', function (event) {
 		const target = event.target as HTMLInputElement
 		if (target?.name === 'options') {
 			simulationModePressed = true
 			simulationModePressedButton = target.value
 		}
-	}); 
+	});
 
 	const smallValue = document.getElementById("small-value") as HTMLSpanElement;
 	const mediumValue = document.getElementById("medium-value") as HTMLSpanElement;
@@ -192,7 +218,7 @@ async function main() {
 	let initBoxSize = mlsmpmInitBoxSizes[1]
 	let realBoxSize = [...initBoxSize];
 	mlsmpmSimulator.reset(mlsmpmNumParticleParams[1], mlsmpmInitBoxSizes[1])
-	camera.reset(canvasElement, initDistance, [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2], 
+	camera.reset(canvasElement, initDistance, [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
 		mlsmpmFov, mlsmpmZoomRate)
 
 	smallValue.textContent = "40,000"
@@ -209,7 +235,7 @@ async function main() {
 		const start = performance.now();
 
 		if (simulationModePressed) {
-			if (simulationModePressedButton == "mlsmpm") {
+			if (simulationModePressedButton == "mls-mpm") {
 				sphFl = false
 				smallValue.textContent = "40,000"
 				mediumValue.textContent = "70,000"
@@ -223,20 +249,20 @@ async function main() {
 				veryLargeValue.textContent = "40,000"
 			}
 			simulationModePressed = false
-			numberButtonPressed = true 
+			numberButtonPressed = true
 		}
 
-		if (numberButtonPressed) { 
+		if (numberButtonPressed) {
 			const paramsIdx = parseInt(numberButtonPressedButton)
 			if (sphFl) {
 				initBoxSize = sphInitBoxSizes[paramsIdx]
 				sphSimulator.reset(sphNumParticleParams[paramsIdx], initBoxSize)
-				camera.reset(canvasElement, sphInitDistances[paramsIdx], [0, -initBoxSize[1] + 0.1, 0], 
+				camera.reset(canvasElement, sphInitDistances[paramsIdx], [0, -initBoxSize[1] + 0.1, 0],
 					sphFov, sphZoomRate)
 			} else {
 				initBoxSize = mlsmpmInitBoxSizes[paramsIdx]
 				mlsmpmSimulator.reset(mlsmpmNumParticleParams[paramsIdx], initBoxSize)
-				camera.reset(canvasElement, mlsmpmInitDistances[paramsIdx], [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2], 
+				camera.reset(canvasElement, mlsmpmInitDistances[paramsIdx], [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
 					mlsmpmFov, mlsmpmZoomRate)
 			}
 			realBoxSize = [...initBoxSize]
@@ -261,7 +287,7 @@ async function main() {
 		} else {
 			mlsmpmSimulator.changeBoxSize(realBoxSize)
 		}
-		device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues) 
+		device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues)
 
 		const commandEncoder = device.createCommandEncoder()
 
@@ -279,8 +305,37 @@ async function main() {
 		// console.log(`js: ${(end - start).toFixed(1)}ms`);
 
 		requestAnimationFrame(frame)
-	} 
+	}
 	requestAnimationFrame(frame)
+
+	const waterColorInput = document.getElementById('water-color') as HTMLInputElement;
+	const transparencyInput = document.getElementById('transparency') as HTMLInputElement;
+	const reflectivityInput = document.getElementById('reflectivity') as HTMLInputElement;
+	const waveHeightInput = document.getElementById('wave-height') as HTMLInputElement;
+
+	waterColorInput.addEventListener('input', (e) => {
+		const color = (e.target as HTMLInputElement).value;
+		const r = parseInt(color.substr(1, 2), 16) / 255;
+		const g = parseInt(color.substr(3, 2), 16) / 255;
+		const b = parseInt(color.substr(5, 2), 16) / 255;
+		waterAppearanceViews.color.set([r, g, b, 1.0]);
+		device.queue.writeBuffer(waterAppearanceBuffer, 0, waterAppearanceValues);
+	});
+
+	transparencyInput.addEventListener('input', (e) => {
+		waterAppearanceViews.transparency[0] = parseInt((e.target as HTMLInputElement).value) / 100;
+		device.queue.writeBuffer(waterAppearanceBuffer, 16, waterAppearanceViews.transparency);
+	});
+
+	reflectivityInput.addEventListener('input', (e) => {
+		waterAppearanceViews.reflectivity[0] = parseInt((e.target as HTMLInputElement).value) / 100;
+		device.queue.writeBuffer(waterAppearanceBuffer, 20, waterAppearanceViews.reflectivity);
+	});
+
+	waveHeightInput.addEventListener('input', (e) => {
+		waterAppearanceViews.waveHeight[0] = parseInt((e.target as HTMLInputElement).value) / 100;
+		device.queue.writeBuffer(waterAppearanceBuffer, 24, waterAppearanceViews.waveHeight);
+	});
 }
 
 main()

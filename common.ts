@@ -9,3 +9,11 @@ export const renderUniformsViews = {
 };
 
 export const numParticlesMax = 200000;
+
+export const waterAppearanceValues = new ArrayBuffer(32);
+export const waterAppearanceViews = {
+  color: new Float32Array(waterAppearanceValues, 0, 4),  // vec4 for RGBA
+  transparency: new Float32Array(waterAppearanceValues, 16, 1),
+  reflectivity: new Float32Array(waterAppearanceValues, 20, 1),
+  waveHeight: new Float32Array(waterAppearanceValues, 24, 1),
+};

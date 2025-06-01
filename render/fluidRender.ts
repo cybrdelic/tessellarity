@@ -21,7 +21,7 @@ export class FluidRenderer {
     tmpThicknessTextureView: GPUTextureView
     depthTestTextureView: GPUTextureView
 
-    
+
     depthMapBindGroup: GPUBindGroup
     depthFilterBindGroups: GPUBindGroup[]
     thicknessMapBindGroup: GPUBindGroup
@@ -32,9 +32,15 @@ export class FluidRenderer {
 
     device: GPUDevice
     constructor(
-        device: GPUDevice, canvas: HTMLCanvasElement, presentationFormat: GPUTextureFormat,
-        radius: number, fov: number, posvelBuffer: GPUBuffer, 
-        renderUniformBuffer: GPUBuffer, cubemapTextureView: GPUTextureView
+        device: GPUDevice,
+        canvas: HTMLCanvasElement,
+        presentationFormat: GPUTextureFormat,
+        radius: number,
+        fov: number,
+        posvelBuffer: GPUBuffer,
+        renderUniformBuffer: GPUBuffer,
+        cubemapTextureView: GPUTextureView,
+        waterAppearanceBuffer: GPUBuffer // Add this parameter
     ) {
         this.device = device
         const maxFilterSize = 100
@@ -43,17 +49,17 @@ export class FluidRenderer {
         const blurFilterSize = 12
 
         const screenConstants = {
-            'screenHeight': canvas.height, 
-            'screenWidth': canvas.width, 
+            'screenHeight': canvas.height,
+            'screenWidth': canvas.width,
         }
         // TODO : filter size を設定できるようにする
         const filterConstants = {
-            'depth_threshold' : radius * blurdDepthScale, 
-            'max_filter_size' : maxFilterSize, 
-            'projected_particle_constant' : (blurFilterSize * diameter * 0.05 * (canvas.height / 2)) / Math.tan(fov / 2), 
+            'depth_threshold': radius * blurdDepthScale,
+            'max_filter_size': maxFilterSize,
+            'projected_particle_constant': (blurFilterSize * diameter * 0.05 * (canvas.height / 2)) / Math.tan(fov / 2),
         }
         const sampler = device.createSampler({
-            magFilter: 'linear', 
+            magFilter: 'linear',
             minFilter: 'linear'
         });
 
@@ -67,29 +73,29 @@ export class FluidRenderer {
 
         // pipelines
         this.spherePipeline = device.createRenderPipeline({
-            label: 'ball pipeline', 
-            layout: 'auto', 
-            vertex: { module: sphereModule }, 
+            label: 'ball pipeline',
+            layout: 'auto',
+            vertex: { module: sphereModule },
             fragment: {
-                module: sphereModule, 
+                module: sphereModule,
                 targets: [
                     {
-                        format: presentationFormat, 
+                        format: presentationFormat,
                     }
                 ]
-            }, 
+            },
             primitive: {
-                topology: 'triangle-list', 
+                topology: 'triangle-list',
             },
             depthStencil: {
-                depthWriteEnabled: true, 
+                depthWriteEnabled: true,
                 depthCompare: 'less',
                 format: 'depth32float'
             }
         })
         this.depthMapPipeline = device.createRenderPipeline({
-            label: 'depth map pipeline', 
-            layout: 'auto', 
+            label: 'depth map pipeline',
+            layout: 'auto',
             vertex: { module: depthMapModule },
             fragment: {
                 module: depthMapModule,
@@ -100,7 +106,7 @@ export class FluidRenderer {
                 ],
             },
             primitive: {
-                topology: 'triangle-list', 
+                topology: 'triangle-list',
             },
             depthStencil: {
                 depthWriteEnabled: true,
@@ -109,15 +115,15 @@ export class FluidRenderer {
             }
         })
         this.depthFilterPipeline = device.createRenderPipeline({
-            label: 'filter pipeline', 
-            layout: 'auto', 
-            vertex: { 
-                module: vertexModule,  
+            label: 'filter pipeline',
+            layout: 'auto',
+            vertex: {
+                module: vertexModule,
                 constants: screenConstants
             },
             fragment: {
-                module: depthFilterModule, 
-                constants: filterConstants, 
+                module: depthFilterModule,
+                constants: filterConstants,
                 targets: [
                     {
                         format: 'r32float',
@@ -129,13 +135,13 @@ export class FluidRenderer {
             },
         });
         this.thicknessMapPipeline = device.createRenderPipeline({
-            label: 'thickness map pipeline', 
-            layout: 'auto', 
-            vertex: { 
-                module: thicknessMapModule,  
-            }, 
+            label: 'thickness map pipeline',
+            layout: 'auto',
+            vertex: {
+                module: thicknessMapModule,
+            },
             fragment: {
-                module: thicknessMapModule, 
+                module: thicknessMapModule,
                 targets: [
                     {
                         format: 'r16float',
@@ -146,16 +152,16 @@ export class FluidRenderer {
                         }
                     }
                 ],
-            }, 
+            },
             primitive: {
-                topology: 'triangle-list', 
+                topology: 'triangle-list',
             },
         });
         this.thicknessFilterPipeline = device.createRenderPipeline({
-            label: 'thickness filter pipeline', 
-            layout: 'auto', 
-            vertex: { 
-                module: vertexModule,  
+            label: 'thickness filter pipeline',
+            layout: 'auto',
+            vertex: {
+                module: vertexModule,
                 constants: screenConstants
             },
             fragment: {
@@ -167,24 +173,24 @@ export class FluidRenderer {
                 ],
             },
             primitive: {
-                topology: 'triangle-list', 
+                topology: 'triangle-list',
             },
         });
         this.fluidPipeline = device.createRenderPipeline({
-            label: 'fluid rendering pipeline', 
-            layout: 'auto', 
-            vertex: { 
-                module: vertexModule,  
+            label: 'fluid rendering pipeline',
+            layout: 'auto',
+            vertex: {
+                module: vertexModule,
                 constants: screenConstants
-            }, 
+            },
             fragment: {
-                module: fluidModule, 
+                module: fluidModule,
                 targets: [
                     {
                         format: presentationFormat
                     }
                 ],
-            }, 
+            },
             primitive: {
                 topology: 'triangle-list',
             },
@@ -192,25 +198,25 @@ export class FluidRenderer {
 
         // textures
         const depthMapTexture = device.createTexture({
-            label: 'depth map texture', 
+            label: 'depth map texture',
             size: [canvas.width, canvas.height, 1],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
             format: 'r32float',
         });
-        const tmpDepthMapTexture = device.createTexture({ 
-            label: 'temporary depth map texture', 
+        const tmpDepthMapTexture = device.createTexture({
+            label: 'temporary depth map texture',
             size: [canvas.width, canvas.height, 1],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
             format: 'r32float',
         });
         const thicknessTexture = device.createTexture({
-            label: 'thickness map texture', 
+            label: 'thickness map texture',
             size: [canvas.width, canvas.height, 1],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
             format: 'r16float',
         });
         const tmpThicknessTexture = device.createTexture({
-            label: 'temporary thickness map texture', 
+            label: 'temporary thickness map texture',
             size: [canvas.width, canvas.height, 1],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
             format: 'r16float',
@@ -234,13 +240,13 @@ export class FluidRenderer {
         filterXUniformsViews.blur_dir.set([1.0, 0.0]);
         filterYUniformsViews.blur_dir.set([0.0, 1.0]);
         const filterXUniformBuffer = device.createBuffer({
-            label: 'filter uniform buffer', 
-            size: filterXUniformsValues.byteLength, 
+            label: 'filter uniform buffer',
+            size: filterXUniformsValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
         const filterYUniformBuffer = device.createBuffer({
-            label: 'filter uniform buffer', 
-            size: filterYUniformsValues.byteLength, 
+            label: 'filter uniform buffer',
+            size: filterYUniformsValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
         device.queue.writeBuffer(filterXUniformBuffer, 0, filterXUniformsValues);
@@ -248,90 +254,90 @@ export class FluidRenderer {
 
         // bindGroup
         this.depthMapBindGroup = device.createBindGroup({
-            label: 'depth map bind group', 
-            layout: this.depthMapPipeline.getBindGroupLayout(0),  
+            label: 'depth map bind group',
+            layout: this.depthMapPipeline.getBindGroupLayout(0),
             entries: [
-              { binding: 0, resource: { buffer: posvelBuffer }},
-              { binding: 1, resource: { buffer: renderUniformBuffer }},
+                { binding: 0, resource: { buffer: posvelBuffer } },
+                { binding: 1, resource: { buffer: renderUniformBuffer } },
             ]
         })
         this.depthFilterBindGroups = []
         this.depthFilterBindGroups = [
             device.createBindGroup({
-                label: 'filterX bind group', 
+                label: 'filterX bind group',
                 layout: this.depthFilterPipeline.getBindGroupLayout(0),
                 entries: [
                     // { binding: 0, resource: sampler },
                     { binding: 1, resource: this.depthMapTextureView }, // 元の領域から読み込む
                     { binding: 2, resource: { buffer: filterXUniformBuffer } },
                 ],
-            }), 
+            }),
             device.createBindGroup({
-                label: 'filterY bind group', 
+                label: 'filterY bind group',
                 layout: this.depthFilterPipeline.getBindGroupLayout(0),
                 entries: [
                     // { binding: 0, resource: sampler },
                     { binding: 1, resource: this.tmpDepthMapTextureView }, // 一時領域から読み込む
-                    { binding: 2, resource: { buffer: filterYUniformBuffer }}
+                    { binding: 2, resource: { buffer: filterYUniformBuffer } }
                 ],
             })
         ];
         this.thicknessMapBindGroup = device.createBindGroup({
-            label: 'thickness map bind group', 
+            label: 'thickness map bind group',
             layout: this.thicknessMapPipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: posvelBuffer }},
-                { binding: 1, resource: { buffer: renderUniformBuffer }},
+                { binding: 0, resource: { buffer: posvelBuffer } },
+                { binding: 1, resource: { buffer: renderUniformBuffer } },
             ],
         })
         this.thicknessFilterBindGroups = []
         this.thicknessFilterBindGroups = [
             device.createBindGroup({
-                label: 'thickness filterX bind group', 
+                label: 'thickness filterX bind group',
                 layout: this.thicknessFilterPipeline.getBindGroupLayout(0),
                 entries: [
                     // { binding: 0, resource: sampler },
-                    { binding: 1, resource: this.thicknessTextureView }, 
-                    { binding: 2, resource: { buffer: filterXUniformBuffer } }, 
+                    { binding: 1, resource: this.thicknessTextureView },
+                    { binding: 2, resource: { buffer: filterXUniformBuffer } },
                 ],
-            }), 
+            }),
             device.createBindGroup({
-                label: 'thickness filterY bind group', 
+                label: 'thickness filterY bind group',
                 layout: this.thicknessFilterPipeline.getBindGroupLayout(0),
                 entries: [
-                // { binding: 0, resource: sampler },
-                { binding: 1, resource: this.tmpThicknessTextureView }, 
-                { binding: 2, resource: { buffer: filterYUniformBuffer } }, 
+                    // { binding: 0, resource: sampler },
+                    { binding: 1, resource: this.tmpThicknessTextureView },
+                    { binding: 2, resource: { buffer: filterYUniformBuffer } },
                 ],
-            }), 
+            }),
         ]
 
         this.fluidBindGroup = device.createBindGroup({
-            label: 'fluid bind group', 
+            label: 'fluid bind group',
             layout: this.fluidPipeline.getBindGroupLayout(0),
             entries: [
-              { binding: 0, resource: sampler },
-              { binding: 1, resource: this.depthMapTextureView },
-              { binding: 2, resource: { buffer: renderUniformBuffer } },
-              { binding: 3, resource: this.thicknessTextureView },
-              { binding: 4, resource: cubemapTextureView }, 
+                { binding: 0, resource: sampler },
+                { binding: 1, resource: this.depthMapTextureView },
+                { binding: 2, resource: { buffer: renderUniformBuffer } },
+                { binding: 3, resource: this.thicknessTextureView },
+                { binding: 4, resource: cubemapTextureView },
+                { binding: 5, resource: { buffer: waterAppearanceBuffer } }, // Add this entry
             ],
         })
 
         this.sphereBindGroup = device.createBindGroup({
-            label: 'ball bind group', 
-            layout: this.spherePipeline.getBindGroupLayout(0),  
+            label: 'ball bind group',
+            layout: this.spherePipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: posvelBuffer }},
-                { binding: 1, resource: { buffer: renderUniformBuffer }},
+                { binding: 0, resource: { buffer: posvelBuffer } },
+                { binding: 1, resource: { buffer: renderUniformBuffer } },
             ]
         })
     }
 
 
-    execute(context: GPUCanvasContext, commandEncoder: GPUCommandEncoder, 
-        numParticles: number, sphereRenderFl: boolean) 
-    {
+    execute(context: GPUCanvasContext, commandEncoder: GPUCommandEncoder,
+        numParticles: number, sphereRenderFl: boolean) {
         // これらも前もって作っておけるんじゃないか？
         const depthMapPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [
@@ -354,17 +360,17 @@ export class FluidRenderer {
             {
                 colorAttachments: [
                     {
-                        view: this.tmpDepthMapTextureView, 
+                        view: this.tmpDepthMapTextureView,
                         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                         loadOp: 'clear',
                         storeOp: 'store',
                     },
                 ],
-            }, 
+            },
             {
                 colorAttachments: [
                     {
-                        view: this.depthMapTextureView, 
+                        view: this.depthMapTextureView,
                         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                         loadOp: 'clear',
                         storeOp: 'store',
@@ -376,7 +382,7 @@ export class FluidRenderer {
         const thicknessMapPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [
                 {
-                    view: this.thicknessTextureView, 
+                    view: this.thicknessTextureView,
                     clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                     loadOp: 'clear',
                     storeOp: 'store',
@@ -394,7 +400,7 @@ export class FluidRenderer {
                         storeOp: 'store',
                     },
                 ],
-            }, 
+            },
             {
                 colorAttachments: [
                     {
@@ -446,33 +452,33 @@ export class FluidRenderer {
                 depthFilterPassEncoderX.setBindGroup(0, this.depthFilterBindGroups[0]);
                 depthFilterPassEncoderX.setPipeline(this.depthFilterPipeline);
                 depthFilterPassEncoderX.draw(6);
-                depthFilterPassEncoderX.end();  
+                depthFilterPassEncoderX.end();
                 const filterPassEncoderY = commandEncoder.beginRenderPass(depthFilterPassDescriptors[1]);
                 filterPassEncoderY.setBindGroup(0, this.depthFilterBindGroups[1]);
                 filterPassEncoderY.setPipeline(this.depthFilterPipeline);
                 filterPassEncoderY.draw(6);
-                filterPassEncoderY.end();  
+                filterPassEncoderY.end();
             }
-        
+
             const thicknessMapPassEncoder = commandEncoder.beginRenderPass(thicknessMapPassDescriptor);
             thicknessMapPassEncoder.setBindGroup(0, this.thicknessMapBindGroup);
             thicknessMapPassEncoder.setPipeline(this.thicknessMapPipeline);
             thicknessMapPassEncoder.draw(6, numParticles);
             thicknessMapPassEncoder.end();
-        
+
             for (var iter = 0; iter < 1; iter++) { // 多いか？
                 const thicknessFilterPassEncoderX = commandEncoder.beginRenderPass(thicknessFilterPassDescriptors[0]);
                 thicknessFilterPassEncoderX.setBindGroup(0, this.thicknessFilterBindGroups[0]);
                 thicknessFilterPassEncoderX.setPipeline(this.thicknessFilterPipeline);
                 thicknessFilterPassEncoderX.draw(6);
-                thicknessFilterPassEncoderX.end(); 
+                thicknessFilterPassEncoderX.end();
                 const thicknessFilterPassEncoderY = commandEncoder.beginRenderPass(thicknessFilterPassDescriptors[1]);
                 thicknessFilterPassEncoderY.setBindGroup(0, this.thicknessFilterBindGroups[1]);
                 thicknessFilterPassEncoderY.setPipeline(this.thicknessFilterPipeline);
                 thicknessFilterPassEncoderY.draw(6);
-                thicknessFilterPassEncoderY.end(); 
+                thicknessFilterPassEncoderY.end();
             }
-      
+
             const fluidPassEncoder = commandEncoder.beginRenderPass(fluidPassDescriptor);
             fluidPassEncoder.setBindGroup(0, this.fluidBindGroup);
             fluidPassEncoder.setPipeline(this.fluidPipeline);
