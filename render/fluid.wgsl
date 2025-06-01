@@ -73,20 +73,94 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     var normal: vec3f = -normalize(cross(ddx, ddy));
     var rayDir = normalize(viewPos);
-    var lightDir = normalize((uniforms.view_matrix * vec4f(0, 0, -1, 0.)).xyz);
+    var lightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
     var H: vec3f = normalize(lightDir - rayDir);
-    var specular: f32 = pow(max(0.0, dot(H, normal)), 250.);
+    var specular1: f32 = pow(max(0.0, dot(H, normal)), 128.0) * 1.0; // Sharp highlight
+    var specular2: f32 = pow(max(0.0, dot(H, normal)), 32.0) * 0.5;  // Broader highlight
+    var specular: f32 = specular1 + specular2;
     var diffuse: f32 = max(0.0, dot(lightDir, normal)) * 1.0;
 
     var density = 1.5;
 
     var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
-    var diffuseColor = waterAppearance.color.rgb;  // Use the custom color
-    var transmittance: vec3f = exp(-density * thickness * (1.0 - diffuseColor));
-    var refractionColor: vec3f = bgColor * transmittance;
+    var diffuseColor = waterAppearance.color.rgb;
 
-    let F0 = 0.02;
-    var fresnel: f32 = clamp(F0 + (1.0 - F0) * pow(1.0 - dot(normal, -rayDir), 5.0), 0., 1.0);
+    // Calculate velocity magnitude first (needed for pressure calculations)
+    var velocityMagnitude = length(ddx + ddy);
+
+    // MLS-MPM pressure-based density calculation from simulation
+    var pressureDensity = 1.0 + thickness * 3.0;  // From p2g_2.wgsl pressure calculation
+    var depthPressure = abs(viewPos.z) * 0.2;     // Hydrostatic pressure
+    var compressionFactor = pow(pressureDensity + depthPressure, 0.8); // Non-linear compression
+    density = compressionFactor;
+
+    // Add cavitation physics calculation
+    var hydrostaticPressure = abs(viewPos.z) * 9.81 * 1000.0; // ρgh in Pascals
+    var dynamicPressure = velocityMagnitude * velocityMagnitude * 500.0; // 0.5ρv² approximation
+    var totalPressure = hydrostaticPressure + dynamicPressure;
+    var cavitationThreshold = 2337.0; // Vapor pressure of water at 20°C in Pascals
+    var cavitationFactor = clamp((cavitationThreshold - totalPressure) / cavitationThreshold, 0.0, 1.0);
+
+    // Generate foam/bubbles in cavitating regions
+    var turbulence = velocityMagnitude * 0.1; // Move turbulence calculation here too
+    var foamIntensity = cavitationFactor * turbulence * 2.0;
+    var foamColor = vec3f(0.9, 0.95, 1.0); // White-blue foam
+
+    // === REYNOLDS NUMBER TURBULENCE PHYSICS ===
+    // Calculate Reynolds number from MLS-MPM velocity field
+    var kinematicViscosity = 0.001; // Water viscosity m²/s
+    var characteristicLength = uniforms.sphere_size; // Particle size as length scale
+    var reynoldsNumber = velocityMagnitude * characteristicLength / kinematicViscosity;
+
+    // Turbulent flow occurs when Re > 2000 for pipe flow, ~4000 for open flow
+    var turbulenceOnset = 4000.0;
+    var turbulenceIntensity = clamp((reynoldsNumber - turbulenceOnset) / turbulenceOnset, 0.0, 1.0);
+
+    // Create turbulent vorticity from velocity gradients (from MLS-MPM grid)
+    var velocityGradient = ddx + ddy; // Velocity field gradient
+    var vorticity = cross(ddx, ddy); // Vorticity = curl of velocity field
+    var vorticityMagnitude = length(vorticity) * turbulenceIntensity;
+
+    // Kolmogorov cascade - energy dissipation at small scales
+    var kolmogorovScale = pow(pow(kinematicViscosity, 3.0) / (velocityMagnitude * velocityMagnitude * velocityMagnitude + 1e-6), 0.25);
+    var cascadeEffect = 1.0 / (1.0 + kolmogorovScale * 10.0);
+
+    // Apply turbulent surface deformation
+    var turbulentDeformation = vorticity * 0.05 * turbulenceIntensity * cascadeEffect;
+    var turbulentNormal = normal + turbulentDeformation;
+
+    // Add high-frequency turbulent details
+    var highFreqTurbulence = vec3f(
+        sin(viewPos.x * 25.0 + vorticityMagnitude * 15.0) * turbulenceIntensity * 0.02,
+        cos(viewPos.y * 20.0 + reynoldsNumber * 0.001) * turbulenceIntensity * 0.01,
+        sin(viewPos.z * 30.0 + cascadeEffect * 10.0) * turbulenceIntensity * 0.02
+    );
+    turbulentNormal += highFreqTurbulence;
+
+    // Additional surface perturbation using velocity from MLS-MPM
+    turbulentNormal += vec3f(
+        sin(viewPos.x * 15.0 + turbulence * 20.0) * turbulence,
+        0.0,
+        cos(viewPos.z * 15.0 + turbulence * 20.0) * turbulence
+    );
+    normal = normalize(turbulentNormal);
+
+    // Subsurface scattering - light scattering through the fluid
+    var subsurface: f32 = max(0.0, dot(-lightDir, normal)) * thickness * 0.3;
+    var subsurfaceColor: vec3f = waterAppearance.color.rgb * subsurface;
+
+    // Depth-based color absorption - red absorbs first, blue least
+    var absorptionCoeffs = vec3f(0.6, 0.2, 0.05);
+    var transmittance: vec3f = exp(-density * thickness * absorptionCoeffs);
+
+    var refractionColor: vec3f = (bgColor + subsurfaceColor) * transmittance;
+
+    let F0 = 0.04;
+
+    // Physics-based Fresnel using velocity-dependent surface roughness
+    var surfaceRoughness = clamp(velocityMagnitude * 0.5, 0.0, 0.3); // Higher velocity = rougher surface
+    var adjustedF0 = F0 + surfaceRoughness; // Rough surfaces reflect more at all angles
+    var fresnel: f32 = clamp(adjustedF0 + (1.0 - adjustedF0) * pow(1.0 - dot(normal, -rayDir), 5.0), 0., 1.0);
 
     var reflectionDir: vec3f = reflect(rayDir, normal);
     var reflectionDirWorld: vec3f = (uniforms.inv_view_matrix * vec4f(reflectionDir, 0.0)).xyz;
