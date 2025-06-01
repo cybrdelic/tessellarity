@@ -109,7 +109,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // Generate foam/bubbles in cavitating regions
     var turbulence = velocityMagnitude * 0.1; // Move turbulence calculation here too
     var foamIntensity = cavitationFactor * turbulence * 2.0;
-    var foamColor = vec3f(0.9, 0.95, 1.0); // White-blue foam
+    var foamColor = mix(vec3f(1.0, 1.0, 1.0), waterAppearance.color.rgb, 0.3); // Foam tinted with water color
 
     // === REYNOLDS NUMBER TURBULENCE PHYSICS ===
     // Calculate Reynolds number from MLS-MPM velocity field
@@ -150,33 +150,137 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     );
     normal = normalize(turbulentNormal);
 
-    // Subsurface scattering - light scattering through the fluid
-    var subsurface: f32 = max(0.0, dot(-lightDir, normal)) * thickness * 0.3;
-    var subsurfaceColor: vec3f = waterAppearance.color.rgb * subsurface;
+    // Enhanced subsurface scattering with depth-dependent intensity
+    var depthFactor = clamp(abs(viewPos.z) * 0.15, 0.0, 1.0); // Reduced multiplier for less extreme depth effects
+    var subsurfaceIntensity = mix(0.8, 0.3, depthFactor); // Increased base scattering
+    var subsurface: f32 = max(0.0, dot(-lightDir, normal)) * thickness * subsurfaceIntensity;
 
-    // Depth-based color absorption - red absorbs first, blue least
-    var absorptionCoeffs = vec3f(0.6, 0.2, 0.05);
+    // Lighter absorption coefficients for more realistic water
+    var baseAbsorption = 0.05; // Reduced from 0.1
+    var absorptionCoeffs = vec3f(
+        baseAbsorption + (1.0 - waterAppearance.color.r) * 0.2, // Reduced from 0.4
+        baseAbsorption + (1.0 - waterAppearance.color.g) * 0.2,
+        baseAbsorption + (1.0 - waterAppearance.color.b) * 0.2
+    );
     var transmittance: vec3f = exp(-density * thickness * absorptionCoeffs);
 
-    var refractionColor: vec3f = (bgColor + subsurfaceColor) * transmittance;
+    // More realistic depth-based albedo variation
+    var thicknessFactor = clamp(thickness * 2.0, 0.0, 1.0); // Reduced from 3.0
+    var waterInfluence = pow(depthFactor * thicknessFactor, 0.3); // Reduced from 0.5 for less contrast
+
+    // Improved lighting model
+    var lightAngle = abs(dot(normal, lightDir));
+    var viewAngle = abs(dot(normal, -rayDir));
+    var angleInfluence = mix(0.7, 1.2, lightAngle * viewAngle); // Brighter base lighting
+
+    // Brighter depth zones
+    var shallowZone = clamp(1.0 - depthFactor * 1.5, 0.0, 1.0); // Less aggressive depth transition
+    var mediumZone = clamp(depthFactor * 2.5 - 0.8, 0.0, 1.0) * clamp(1.8 - depthFactor * 2.5, 0.0, 1.0);
+    var deepZone = clamp(depthFactor - 0.7, 0.0, 1.0);
+
+    // Brighter albedo for each zone
+    var shallowAlbedo = mix(waterAppearance.color.rgb, vec3f(1.0, 1.0, 1.0), 0.2); // Less blue tint, more white
+    var mediumAlbedo = waterAppearance.color.rgb;
+    var deepAlbedo = waterAppearance.color.rgb * vec3f(0.8, 0.85, 0.95); // Less darkening
+
+    // Lighter sediment effects
+    var turbidityFactor = clamp(velocityMagnitude * 0.3, 0.0, 1.0); // Reduced effect
+    var sedimentColor = mix(waterAppearance.color.rgb, vec3f(0.9, 0.85, 0.7), turbidityFactor * 0.2);
+
+    // Combine all albedo effects
+    var complexWaterColor = shallowAlbedo * shallowZone + mediumAlbedo * mediumZone + deepAlbedo * deepZone;
+
+    // Apply sediment influence
+    complexWaterColor = mix(complexWaterColor, sedimentColor, turbidityFactor * 0.15);
+
+    // Apply brighter lighting
+    complexWaterColor *= angleInfluence;
+
+    // Foam effects
+    var foamInfluence = clamp(foamIntensity * 2.0, 0.0, 0.6); // Reduced foam intensity
+    var baseWaterColor = mix(complexWaterColor, vec3f(1.0), foamInfluence);
+
+    // Brighter subsurface scattering
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * 1.5; // Increased multiplier
+
+    // More balanced depth coloring
+    var ambientLight = vec3f(0.3, 0.4, 0.5); // Add ambient lighting
+    var depthColoredRefraction = mix(bgColor + ambientLight, baseWaterColor, waterInfluence * 0.8) * transmittance + subsurfaceColor;
 
     let F0 = 0.04;
 
-    // Physics-based Fresnel using velocity-dependent surface roughness
-    var surfaceRoughness = clamp(velocityMagnitude * 0.5, 0.0, 0.3); // Higher velocity = rougher surface
-    var adjustedF0 = F0 + surfaceRoughness; // Rough surfaces reflect more at all angles
+    // Physics-based Fresnel
+    var surfaceRoughness = clamp(velocityMagnitude * 0.3, 0.0, 0.2); // Reduced roughness
+    var adjustedF0 = F0 + surfaceRoughness;
     var fresnel: f32 = clamp(adjustedF0 + (1.0 - adjustedF0) * pow(1.0 - dot(normal, -rayDir), 5.0), 0., 1.0);
 
     var reflectionDir: vec3f = reflect(rayDir, normal);
     var reflectionDirWorld: vec3f = (uniforms.inv_view_matrix * vec4f(reflectionDir, 0.0)).xyz;
     var reflectionColor: vec3f = textureSampleLevel(envmap_texture, texture_sampler, reflectionDirWorld, 0.).rgb;
-    finalColor = 1.0 * specular + mix(refractionColor, reflectionColor, fresnel);
 
-    // Apply water color and transparency in a single mix operation
-    finalColor = mix(finalColor, waterAppearance.color.rgb, waterAppearance.transparency);
+    // REAL WATER REFRACTION - bend light rays based on water's refractive index
+    var waterRefractiveIndex = 1.33; // Water's refractive index
+    var airRefractiveIndex = 1.0;    // Air's refractive index
+    var eta = airRefractiveIndex / waterRefractiveIndex; // Ratio for Snell's law
 
-    // Apply reflectivity
-    finalColor = mix(finalColor, reflection, waterAppearance.reflectivity);
+    // Calculate refracted ray direction using Snell's law
+    var refractionDir: vec3f = refract(rayDir, normal, eta);
+
+    // Check for total internal reflection
+    if length(refractionDir) < 0.1 {
+        // Fall back to reflection if total internal reflection occurs
+        refractionDir = reflect(rayDir, normal);
+    }
+
+    var refractionDirWorld: vec3f = (uniforms.inv_view_matrix * vec4f(refractionDir, 0.0)).xyz;
+
+    // Sample the environment in the refracted direction for realistic light bending
+    var refractedBgColor: vec3f = textureSampleLevel(envmap_texture, texture_sampler, refractionDirWorld, 0.).rgb;
+
+    // Much subtler chromatic dispersion - real water dispersion is very small
+    var dispersionStrength = 0.003 * thickness; // Reduced from 0.02 - much more realistic
+    var redEta = eta * 0.999; // Red light bends slightly less
+    var blueEta = eta * 1.001; // Blue light bends slightly more
+
+    var redRefractionDir = refract(rayDir, normal, redEta);
+    var blueRefractionDir = refract(rayDir, normal, blueEta);
+
+    // Handle total internal reflection for dispersed rays too
+    if length(redRefractionDir) < 0.1 {
+        redRefractionDir = refractionDir;
+    }
+    if length(blueRefractionDir) < 0.1 {
+        blueRefractionDir = refractionDir;
+    }
+
+    var redRefractedWorld = (uniforms.inv_view_matrix * vec4f(redRefractionDir, 0.0)).xyz;
+    var blueRefractedWorld = (uniforms.inv_view_matrix * vec4f(blueRefractionDir, 0.0)).xyz;
+
+    // Only apply subtle dispersion in thick water areas
+    var dispersedRefraction = vec3f(
+        textureSampleLevel(envmap_texture, texture_sampler, redRefractedWorld, 0.).r,
+        refractedBgColor.g,
+        textureSampleLevel(envmap_texture, texture_sampler, blueRefractedWorld, 0.).b
+    );
+
+    // Use much less dispersion - only visible in very thick water
+    var properRefractedColor = mix(refractedBgColor, dispersedRefraction, dispersionStrength * clamp(thickness - 0.5, 0.0, 1.0));
+
+    // Apply water color to the refracted light (absorption/scattering)
+    var waterColoredRefraction = mix(properRefractedColor, baseWaterColor, waterInfluence * (1.0 - waterAppearance.transparency));
+
+    // Apply transmittance and subsurface scattering to refracted light
+    var finalRefractionColor = waterColoredRefraction * transmittance + subsurfaceColor;
+
+    // Mix refraction and reflection based on Fresnel
+    var waterWithEffects = mix(finalRefractionColor, reflectionColor, fresnel);
+
+    // Transparency now controls how much of the water effect vs pure refracted background
+    var clearWaterEffect = mix(waterWithEffects, properRefractedColor, waterAppearance.transparency * 0.7);
+
+    // Final composition
+    finalColor = specular * 0.8 + clearWaterEffect;
+    finalColor = mix(finalColor, reflectionColor, waterAppearance.reflectivity * 0.8);
 
     // Apply wave height to normal calculation
     normal = normalize(normal + (normal * waterAppearance.waveHeight));
