@@ -73,6 +73,15 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     var normal: vec3f = -normalize(cross(ddx, ddy));
+
+    // Edge enhancement for better definition against white background
+    var edgeFactor = 1.0;
+    var depthGradient = length(vec2f(
+        abs(ddx.z),
+        abs(ddy.z)
+    ));
+    edgeFactor = mix(1.0, 2.0, clamp(depthGradient * 10.0, 0.0, 1.0));
+
     rayDir = normalize(viewPos);
     var lightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
     var H: vec3f = normalize(lightDir - rayDir);
@@ -139,17 +148,24 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Enhanced subsurface scattering
     var depthFactor = clamp(abs(viewPos.z) * 0.15, 0.0, 1.0);
-    var subsurfaceIntensity = mix(0.8, 0.3, depthFactor);
+    var subsurfaceIntensity = mix(1.2, 0.4, depthFactor); // Increased intensity
     var subsurface: f32 = max(0.0, dot(-lightDir, normal)) * thickness * subsurfaceIntensity;
 
-    // Realistic absorption
-    var baseAbsorption = 0.05;
+    // Move subsurfaceColor calculation AFTER baseWaterColor is defined
+    // var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);
+
+    // Enhanced realistic absorption that preserves color character
+    var baseAbsorption = 0.03; // Reduced base absorption
+    var colorInfluence = 0.3; // Increased color influence
     var absorptionCoeffs = vec3f(
-        baseAbsorption + (1.0 - waterAppearance.color.r) * 0.2,
-        baseAbsorption + (1.0 - waterAppearance.color.g) * 0.2,
-        baseAbsorption + (1.0 - waterAppearance.color.b) * 0.2
+        baseAbsorption + (1.0 - waterAppearance.color.r) * colorInfluence,
+        baseAbsorption + (1.0 - waterAppearance.color.g) * colorInfluence * 0.8, // Less green absorption
+        baseAbsorption + (1.0 - waterAppearance.color.b) * colorInfluence * 0.6  // Even less blue absorption
     );
-    var transmittance: vec3f = exp(-density * thickness * absorptionCoeffs);
+
+    // Depth-dependent absorption
+    var depthAbsorptionFactor = clamp(thickness * 0.8, 0.1, 2.0);
+    var transmittance: vec3f = exp(-density * depthAbsorptionFactor * absorptionCoeffs);
 
     // Depth-based water color variation
     var thicknessFactor = clamp(thickness * 2.0, 0.0, 1.0);
@@ -176,7 +192,9 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     complexWaterColor *= angleInfluence;
 
     var baseWaterColor = mix(complexWaterColor, vec3f(1.0), foamInfluence);
-    var subsurfaceColor: vec3f = baseWaterColor * subsurface * 1.5;
+
+    // NOW define subsurfaceColor after baseWaterColor is available
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);
 
     // Fresnel calculation
     var F0 = 0.02;
@@ -306,20 +324,52 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     var waterWithEffects = mix(finalRefractionColor, reflectionColor, fresnel);
 
-    // Transparency and final composition
-    var transparencyEffect = waterAppearance.transparency * 0.5;
-    var clearWaterEffect = mix(waterWithEffects, mix(waterWithEffects * 0.8, properRefractedColor, 0.6), transparencyEffect);
+    // Enhanced transparency that preserves effects
+    var baseTransparency = waterAppearance.transparency;
 
-    // Saturation boost for vivid transparent water
-    var saturationBoost = mix(1.0, 1.3, waterAppearance.transparency);
-    var colorIntensity = length(clearWaterEffect);
-    if colorIntensity > 0.0 {
-        var normalizedColor = clearWaterEffect / colorIntensity;
-        clearWaterEffect = mix(vec3f(colorIntensity), normalizedColor, saturationBoost) * colorIntensity;
+    // Preserve specular and fresnel effects even with high transparency
+    var preservedSpecular = specular * mix(1.0, 0.3, baseTransparency);
+    var preservedFresnel = fresnel * mix(1.0, 0.7, baseTransparency);
+
+    // Enhanced refraction blending that maintains water characteristics
+    var transparentRefraction = mix(properRefractedColor, waterColoredRefraction, 1.0 - baseTransparency * 0.8);
+
+    // Maintain water color influence even with transparency
+    var waterColorStrength = mix(1.0, 0.4, baseTransparency);
+    var coloredRefraction = mix(transparentRefraction, depthBasedWaterColor, waterColorStrength * waterInfluenceCorrect);
+
+    // Caustics should remain visible with transparency
+    var visibleCaustics = mix(coloredRefraction, causticsColor, causticsIntensity * mix(0.6, 0.3, baseTransparency));
+
+    // Improved final composition
+    var refractionComponent = mix(visibleCaustics, reflectionColor, preservedFresnel);
+
+    // Rim lighting for better edge definition against white background
+    var rimIntensity = pow(1.0 - abs(dot(normal, -rayDir)), 3.0);
+    var rimColor = waterAppearance.color.rgb * rimIntensity * 0.5;
+
+    // Single finalColor declaration with all components
+    var finalColor = preservedSpecular + refractionComponent + rimColor;
+
+    // Apply reflectivity without washing out effects
+    var reflectivityStrength = waterAppearance.reflectivity * mix(0.8, 0.4, baseTransparency);
+    finalColor = mix(finalColor, reflectionColor, reflectivityStrength);
+
+    // Enhance contrast for white backgrounds
+    var contrastBoost = mix(1.0, 1.4, baseTransparency);
+    finalColor = pow(finalColor, vec3f(1.0 / contrastBoost)) * contrastBoost;
+
+    // Adaptive background handling for white backgrounds
+    var bgLuminance = dot(bgColor, vec3f(0.299, 0.587, 0.114));
+    var isWhiteBackground = step(0.9, bgLuminance);
+
+    // Enhance contrast and saturation for white backgrounds
+    if isWhiteBackground > 0.5 {
+        finalColor = mix(finalColor, finalColor * 1.5, 0.3); // Boost intensity
+        var saturation = 1.0 + (1.0 - baseTransparency) * 0.4;
+        var gray = dot(finalColor, vec3f(0.299, 0.587, 0.114));
+        finalColor = mix(vec3f(gray), finalColor, saturation);
     }
-
-    var finalColor = specular * 0.8 + clearWaterEffect;
-    finalColor = mix(finalColor, reflectionColor, waterAppearance.reflectivity * 0.8);
 
     return vec4f(finalColor, 1.0);
 
