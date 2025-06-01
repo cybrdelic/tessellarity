@@ -46,13 +46,17 @@ fn getViewPosFromTexCoord(tex_coord: vec2f, iuv: vec2f) -> vec3f {
 @fragment
 fn fs(input: FragmentInput) -> @location(0) vec4f {
     var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
-    let bgColor: vec3f = vec3f(0.8, 0.8, 0.8);
+
+    // Calculate background color for both early return and later use
+    var rayDir = normalize(computeViewPosFromUVDepth(input.uv, 1000.0));
+    var worldRayDir = (uniforms.inv_view_matrix * vec4f(rayDir, 0.0)).xyz;
+    var bgColor = textureSampleLevel(envmap_texture, texture_sampler, worldRayDir, 0.).rgb;
 
     // Move texture sampling operations before any conditionals
     var reflection: vec3f;
     var finalColor: vec3f;
 
-    // Early return handled separately
+    // Use environment map as background instead of white
     if depth >= 1e4 || depth <= 0. {
         return vec4f(bgColor, 1.);
     }
@@ -72,7 +76,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     var normal: vec3f = -normalize(cross(ddx, ddy));
-    var rayDir = normalize(viewPos);
+    // Update rayDir calculation to use the actual view direction for this pixel
+    rayDir = normalize(viewPos);
     var lightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
     var H: vec3f = normalize(lightDir - rayDir);
     var specular1: f32 = pow(max(0.0, dot(H, normal)), 128.0) * 1.0; // Sharp highlight

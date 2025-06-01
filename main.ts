@@ -59,47 +59,87 @@ async function main() {
 		format: presentationFormat,
 	})
 
-	let cubemapTexture: GPUTexture;
-	{
-		// The order of the array layers is [+X, -X, +Y, -Y, +Z, -Z]
-		const imgSrcs = [
-			'cubemap/posx.png',
-			'cubemap/negx.png',
-			'cubemap/posy.png',
-			'cubemap/negy.png',
-			'cubemap/posz.png',
-			'cubemap/negz.png',
-		];
-		const promises = imgSrcs.map(async (src) => {
-			const response = await fetch(src);
-			return createImageBitmap(await response.blob());
-		});
-		const imageBitmaps = await Promise.all(promises);
+	// Create multiple cubemap textures for different environments
+	let cubemapTextures: GPUTexture[] = [];
+	let cubemapTextureViews: GPUTextureView[] = [];
+	let currentEnvironmentIndex = 0;
 
-		cubemapTexture = device.createTexture({
-			dimension: '2d',
-			// Create a 2d array texture.
-			// Assume each image has the same size.
-			size: [imageBitmaps[0].width, imageBitmaps[0].height, 6],
-			format: 'rgba8unorm',
-			usage:
-				GPUTextureUsage.TEXTURE_BINDING |
-				GPUTextureUsage.COPY_DST |
-				GPUTextureUsage.RENDER_ATTACHMENT,
-		});
+	const park3Med = [
+		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/px.jpg', // +X
+		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/nx.jpg', // –X
+		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/py.jpg', // +Y
+		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/ny.jpg', // –Y
+		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/pz.jpg', // +Z
+		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/nz.jpg'  // –Z
+	];
 
-		for (let i = 0; i < imageBitmaps.length; i++) {
-			const imageBitmap = imageBitmaps[i];
-			device.queue.copyExternalImageToTexture(
-				{ source: imageBitmap },
-				{ texture: cubemapTexture, origin: [0, 0, i] },
-				[imageBitmap.width, imageBitmap.height]
-			);
+	const environments = [
+		{
+			name: "Industrial Sunset",
+			files: park3Med
+		},
+		{
+			name: "Venice Sunset",
+			files: [
+				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/px.jpg',
+				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/nx.jpg',
+				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/py.jpg',
+				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/ny.jpg',
+				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/pz.jpg',
+				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/nz.jpg'
+			]
+		},
+		{
+			name: "Forest",
+			files: [
+				'https://threejs.org/examples/textures/cube/pisa/px.png',
+				'https://threejs.org/examples/textures/cube/pisa/nx.png',
+				'https://threejs.org/examples/textures/cube/pisa/py.png',
+				'https://threejs.org/examples/textures/cube/pisa/ny.png',
+				'https://threejs.org/examples/textures/cube/pisa/pz.png',
+				'https://threejs.org/examples/textures/cube/pisa/nz.png'
+			]
+		}
+	];
+
+	// Load all environment textures
+	for (let envIndex = 0; envIndex < environments.length; envIndex++) {
+		const environment = environments[envIndex];
+		try {
+			const promises = environment.files.map(async (src) => {
+				const response = await fetch(src);
+				if (!response.ok) throw new Error(`Failed to load ${src}`);
+				return createImageBitmap(await response.blob());
+			});
+			const imageBitmaps = await Promise.all(promises);
+
+			const cubemapTexture = device.createTexture({
+				dimension: '2d',
+				size: [imageBitmaps[0].width, imageBitmaps[0].height, 6],
+				format: 'rgba8unorm',
+				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+			});
+
+			for (let i = 0; i < imageBitmaps.length; i++) {
+				const imageBitmap = imageBitmaps[i];
+				device.queue.copyExternalImageToTexture(
+					{ source: imageBitmap },
+					{ texture: cubemapTexture, origin: [0, 0, i] },
+					[imageBitmap.width, imageBitmap.height]
+				);
+			}
+
+			cubemapTextures.push(cubemapTexture);
+			cubemapTextureViews.push(cubemapTexture.createView({ dimension: 'cube' }));
+		} catch (error) {
+			console.warn(`Failed to load environment ${environment.name}, using fallback`);
+			// Use the first environment as fallback
+			if (envIndex === 0) throw error;
+			cubemapTextures.push(cubemapTextures[0]);
+			cubemapTextureViews.push(cubemapTextureViews[0]);
 		}
 	}
-	const cubemapTextureView = cubemapTexture.createView({
-		dimension: 'cube',
-	});
+
 	console.log("cubemap initialization done")
 
 	// uniform buffer を作る
@@ -158,7 +198,7 @@ async function main() {
 		mlsmpmFov,
 		posvelBuffer,
 		renderUniformBuffer,
-		cubemapTextureView,
+		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer // Add this parameter
 	);
 
@@ -170,7 +210,7 @@ async function main() {
 		sphFov,
 		posvelBuffer,
 		renderUniformBuffer,
-		cubemapTextureView,
+		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer // Add this parameter
 	);
 
@@ -335,6 +375,22 @@ async function main() {
 	waveHeightInput.addEventListener('input', (e) => {
 		waterAppearanceViews.waveHeight[0] = parseInt((e.target as HTMLInputElement).value) / 100;
 		device.queue.writeBuffer(waterAppearanceBuffer, 24, waterAppearanceViews.waveHeight);
+	});
+
+	// Environment selector event listener
+	const environmentSelect = document.getElementById('environment-select') as HTMLSelectElement;
+	environmentSelect.addEventListener('change', (e) => {
+		currentEnvironmentIndex = parseInt((e.target as HTMLSelectElement).value);
+
+		// Update renderers with new environment
+		if (currentEnvironmentIndex === -1) {
+			// Use white background (no environment map)
+			mlsmpmRenderer.updateEnvironment(null);
+			sphRenderer.updateEnvironment(null);
+		} else {
+			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
+			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
+		}
 	});
 }
 

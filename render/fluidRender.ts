@@ -31,6 +31,10 @@ export class FluidRenderer {
 
 
     device: GPUDevice
+    renderUniformBuffer: GPUBuffer
+    waterAppearanceBuffer: GPUBuffer
+    sampler: GPUSampler
+
     constructor(
         device: GPUDevice,
         canvas: HTMLCanvasElement,
@@ -40,9 +44,12 @@ export class FluidRenderer {
         posvelBuffer: GPUBuffer,
         renderUniformBuffer: GPUBuffer,
         cubemapTextureView: GPUTextureView,
-        waterAppearanceBuffer: GPUBuffer // Add this parameter
+        waterAppearanceBuffer: GPUBuffer
     ) {
         this.device = device
+        this.renderUniformBuffer = renderUniformBuffer
+        this.waterAppearanceBuffer = waterAppearanceBuffer
+
         const maxFilterSize = 100
         const blurdDepthScale = 10
         const diameter = 2 * radius
@@ -58,7 +65,7 @@ export class FluidRenderer {
             'max_filter_size': maxFilterSize,
             'projected_particle_constant': (blurFilterSize * diameter * 0.05 * (canvas.height / 2)) / Math.tan(fov / 2),
         }
-        const sampler = device.createSampler({
+        this.sampler = device.createSampler({
             magFilter: 'linear',
             minFilter: 'linear'
         });
@@ -316,12 +323,12 @@ export class FluidRenderer {
             label: 'fluid bind group',
             layout: this.fluidPipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: sampler },
+                { binding: 0, resource: this.sampler },
                 { binding: 1, resource: this.depthMapTextureView },
                 { binding: 2, resource: { buffer: renderUniformBuffer } },
                 { binding: 3, resource: this.thicknessTextureView },
                 { binding: 4, resource: cubemapTextureView },
-                { binding: 5, resource: { buffer: waterAppearanceBuffer } }, // Add this entry
+                { binding: 5, resource: { buffer: waterAppearanceBuffer } },
             ],
         })
 
@@ -491,5 +498,44 @@ export class FluidRenderer {
             spherePassEncoder.draw(6, numParticles);
             spherePassEncoder.end();
         }
+    }
+
+    updateEnvironment(newCubemapTextureView: GPUTextureView | null) {
+        // Create a dummy 1x1 white texture for when no environment is selected
+        if (!newCubemapTextureView) {
+            const dummyTexture = this.device.createTexture({
+                dimension: '2d',
+                size: [1, 1, 6],
+                format: 'rgba8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+            });
+
+            // Fill with white
+            const whitePixel = new Uint8Array([255, 255, 255, 255]);
+            for (let i = 0; i < 6; i++) {
+                this.device.queue.writeTexture(
+                    { texture: dummyTexture, origin: [0, 0, i] },
+                    whitePixel,
+                    { bytesPerRow: 4 },
+                    [1, 1]
+                );
+            }
+
+            newCubemapTextureView = dummyTexture.createView({ dimension: 'cube' });
+        }
+
+        // Recreate fluid bind group with new environment texture
+        this.fluidBindGroup = this.device.createBindGroup({
+            label: 'fluid bind group',
+            layout: this.fluidPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: this.sampler },
+                { binding: 1, resource: this.depthMapTextureView },
+                { binding: 2, resource: { buffer: this.renderUniformBuffer } },
+                { binding: 3, resource: this.thicknessTextureView },
+                { binding: 4, resource: newCubemapTextureView },
+                { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
+            ],
+        });
     }
 }
