@@ -1,8 +1,9 @@
 import { numParticlesMax, renderUniformsViews } from '../common';
+import { ISimulator } from '../src/core/SimulatorRegistry';
 
 export const boidsParticleStructSize = 64; // position(16) + velocity(16) + padding(32)
 
-export class BoidsSimulator {
+export class BoidsSimulator implements ISimulator {
     device: GPUDevice;
     renderDiameter: number;
     numParticles = 0;

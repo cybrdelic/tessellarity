@@ -6,10 +6,11 @@ import g2p from './g2p.wgsl';
 import copyPosition from './copyPosition.wgsl'
 
 import { numParticlesMax, renderUniformsViews } from '../common';
+import { ISimulator } from '../src/core/SimulatorRegistry';
 
 export const mlsmpmParticleStructSize = 80
 
-export class MLSMPMSimulator {
+export class MLSMPMSimulator implements ISimulator {
     max_x_grids = 64;
     max_y_grids = 64;
     max_z_grids = 64;
@@ -39,8 +40,7 @@ export class MLSMPMSimulator {
 
     renderDiameter: number
 
-    constructor (particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice) 
-    {
+    constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice) {
         this.device = device
         this.renderDiameter = renderDiameter
         const clearGridModule = device.createShaderModule({ code: clearGrid });
@@ -51,71 +51,71 @@ export class MLSMPMSimulator {
         const copyPositionModule = device.createShaderModule({ code: copyPosition });
 
         const constants = {
-            stiffness: 3., 
-            restDensity: 4., 
-            dynamic_viscosity: 0.1, 
-            dt: 0.20, 
-            fixed_point_multiplier: 1e7, 
+            stiffness: 3.,
+            restDensity: 4.,
+            dynamic_viscosity: 0.1,
+            dt: 0.20,
+            fixed_point_multiplier: 1e7,
         }
 
         this.clearGridPipeline = device.createComputePipeline({
-            label: "clear grid pipeline", 
-            layout: 'auto', 
+            label: "clear grid pipeline",
+            layout: 'auto',
             compute: {
-                module: clearGridModule, 
+                module: clearGridModule,
             }
         })
         this.p2g1Pipeline = device.createComputePipeline({
-            label: "p2g 1 pipeline", 
-            layout: 'auto', 
+            label: "p2g 1 pipeline",
+            layout: 'auto',
             compute: {
-                module: p2g1Module, 
+                module: p2g1Module,
                 constants: {
                     'fixed_point_multiplier': constants.fixed_point_multiplier
-                }, 
+                },
             }
         })
         this.p2g2Pipeline = device.createComputePipeline({
-            label: "p2g 2 pipeline", 
-            layout: 'auto', 
+            label: "p2g 2 pipeline",
+            layout: 'auto',
             compute: {
-                module: p2g2Module, 
+                module: p2g2Module,
                 constants: {
-                    'fixed_point_multiplier': constants.fixed_point_multiplier, 
-                    'stiffness': constants.stiffness, 
-                    'rest_density': constants.restDensity, 
-                    'dynamic_viscosity': constants.dynamic_viscosity, 
-                    'dt': constants.dt, 
-                }, 
+                    'fixed_point_multiplier': constants.fixed_point_multiplier,
+                    'stiffness': constants.stiffness,
+                    'rest_density': constants.restDensity,
+                    'dynamic_viscosity': constants.dynamic_viscosity,
+                    'dt': constants.dt,
+                },
             }
         })
         this.updateGridPipeline = device.createComputePipeline({
-            label: "update grid pipeline", 
-            layout: 'auto', 
+            label: "update grid pipeline",
+            layout: 'auto',
             compute: {
-                module: updateGridModule, 
+                module: updateGridModule,
                 constants: {
-                    'fixed_point_multiplier': constants.fixed_point_multiplier, 
-                    'dt': constants.dt, 
-                }, 
+                    'fixed_point_multiplier': constants.fixed_point_multiplier,
+                    'dt': constants.dt,
+                },
             }
         });
         this.g2pPipeline = device.createComputePipeline({
-            label: "g2p pipeline", 
-            layout: 'auto', 
+            label: "g2p pipeline",
+            layout: 'auto',
             compute: {
-                module: g2pModule, 
+                module: g2pModule,
                 constants: {
-                    'fixed_point_multiplier': constants.fixed_point_multiplier, 
-                    'dt': constants.dt, 
-                }, 
+                    'fixed_point_multiplier': constants.fixed_point_multiplier,
+                    'dt': constants.dt,
+                },
             }
         });
         this.copyPositionPipeline = device.createComputePipeline({
-            label: "copy position pipeline", 
-            layout: 'auto', 
+            label: "copy position pipeline",
+            layout: 'auto',
             compute: {
-                module: copyPositionModule, 
+                module: copyPositionModule,
             }
         });
 
@@ -123,19 +123,19 @@ export class MLSMPMSimulator {
         const realBoxSizeValues = new ArrayBuffer(12);
         const initBoxSizeValues = new ArrayBuffer(12);
 
-        const cellBuffer = device.createBuffer({ 
-            label: 'cells buffer', 
-            size: this.cellStructSize * maxGridCount,  
+        const cellBuffer = device.createBuffer({
+            label: 'cells buffer',
+            size: this.cellStructSize * maxGridCount,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         })
         this.realBoxSizeBuffer = device.createBuffer({
-            label: 'real box size buffer', 
-            size: realBoxSizeValues.byteLength, 
+            label: 'real box size buffer',
+            size: realBoxSizeValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
         this.initBoxSizeBuffer = device.createBuffer({
-            label: 'init box size buffer', 
-            size: initBoxSizeValues.byteLength, 
+            label: 'init box size buffer',
+            size: initBoxSizeValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
         device.queue.writeBuffer(this.initBoxSizeBuffer, 0, initBoxSizeValues);
@@ -143,49 +143,49 @@ export class MLSMPMSimulator {
 
         // BindGroup
         this.clearGridBindGroup = device.createBindGroup({
-            layout: this.clearGridPipeline.getBindGroupLayout(0), 
+            layout: this.clearGridPipeline.getBindGroupLayout(0),
             entries: [
-              { binding: 0, resource: { buffer: cellBuffer }}, 
-            ],  
+                { binding: 0, resource: { buffer: cellBuffer } },
+            ],
         })
         this.p2g1BindGroup = device.createBindGroup({
-            layout: this.p2g1Pipeline.getBindGroupLayout(0), 
+            layout: this.p2g1Pipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: particleBuffer }}, 
-                { binding: 1, resource: { buffer: cellBuffer }}, 
-                { binding: 2, resource: { buffer: this.initBoxSizeBuffer }}, 
-            ],  
+                { binding: 0, resource: { buffer: particleBuffer } },
+                { binding: 1, resource: { buffer: cellBuffer } },
+                { binding: 2, resource: { buffer: this.initBoxSizeBuffer } },
+            ],
         })
         this.p2g2BindGroup = device.createBindGroup({
-            layout: this.p2g2Pipeline.getBindGroupLayout(0), 
+            layout: this.p2g2Pipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: particleBuffer }}, 
-                { binding: 1, resource: { buffer: cellBuffer }}, 
-                { binding: 2, resource: { buffer: this.initBoxSizeBuffer }}, 
+                { binding: 0, resource: { buffer: particleBuffer } },
+                { binding: 1, resource: { buffer: cellBuffer } },
+                { binding: 2, resource: { buffer: this.initBoxSizeBuffer } },
             ]
         })
         this.updateGridBindGroup = device.createBindGroup({
             layout: this.updateGridPipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: cellBuffer }},
-                { binding: 1, resource: { buffer: this.realBoxSizeBuffer }},
-                { binding: 2, resource: { buffer: this.initBoxSizeBuffer }},
+                { binding: 0, resource: { buffer: cellBuffer } },
+                { binding: 1, resource: { buffer: this.realBoxSizeBuffer } },
+                { binding: 2, resource: { buffer: this.initBoxSizeBuffer } },
             ],
         })
         this.g2pBindGroup = device.createBindGroup({
             layout: this.g2pPipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: particleBuffer }},
-                { binding: 1, resource: { buffer: cellBuffer }},
-                { binding: 2, resource: { buffer: this.realBoxSizeBuffer }},
-                { binding: 3, resource: { buffer: this.initBoxSizeBuffer }},
+                { binding: 0, resource: { buffer: particleBuffer } },
+                { binding: 1, resource: { buffer: cellBuffer } },
+                { binding: 2, resource: { buffer: this.realBoxSizeBuffer } },
+                { binding: 3, resource: { buffer: this.initBoxSizeBuffer } },
             ],
         })
         this.copyPositionBindGroup = device.createBindGroup({
             layout: this.copyPositionPipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: particleBuffer }}, 
-                { binding: 1, resource: { buffer: posvelBuffer }}, 
+                { binding: 0, resource: { buffer: particleBuffer } },
+                { binding: 1, resource: { buffer: posvelBuffer } },
             ]
         })
 
@@ -197,7 +197,7 @@ export class MLSMPMSimulator {
         const spacing = 0.65;
 
         this.numParticles = 0;
-        
+
         for (let j = 0; j < initBoxSize[1] * 0.80 && this.numParticles < numParticles; j += spacing) {
             for (let i = 3; i < initBoxSize[0] - 4 && this.numParticles < numParticles; i += spacing) {
                 for (let k = 3; k < initBoxSize[2] / 2 && this.numParticles < numParticles; k += spacing) {
@@ -213,12 +213,12 @@ export class MLSMPMSimulator {
                 }
             }
         }
-        
+
         let particles = new ArrayBuffer(mlsmpmParticleStructSize * this.numParticles);
         const oldView = new Uint8Array(particlesBuf);
         const newView = new Uint8Array(particles);
         newView.set(oldView.subarray(0, newView.length));
-        
+
         return particles;
     }
 
@@ -234,8 +234,8 @@ export class MLSMPMSimulator {
         const realBoxSizeViews = new Float32Array(realBoxSizeValues);
         const initBoxSizeValues = new ArrayBuffer(12);
         const initBoxSizeViews = new Float32Array(initBoxSizeValues);
-        initBoxSizeViews.set(initBoxSize);    
-        realBoxSizeViews.set(initBoxSize); 
+        initBoxSizeViews.set(initBoxSize);
+        realBoxSizeViews.set(initBoxSize);
         this.device.queue.writeBuffer(this.initBoxSizeBuffer, 0, initBoxSizeValues);
         this.device.queue.writeBuffer(this.realBoxSizeBuffer, 0, realBoxSizeValues);
         this.device.queue.writeBuffer(this.particleBuffer, 0, particleData)
@@ -244,7 +244,7 @@ export class MLSMPMSimulator {
 
     execute(commandEncoder: GPUCommandEncoder) {
         const computePass = commandEncoder.beginComputePass();
-        for (let i = 0; i < 2; i++) { 
+        for (let i = 0; i < 2; i++) {
             computePass.setBindGroup(0, this.clearGridBindGroup);
             computePass.setPipeline(this.clearGridPipeline);
             computePass.dispatchWorkgroups(Math.ceil(this.gridCount / 64)) // これは gridCount だよな？
@@ -253,16 +253,16 @@ export class MLSMPMSimulator {
             computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64))
             computePass.setBindGroup(0, this.p2g2BindGroup)
             computePass.setPipeline(this.p2g2Pipeline)
-            computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64)) 
+            computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64))
             computePass.setBindGroup(0, this.updateGridBindGroup)
             computePass.setPipeline(this.updateGridPipeline)
-            computePass.dispatchWorkgroups(Math.ceil(this.gridCount / 64)) 
+            computePass.dispatchWorkgroups(Math.ceil(this.gridCount / 64))
             computePass.setBindGroup(0, this.g2pBindGroup)
             computePass.setPipeline(this.g2pPipeline)
-            computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64)) 
+            computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64))
             computePass.setBindGroup(0, this.copyPositionBindGroup)
             computePass.setPipeline(this.copyPositionPipeline)
-            computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64))             
+            computePass.dispatchWorkgroups(Math.ceil(this.numParticles / 64))
         }
         computePass.end()
     }

@@ -9,10 +9,11 @@ import copyPosition from './copyPosition.wgsl'
 import { PrefixSumKernel } from 'webgpu-radix-sort';
 
 import { renderUniformsViews, numParticlesMax } from '../common';
+import { ISimulator } from '../src/core/SimulatorRegistry';
 
 export const sphParticleStructSize = 64
 
-export class SPHSimulator {
+export class SPHSimulator implements ISimulator {
     device: GPUDevice
 
     gridClearPipeline: GPUComputePipeline
