@@ -4,6 +4,7 @@ import { mat4 } from 'wgpu-matrix'
 import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
+import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
 import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews } from './common'
 import { FluidRenderer } from './render/fluidRender'
 
@@ -144,9 +145,8 @@ async function main() {
 
 	// uniform buffer を作る
 	renderUniformsViews.texel_size.set([1.0 / canvas.width, 1.0 / canvas.height]);
-
 	// storage buffer を作る
-	const maxParticleStructSize = Math.max(mlsmpmParticleStructSize, sphParticleStructSize)
+	const maxParticleStructSize = Math.max(mlsmpmParticleStructSize, sphParticleStructSize, boidsParticleStructSize)
 	const particleBuffer = device.createBuffer({
 		label: 'particles buffer',
 		size: maxParticleStructSize * numParticlesMax,
@@ -169,13 +169,15 @@ async function main() {
 	})
 
 	console.log("buffer allocating done")
-
 	let mlsmpmNumParticleParams = [40000, 70000, 120000, 200000]
 	let mlsmpmInitBoxSizes = [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80]]
 	let mlsmpmInitDistances = [60, 70, 90, 100]
 	let sphNumParticleParams = [10000, 20000, 30000, 40000]
 	let sphInitBoxSizes = [[0.7, 2.0, 0.7], [1.0, 2.0, 1.0], [1.2, 2.0, 1.2], [1.4, 2.0, 1.4]]
 	let sphInitDistances = [2.6, 3.0, 3.4, 3.8]
+	let boidsNumParticleParams = [5000, 10000, 15000, 20000]
+	let boidsInitBoxSizes = [[40, 30, 40], [50, 40, 50], [60, 50, 60], [70, 60, 70]]
+	let boidsInitDistances = [80, 100, 120, 140]
 
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
@@ -189,6 +191,11 @@ async function main() {
 	const sphDiameter = 2 * sphRadius
 	const sphZoomRate = 0.05
 	const sphSimulator = new SPHSimulator(particleBuffer, posvelBuffer, sphDiameter, device)
+	const boidsFov = 45 * Math.PI / 180
+	const boidsRadius = 0.3
+	const boidsDiameter = 2 * boidsRadius
+	const boidsZoomRate = 0.8
+	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device)
 
 	const mlsmpmRenderer = new FluidRenderer(
 		device,
@@ -212,6 +219,18 @@ async function main() {
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer // Add this parameter
+	);
+
+	const boidsRenderer = new FluidRenderer(
+		device,
+		canvas,
+		presentationFormat,
+		boidsRadius,
+		boidsFov,
+		posvelBuffer,
+		renderUniformBuffer,
+		cubemapTextureViews[currentEnvironmentIndex],
+		waterAppearanceBuffer
 	);
 
 	console.log("simulator initialization done")
@@ -239,11 +258,11 @@ async function main() {
 			simulationModePressedButton = target.value
 		}
 	});
-
 	const smallValue = document.getElementById("small-value") as HTMLSpanElement;
 	const mediumValue = document.getElementById("medium-value") as HTMLSpanElement;
 	const largeValue = document.getElementById("large-value") as HTMLSpanElement;
 	const veryLargeValue = document.getElementById("very-large-value") as HTMLSpanElement;
+	const particleCountLabel = document.getElementById("particle-count-label") as HTMLElement;
 
 	// デバイスロストの監視
 	let errorLog = document.getElementById('error-reason') as HTMLSpanElement;
@@ -260,41 +279,62 @@ async function main() {
 	mlsmpmSimulator.reset(mlsmpmNumParticleParams[1], mlsmpmInitBoxSizes[1])
 	camera.reset(canvasElement, initDistance, [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
 		mlsmpmFov, mlsmpmZoomRate)
-
-	smallValue.textContent = "40,000"
-	mediumValue.textContent = "70,000"
-	largeValue.textContent = "120,000"
-	veryLargeValue.textContent = "200,000"
-
+	smallValue.textContent = "Small (40,000 particles)"
+	mediumValue.textContent = "Medium (70,000 particles)"
+	largeValue.textContent = "Large (120,000 particles)"
+	veryLargeValue.textContent = "Very Large (200,000 particles)"
 	let sphereRenderFl = false
 	let sphFl = false
+	let boidsFl = false
 	let boxWidthRatio = 1.
 
 	console.log("simulation start")
 	async function frame() {
-		const start = performance.now();
-
-		if (simulationModePressed) {
+		const start = performance.now(); if (simulationModePressed) {
+			const waterAppearanceControls = document.getElementById('water-appearance-controls');
+			const sliderLabel = document.getElementById('slider-label') as HTMLLabelElement;
 			if (simulationModePressedButton == "mls-mpm") {
 				sphFl = false
-				smallValue.textContent = "40,000"
-				mediumValue.textContent = "70,000"
-				largeValue.textContent = "120,000"
-				veryLargeValue.textContent = "200,000"
-			} else {
+				boidsFl = false
+				particleCountLabel.textContent = "Number of Particles"
+				smallValue.textContent = "Small (40,000 particles)"
+				mediumValue.textContent = "Medium (70,000 particles)"
+				largeValue.textContent = "Large (120,000 particles)"
+				veryLargeValue.textContent = "Very Large (200,000 particles)"
+				waterAppearanceControls!.style.display = "block";
+				sliderLabel.textContent = "Box width:";
+			} else if (simulationModePressedButton == "sph") {
 				sphFl = true
-				smallValue.textContent = "10,000"
-				mediumValue.textContent = "20,000"
-				largeValue.textContent = "30,000"
-				veryLargeValue.textContent = "40,000"
+				boidsFl = false
+				particleCountLabel.textContent = "Number of Particles"
+				smallValue.textContent = "Small (10,000 particles)"
+				mediumValue.textContent = "Medium (20,000 particles)"
+				largeValue.textContent = "Large (30,000 particles)"
+				veryLargeValue.textContent = "Very Large (40,000 particles)"
+				waterAppearanceControls!.style.display = "block";
+				sliderLabel.textContent = "Box width:";
+			} else if (simulationModePressedButton == "boids") {
+				sphFl = false
+				boidsFl = true
+				particleCountLabel.textContent = "Flock Size"
+				smallValue.textContent = "Small Flock (5,000 boids)"
+				mediumValue.textContent = "Medium Flock (10,000 boids)"
+				largeValue.textContent = "Large Flock (15,000 boids)"
+				veryLargeValue.textContent = "Massive Flock (20,000 boids)"
+				waterAppearanceControls!.style.display = "none";
+				sliderLabel.textContent = "Flight area:";
 			}
 			simulationModePressed = false
 			numberButtonPressed = true
 		}
-
 		if (numberButtonPressed) {
 			const paramsIdx = parseInt(numberButtonPressedButton)
-			if (sphFl) {
+			if (boidsFl) {
+				initBoxSize = boidsInitBoxSizes[paramsIdx]
+				boidsSimulator.reset(boidsNumParticleParams[paramsIdx], initBoxSize)
+				camera.reset(canvasElement, boidsInitDistances[paramsIdx], [initBoxSize[0] / 2, initBoxSize[1] / 2, initBoxSize[2] / 2],
+					boidsFov, boidsZoomRate)
+			} else if (sphFl) {
 				initBoxSize = sphInitBoxSizes[paramsIdx]
 				sphSimulator.reset(sphNumParticleParams[paramsIdx], initBoxSize)
 				camera.reset(canvasElement, sphInitDistances[paramsIdx], [0, -initBoxSize[1] + 0.1, 0],
@@ -310,19 +350,20 @@ async function main() {
 			slider.value = "100"
 			numberButtonPressed = false
 		}
-
 		// ボックスサイズの変更
 		const slider = document.getElementById("slider") as HTMLInputElement
 		const particle = document.getElementById("particle") as HTMLInputElement
 		sphereRenderFl = particle.checked
 		let curBoxWidthRatio = parseInt(slider.value) / 200 + 0.5
-		const minClosingSpeed = sphFl ? -0.015 : -0.007
+		const minClosingSpeed = sphFl ? -0.015 : (boidsFl ? -0.01 : -0.007)
 		const dVal = Math.max(curBoxWidthRatio - boxWidthRatio, minClosingSpeed)
 		boxWidthRatio += dVal
 
 		// 行列の更新
 		realBoxSize[2] = initBoxSize[2] * boxWidthRatio
-		if (sphFl) {
+		if (boidsFl) {
+			boidsSimulator.changeBoxSize(realBoxSize)
+		} else if (sphFl) {
 			sphSimulator.changeBoxSize(realBoxSize)
 		} else {
 			mlsmpmSimulator.changeBoxSize(realBoxSize)
@@ -330,9 +371,11 @@ async function main() {
 		device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues)
 
 		const commandEncoder = device.createCommandEncoder()
-
 		// 計算のためのパス
-		if (sphFl) {
+		if (boidsFl) {
+			boidsSimulator.execute(commandEncoder)
+			boidsRenderer.execute(context, commandEncoder, boidsSimulator.numParticles, sphereRenderFl)
+		} else if (sphFl) {
 			sphSimulator.execute(commandEncoder)
 			sphRenderer.execute(context, commandEncoder, sphSimulator.numParticles, sphereRenderFl)
 		} else {
@@ -381,15 +424,16 @@ async function main() {
 	const environmentSelect = document.getElementById('environment-select') as HTMLSelectElement;
 	environmentSelect.addEventListener('change', (e) => {
 		currentEnvironmentIndex = parseInt((e.target as HTMLSelectElement).value);
-
 		// Update renderers with new environment
 		if (currentEnvironmentIndex === -1) {
 			// Use white background (no environment map)
 			mlsmpmRenderer.updateEnvironment(null);
 			sphRenderer.updateEnvironment(null);
+			boidsRenderer.updateEnvironment(null);
 		} else {
 			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
 			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
+			boidsRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
 		}
 	});
 }
