@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Ocean - Real-Time Fluid Simulation | Next-Generation Browser Physics</title>
+    <meta name="description"
+        content="Experience cutting-edge real-time 3D fluid simulation with WebGPU. Up to 300,000 particles at 60fps, advanced physics, and stunning visuals - all in your browser.">
+    <meta name="keywords"
+        content="WebGPU, fluid simulation, 3D graphics, browser physics, MLS-MPM, SPH, real-time rendering">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #000000;
+            --secondary-color: #0a0a0a;
+            --accent-color: #0ea5e9;
+            --text-color: #ffffff;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #888888;
+            --text-subtle: #555555;
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-darker: #050505;
+            --bg-card: #000000;
+            --bg-sidebar: #000000;
+            --border-color: #1a1a1a;
+            --border-subtle: #111111;
+            --shadow-subtle: none;
+            --shadow-card: none;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-weight: 400;
+            line-height: 1.6;
+            color: var(--text-color);
+            background: var(--bg-primary);
+            overflow-x: hidden;
+        }
+
+        /* Smooth Transitions */
+        * {
+            transition-property: color, background-color, border-color, transform, box-shadow, opacity;
+            transition-duration: 0.3s;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-subtle);
+        }
+
+        /* Navigation Bar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 1rem 2rem;
+        }
+
+        .navbar.scrolled {
+            background: var(--bg-primary);
+            box-shadow: none;
+        }
+
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 400;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-link:hover {
+            color: var(--text-color);
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* Hero Section with Minimal Design */
+        .hero {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            padding-top: 80px;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.05) 0%, transparent 50%),
+                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23ffffff05" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+        }
+
+        .hero-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: floatParticle 15s linear infinite;
+        }
+
+        @keyframes floatParticle {
+            0% {
+                transform: translateY(100vh) translateX(0);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.3;
+            }
+
+            90% {
+                opacity: 0.3;
+            }
+
+            100% {
+                transform: translateY(-10vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+
+        .hero-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6rem;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-text {
+            animation: slideInLeft 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-50px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .hero-text h1 {
+            font-size: 4.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-color);
+            line-height: 1.1;
+        }
+
+        .hero-subtitle {
+            font-size: 1.4rem;
+            font-weight: 400;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .hero-text p {
+            font-size: 1.3rem;
+            margin-bottom: 3rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+            font-weight: 400;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1.2rem 2.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            font-weight: 400;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.8rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.6s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+            border: 1px solid var(--accent-color);
+        }
+
+        .btn-primary:hover {
+            background: transparent;
+            color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        .hero-visual {
+            position: relative;
+            text-align: center;
+            animation: slideInRight 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .demo-showcase {
+            width: 100%;
+            height: 400px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .demo-stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .demo-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 160px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .demo-stat:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-color);
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.1);
+        }
+
+        .demo-stat .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, var(--text-color), var(--accent-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .demo-stat .stat-label {
+            font-size: 1rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .demo-stat::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .demo-stat:hover::before {
+            opacity: 1;
+        }
+
+        .demo-showcase:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-4px);
+        }
+
+        .demo-showcase::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.05) 0%, transparent 70%);
+        }
+
+        .demo-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            max-width: 500px;
+            padding: 2rem;
+        }
+
+        .demo-content h3 {
+            font-size: 1.8rem;
+            font-weight: 500;
+            margin: 1.5rem 0 1rem;
+            color: var(--text-color);
+        }
+
+        .demo-content p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .demo-icon {
+            font-size: 3rem;
+            color: var(--accent-color);
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: 20px;
+            margin: 0 auto;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            20%,
+            50%,
+            80%,
+            100% {
+                transform: translateY(0);
+            }
+
+            40% {
+                transform: translateY(-5px);
+            }
+
+            60% {
+                transform: translateY(-2px);
+            }
+        }
+
+        /* Features Section with Minimal Design */
+        .features {
+            padding: 8rem 2rem;
+            background: var(--bg-primary);
+            position: relative;
+        }
+
+        .features::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="%23ffffff08"/></pattern></defs><rect width="100" height="100" fill="url(%23dots)"/></svg>');
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.8rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(45deg, var(--text-color), var(--text-muted));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            margin-bottom: 4rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Enhanced Features Section Styles */
+        .section-description {
+            max-width: 900px;
+            margin: 0 auto 4rem;
+            text-align: center;
+        }
+
+        .section-description p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1.8;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-color);
+            box-shadow: 0 8px 32px rgba(14, 165, 233, 0.1);
+        }
+
+        .feature-card.wide {
+            grid-column: span 2;
+        }
+
+        .feature-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            color: var(--accent-color);
+            font-size: 1.5rem;
+        }
+
+        .feature-specs {
+            display: flex;
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: var(--bg-darker);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .spec-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .spec-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .spec-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .feature-points {
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0;
+        }
+
+        .feature-points li {
+            padding: 0.5rem 0;
+            color: var(--text-muted);
+            position: relative;
+            padding-left: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .feature-points li:last-child {
+            border-bottom: none;
+        }
+
+        .feature-points li:before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+        .feature-points.compact li {
+            padding: 0.25rem 0;
+            font-size: 0.9rem;
+        }
+
+        .feature-highlight {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid var(--accent-color);
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            color: var(--accent-color);
+            font-weight: 500;
+        }
+
+        .feature-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .feature-column h4 {
+            font-size: 1rem;
+            color: var(--text-color);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .resources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-darker);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            color: var(--text-muted);
+        }
+
+        .resource-item:hover {
+            border-color: var(--accent-color);
+            color: var(--text-color);
+            transform: translateY(-2px);
+        }
+
+        .resource-item i {
+            color: var(--accent-color);
+        }
+
+        /* Performance Stats with Animated Counters */
+        .stats {
+            padding: 8rem 2rem;
+            background: var(--bg-darker);
+            position: relative;
+        }
+
+        .stats::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 25% 25%, rgba(124, 58, 237, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
+        }
+
+        .stats-table {
+            max-width: 600px;
+            margin: 4rem auto 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .stats-row:last-child {
+            border-bottom: none;
+        }
+
+        .stats-row:hover {
+            background: rgba(14, 165, 233, 0.05);
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            margin-top: 4rem;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .performance-card {
+            background: var(--bg-darker);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .performance-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .main-metric {
+            text-align: center;
+        }
+
+        .metric-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+        }
+
+        .metric-value {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: var(--text-color);
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+
+        .metric-label {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .metric-context {
+            font-size: 0.9rem;
+            color: var(--text-subtle);
+            line-height: 1.6;
+        }
+
+        .performance-metrics {
+            background: var(--bg-darker);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+        }
+
+        .metric-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .metric-number {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-desc {
+            font-size: 1rem;
+            color: var(--text-muted);
+        }
+
+        .metric-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 2rem 0;
+        }
+
+        .metric-details {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .detail-value {
+            color: var(--text-color);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+        }
+
+        .stat-label {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Tech Stack - Column Layout */
+        .tech-stack {
+            padding: 6rem 2rem;
+            background: var(--bg-primary);
+        }
+
+        .tech-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 4rem;
+            margin-top: 4rem;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .tech-column h4 {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tech-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .tech-list li {
+            padding: 0.75rem 0;
+            color: var(--text-muted);
+            font-size: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .tech-list li:last-child {
+            border-bottom: none;
+        }
+
+        .tech-list li:hover {
+            color: var(--text-color);
+            padding-left: 1rem;
+        }
+
+        /* Core Architecture Section */
+        .architecture {
+            padding: 6rem 2rem;
+            background: var(--bg-primary);
+        }
+
+        .architecture-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .arch-card {
+            background: var(--bg-darker);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .arch-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-color);
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.1);
+        }
+
+        .arch-icon {
+            font-size: 2rem;
+            color: var(--accent-color);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: rgba(14, 165, 233, 0.1);
+            margin: 0 auto 1.5rem;
+        }
+
+        .arch-card h4 {
+            text-align: center;
+            color: var(--text-color);
+            font-size: 1.3rem;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+        }
+
+        .arch-features {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .arch-feature {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .arch-feature:last-child {
+            border-bottom: none;
+        }
+
+        .arch-feature i {
+            color: var(--accent-color);
+            font-size: 0.9rem;
+        }
+
+        .arch-details {
+            margin-top: 6rem;
+            text-align: center;
+        }
+
+        .arch-diagram {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            padding: 2rem;
+            background: var(--bg-darker);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .diagram-node {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .diagram-node.primary {
+            background: rgba(14, 165, 233, 0.1);
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+        }
+
+        .diagram-node.secondary {
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+        }
+
+        .diagram-connections {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            position: relative;
+        }
+
+        .diagram-connections::before {
+            content: '';
+            position: absolute;
+            top: -1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 1.5rem;
+            background: var(--accent-color);
+        }
+
+        @media (max-width: 1024px) {
+            .architecture-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .architecture-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .diagram-connections {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+        }
+
+        /* Loading Animation */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid var(--border-subtle);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Section Spacing and Dividers */
+        .section {
+            padding: 8rem 0;
+            position: relative;
+        }
+
+        .section::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 1200px;
+            height: 1px;
+            background: linear-gradient(90deg,
+                    transparent,
+                    var(--border-color) 20%,
+                    var(--border-color) 80%,
+                    transparent);
+        }
+
+        /* Enhance Visual Hierarchy */
+        .section-title {
+            font-size: 2.8rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(45deg, var(--text-color), var(--text-muted));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .section-subtitle {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 4rem;
+        }
+
+        /* Enhanced Hover Effects */
+        .interactive {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .interactive::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border: 2px solid var(--accent-color);
+            border-radius: inherit;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .interactive:hover::after {
+            opacity: 0.5;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+        }
+
+        /* Consistent Spacing */
+        .spacing-y-1 {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .spacing-y-2 {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .spacing-y-4 {
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .spacing-y-8 {
+            margin-top: 4rem;
+            margin-bottom: 4rem;
+        }
+
+        .spacing-x-1 {
+            margin-left: 0.5rem;
+            margin-right: 0.5rem;
+        }
+
+        .spacing-x-2 {
+            margin-left: 1rem;
+            margin-right: 1rem;
+        }
+
+        .spacing-x-4 {
+            margin-left: 2rem;
+            margin-right: 2rem;
+        }
+
+        .spacing-x-8 {
+            margin-left: 4rem;
+            margin-right: 4rem;
+        }
+
+        /* Alignment Utilities */
+        .text-center {
+            text-align: center;
+        }
+
+        .text-left {
+            text-align: left;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .flex-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .flex-between {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Container Width Control */
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: 2rem;
+            padding-right: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                padding-left: 1.5rem;
+                padding-right: 1.5rem;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
+
+        /* Timeline Styles */
+        .evolution {
+            padding: 8rem 2rem;
+            background: var(--bg-primary);
+        }
+
+        .timeline {
+            max-width: 800px;
+            margin: 4rem auto 0;
+            position: relative;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 50px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-color);
+        }
+
+        .timeline-item {
+            display: flex;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .timeline-marker {
+            flex-shrink: 0;
+            width: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .marker-date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .marker-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            border: 2px solid var(--bg-primary);
+            position: relative;
+            z-index: 2;
+        }
+
+        .timeline-content {
+            margin-left: 2rem;
+            flex: 1;
+        }
+
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .timeline-header h3 {
+            font-size: 1.3rem;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        .commit-hash {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: var(--bg-darker);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .timeline-desc {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .timeline-details {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .timeline-details li {
+            padding: 0.25rem 0;
+            color: var(--text-subtle);
+            font-size: 0.9rem;
+            position: relative;
+            padding-left: 1rem;
+        }
+
+        .timeline-details li:before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--accent-color);
+        }
+
+        /* Footer Styles */
+        .footer {
+            background: var(--bg-darker);
+            border-top: 1px solid var(--border-color);
+            padding: 4rem 2rem 2rem;
+        }
+
+        .footer-content {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-section h4 {
+            color: var(--text-color);
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .footer-link:hover {
+            color: var(--accent-color);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-subtle);
+        }
+
+        .footer-bottom a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .footer-bottom a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive Design for Timeline and Footer */
+        @media (max-width: 768px) {
+            .timeline::before {
+                left: 30px;
+            }
+
+            .timeline-marker {
+                width: 60px;
+            }
+
+            .timeline-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-content">
+            <a href="#" class="nav-logo">WebGPU Ocean</a>
+            <div class="nav-links">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#performance" class="nav-link">Performance</a>
+                <a href="#technology" class="nav-link">Technology</a>
+                <a href="docs.html" class="nav-link">Documentation</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-particles" id="heroParticles"></div>
+        <div class="hero-content">
+            <div class="hero-text">
+                <div class="hero-subtitle">Enhanced from matsuoka-601's Original Work</div>
+                <h1>WebGPU Simulation Framework</h1>
+                <p>Building upon matsuoka-601's exceptional WebGPU fluid simulation (git cloned Feb 2025), we've
+                    preserved their brilliant
+                    fluid physics while transforming it into a complete development environment. Their original MLS-MPM
+                    and SPH implementations
+                    now serve as the foundation for a pluggable simulation framework with comprehensive developer tools.
+                </p>
+                <div class="hero-buttons">
+                    <a href="index.html" class="btn btn-primary">
+                        <i class="fas fa-play"></i>
+                        Launch Demo
+                    </a>
+                    <a href="https://github.com/user/WebGPU-Ocean" class="btn btn-secondary">
+                        <i class="fab fa-github"></i>
+                        View Source
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="demo-showcase">
+                    <div class="demo-content">
+                        <div class="demo-icon"><i class="fas fa-water"></i></div>
+                        <h3>Interactive Fluid Simulation</h3>
+                        <p>Experience real-time WebGPU physics with 300,000+ particles</p>
+                    </div>
+                </div>
+                <div class="demo-stats">
+                    <div class="demo-stat">
+                        <span class="stat-value">60 FPS</span>
+                        <span class="stat-label">Performance</span>
+                    </div>
+                    <div class="demo-stat">
+                        <span class="stat-value">WebGPU</span>
+                        <span class="stat-label">Technology</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section> <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2 class="section-title">From Demo to Development Platform</h2>
+            <p class="section-subtitle">Enhanced architecture preserving original excellence while enabling extensible
+                simulation development
+            </p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-water"></i>
+                    </div>
+                    <h3>Preserved Core Excellence</h3>
+                    <div class="feature-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">Particles</span>
+                            <span class="spec-value">300K+</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Performance</span>
+                            <span class="spec-value">60 FPS</span>
+                        </div>
+                    </div>
+                    <ul class="feature-points">
+                        <li>Original MLS-MPM & SPH Implementation</li>
+                        <li>Enhanced Fluid Shaders & Rendering</li>
+                        <li>Multi-Environment Support</li>
+                        <li>Optimized WebGPU Pipeline</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-puzzle-piece"></i>
+                    </div>
+                    <h3>Plugin Architecture</h3>
+                    <ul class="feature-points">
+                        <li>Dynamic Simulator Registration</li>
+                        <li>Type-Safe Configuration System</li>
+                        <li>Centralized UI Management</li>
+                        <li>Runtime Error Handling</li>
+                    </ul>
+                    <div class="feature-highlight">
+                        <i class="fas fa-code-branch"></i>
+                        <span>Extensible Framework</span>
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <h3>Developer Experience</h3>
+                    <div class="feature-columns">
+                        <div class="feature-column">
+                            <h4>Ready Simulators</h4>
+                            <ul class="feature-points compact">
+                                <li>Enhanced Fluid Physics</li>
+                                <li>Boids Flocking System</li>
+                                <li>Template Framework</li>
+                            </ul>
+                        </div>
+                        <div class="feature-column">
+                            <h4>Dev Tools</h4>
+                            <ul class="feature-points compact">
+                                <li>Real-time Debugging</li>
+                                <li>Performance Monitoring</li>
+                                <li>Integration Docs</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section> <!-- Performance Stats -->
+    <section class="stats" id="performance">
+        <div class="container">
+            <h2 class="section-title">Performance Analysis</h2>
+            <div class="performance-grid">
+                <div class="performance-card main-metric">
+                    <div class="metric-icon">⚡</div>
+                    <div class="metric-value">300,000+</div>
+                    <div class="metric-label">Particles on Dedicated GPU</div>
+                    <div class="metric-context">Achieved with optimized compute shaders and efficient memory management
+                    </div>
+                </div>
+                <div class="performance-metrics">
+                    <div class="metric-row">
+                        <div class="metric-col">
+                            <div class="metric-number">100,000+</div>
+                            <div class="metric-desc">Particles on Integrated Graphics</div>
+                        </div>
+                        <div class="metric-col">
+                            <div class="metric-number">60</div>
+                            <div class="metric-desc">Frames Per Second</div>
+                        </div>
+                    </div>
+                    <div class="metric-divider"></div>
+                    <div class="metric-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Simulation Steps/Frame:</span>
+                            <span class="detail-value">2</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Buffer Updates/Frame:</span>
+                            <span class="detail-value">4</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Compute Passes/Frame:</span>
+                            <span class="detail-value">6</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section><!-- Tech Stack -->
+    <section class="tech-stack" id="technology">
+        <div class="container">
+            <h2 class="section-title">Technology Stack</h2>
+
+            <div class="tech-columns">
+                <div class="tech-column">
+                    <h4>Original Core (matsuoka-601)</h4>
+                    <ul class="tech-list">
+                        <li>WebGPU Compute Pipeline</li>
+                        <li>MLS-MPM Implementation</li>
+                        <li>SPH Fluid Physics</li>
+                        <li>Screen-Space Fluid Rendering</li>
+                        <li>Basic Camera System</li>
+                    </ul>
+                </div>
+
+                <div class="tech-column">
+                    <h4>Enhanced Systems</h4>
+                    <ul class="tech-list">
+                        <li>Plugin Architecture</li>
+                        <li>Boids Simulation</li>
+                        <li>Error Handling Framework</li>
+                        <li>Enhanced Fluid Shaders</li>
+                        <li>Environment Mapping</li>
+                    </ul>
+                </div>
+
+                <div class="tech-column">
+                    <h4>Developer Tools</h4>
+                    <ul class="tech-list">
+                        <li>Documentation System</li>
+                        <li>Integration Templates</li>
+                        <li>Type-Safe Configs</li>
+                        <li>Debug Tools</li>
+                        <li>Performance Monitoring</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section> <!-- Core Architecture -->
+    <section class="tech-stack" id="architecture">
+        <div class="container">
+            <h2 class="section-title">Core Architecture</h2>
+            <p class="section-subtitle">A flexible and extensible system designed for performance and scalability</p>
+
+            <div class="architecture-grid">
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i class="fas fa-puzzle-piece"></i>
+                    </div>
+                    <h4>Plugin System</h4>
+                    <div class="arch-features">
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>SimulatorRegistry for Dynamic Loading</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Type-Safe Configuration System</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Standardized Plugin Interface</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Runtime Simulator Registration</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i class="fas fa-desktop"></i>
+                    </div>
+                    <h4>UI Framework</h4>
+                    <div class="arch-features">
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Centralized UIManager</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Element Caching Strategy</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Dynamic Control Adaptation</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Event-Driven Updates</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h4>Error Handling</h4>
+                    <div class="arch-features">
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>ShaderErrorReporter System</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Real-time Error Monitoring</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Validation Framework</span>
+                        </div>
+                        <div class="arch-feature">
+                            <i class="fas fa-check"></i>
+                            <span>Error Streaming Service</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arch-details">
+                <div class="arch-diagram">
+                    <div class="diagram-node primary">
+                        <i class="fas fa-project-diagram"></i>
+                        <span>Core System</span>
+                    </div>
+                    <div class="diagram-connections">
+                        <div class="diagram-node secondary">
+                            <i class="fas fa-cube"></i>
+                            <span>Compute Pipeline</span>
+                        </div>
+                        <div class="diagram-node secondary">
+                            <i class="fas fa-tint"></i>
+                            <span>Fluid Physics</span>
+                        </div>
+                        <div class="diagram-node secondary">
+                            <i class="fas fa-camera"></i>
+                            <span>Rendering</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- Project Evolution -->
+    <section class="evolution" id="evolution">
+        <div class="container">
+            <h2 class="section-title">Project Timeline</h2>
+            <p class="section-subtitle">The evolution from fluid simulation demo to complete development framework</p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-marker">
+                        <div class="marker-date">Feb 21, 2025</div>
+                        <div class="marker-dot"></div>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <h3>Original Repository by matsuoka-601</h3>
+                            <span class="commit-hash">d626dfa</span>
+                        </div>
+                        <p class="timeline-desc">Git cloned matsuoka-601's exceptional WebGPU fluid simulation project,
+                            featuring professional-grade fluid physics implementation.</p>
+                        <ul class="timeline-details">
+                            <li>Core fluid physics implementation</li>
+                            <li>WebGPU compute shader pipeline</li>
+                            <li>Screen-space fluid rendering</li>
+                            <li>Basic camera controls</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker">
+                        <div class="marker-date">June 1, 2025</div>
+                        <div class="marker-dot"></div>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <h3>Visual Enhancement Phase</h3>
+                        </div>
+                        <p class="timeline-desc">Major improvements to fluid rendering and physics while preserving the
+                            original's core excellence.</p>
+                        <ul class="timeline-details">
+                            <li>Enhanced fluid shader with subsurface scattering</li>
+                            <li>Pressure-based density and turbulence</li>
+                            <li>Water appearance customization</li>
+                            <li>Multi-environment support</li>
+                            <li>Surface tension and vorticity improvements</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker">
+                        <div class="marker-date">June 2, 2025</div>
+                        <div class="marker-dot"></div>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <h3>Architecture Transformation</h3>
+                            <span class="commit-hash">a8d2a6f</span>
+                        </div>
+                        <p class="timeline-desc">Restructured the codebase into a modular development framework with
+                            professional-grade architecture.</p>
+                        <ul class="timeline-details">
+                            <li>Modular plugin architecture implementation</li>
+                            <li>Boids simulation integration</li>
+                            <li>SimulatorRegistry system</li>
+                            <li>Type-safe configuration system</li>
+                            <li>Comprehensive error handling</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-marker">
+                        <div class="marker-date">June 3, 2025</div>
+                        <div class="marker-dot"></div>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <h3>Documentation & Resources</h3>
+                        </div>
+                        <p class="timeline-desc">Launched comprehensive documentation and developer resources to support
+                            the framework.</p>
+                        <ul class="timeline-details">
+                            <li>Technical architecture whitepaper</li>
+                            <li>API reference documentation</li>
+                            <li>Integration guides and examples</li>
+                            <li>Enhanced documentation UI/UX</li>
+                            <li>Search functionality and navigation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-grid">
+                    <div class="footer-section">
+                        <h4>Getting Started</h4>
+                        <div class="footer-links">
+                            <a href="index.html" class="footer-link">Live Demo</a>
+                            <a href="docs.html" class="footer-link">Documentation</a>
+                            <a href="docs.html#api" class="footer-link">API Reference</a>
+                            <a href="docs.html#simulators" class="footer-link">Integration Guide</a>
+                        </div>
+                    </div>
+                    <div class="footer-section">
+                        <h4>Community</h4>
+                        <div class="footer-links">
+                            <a href="https://github.com/user/WebGPU-Ocean" class="footer-link">
+                                <i class="fab fa-github"></i> GitHub
+                            </a>
+                            <a href="docs.html#contributing" class="footer-link">Contributing</a>
+                            <a href="docs.html#attribution" class="footer-link">Attribution</a>
+                            <a href="#" class="footer-link">License</a>
+                        </div>
+                    </div>
+                    <div class="footer-section">
+                        <h4>Resources</h4>
+                        <div class="footer-links">
+                            <a href="docs.html#architecture" class="footer-link">Core Architecture</a>
+                            <a href="docs.html#deployment" class="footer-link">Deployment Guide</a>
+                            <a href="/example-new-simulator" class="footer-link">Example Project</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <p>© 2025 WebGPU Ocean Project. Built upon <a href="#">matsuoka-601's</a> original work.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Loading screen
+        window.addEventListener('load', () => {
+            const loading = document.getElementById('loading');
+            loading.classList.add('hidden');
+        });
+
+        // Navbar scroll effect
+        const navbar = document.getElementById('navbar');
+        const heroSection = document.getElementById('hero');
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    navbar.classList.remove('scrolled');
+                } else {
+                    navbar.classList.add('scrolled');
+                }
+            },
+            {
+                root: null,
+                threshold: 0.1,
+                rootMargin: '0px',
+            }
+        );
+
+        observer.observe(heroSection);
+
+        // Particle system for hero section
+        const heroParticles = document.getElementById('heroParticles');
+        const particleCount = 100;
+        const particles = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            heroParticles.appendChild(particle);
+            particles.push(particle);
+        }
+
+        function animateParticles() {
+            particles.forEach((particle) => {
+                const x = Math.random() * window.innerWidth;
+                const y = Math.random() * window.innerHeight;
+                const duration = Math.random() * 2 + 3;
+                const delay = Math.random() * 2;
+
+                particle.animate(
+                    [
+                        { transform: `translate(${x}px, ${y}px)`, opacity: 0 },
+                        { transform: `translate(${x + 100}px, ${y + 100}px)`, opacity: 1 },
+                        { transform: `translate(${x}px, ${y}px)`, opacity: 0 },
+                    ],
+                    {
+                        duration: duration * 1000,
+                        delay: delay * 1000,
+                        iterations: Infinity,
+                        easing: 'ease-in-out',
+                    }
+                );
+            });
+        }
+
+        animateParticles();
+    </script>
+</body>
+
+</html>
