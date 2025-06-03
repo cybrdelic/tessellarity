@@ -39,12 +39,13 @@ async function init() {
 	let devicePixelRatio = 0.7;
 	canvas.width = devicePixelRatio * canvas.clientWidth
 	canvas.height = devicePixelRatio * canvas.clientHeight
-
 	const presentationFormat = navigator.gpu.getPreferredCanvasFormat()
 
 	context.configure({
 		device,
 		format: presentationFormat,
+		alphaMode: 'premultiplied',
+		usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
 	})
 
 	return { canvas, device, presentationFormat, context }
@@ -54,10 +55,11 @@ async function main() {
 	const { canvas, device, presentationFormat, context } = await init();
 
 	console.log("initialization done")
-
 	context.configure({
 		device,
 		format: presentationFormat,
+		alphaMode: 'premultiplied',
+		usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
 	})
 
 	// Create multiple cubemap textures for different environments

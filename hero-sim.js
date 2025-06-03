@@ -20,6 +20,10 @@ export class HeroSimulation {
         this.isRunning = false;
         this.frameCount = 0;
         this.presentationFormat = null;
+        this.lastCursorPosition = { x: 0, y: 0 };
+        this.cursorActive = false;
+        this.cameraPathTime = 0;
+        this.splashCooldown = 0;
     }
 
     async init(canvas) {
@@ -34,6 +38,7 @@ export class HeroSimulation {
             }
 
             await this.setupSimulation();
+            this.setupInteraction();
             console.log('Hero simulation setup complete');
             return true;
         } catch (error) {
@@ -63,12 +68,20 @@ export class HeroSimulation {
             return false;
         }
 
-        // Use same pixel ratio approach as main demo but smaller for performance        // Use device pixel ratio but cap it for performance
+        // Use full window dimensions instead of parent element
         let devicePixelRatio = Math.min(window.devicePixelRatio, 2);
-        // Set canvas size based on its container size
-        const rect = this.canvas.parentElement.getBoundingClientRect();
-        this.canvas.width = rect.width * devicePixelRatio;
-        this.canvas.height = rect.height * devicePixelRatio;
+        this.canvas.width = window.innerWidth * devicePixelRatio;
+        this.canvas.height = window.innerHeight * devicePixelRatio;        // Set CSS size to full screen and ensure it covers the entire viewport        this.canvas.style.position = 'absolute';
+        this.canvas.style.top = '0';
+        this.canvas.style.left = '0';
+        this.canvas.style.width = '100%';
+        this.canvas.style.height = '100%';
+        this.canvas.style.zIndex = '1';
+        this.canvas.style.pointerEvents = 'none'; // Prevent interfering with other elements
+        this.canvas.style.margin = '0';
+        this.canvas.style.padding = '0';
+        this.canvas.style.overflow = 'hidden';
+        this.canvas.style.background = 'transparent';
 
         this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
@@ -108,10 +121,14 @@ export class HeroSimulation {
             label: 'hero water appearance buffer',
             size: waterAppearanceValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        // Initialize uniforms exactly like main demo
+        });        // Initialize uniforms with custom water appearance for landing page
         renderUniformsViews.texel_size.set([1.0 / this.canvas.width, 1.0 / this.canvas.height]);
+
+        // Set custom water appearance for landing page        waterAppearanceViews.color.set([0.2, 0.5, 0.7, 1.0]); // Enhanced blue-green tint
+        waterAppearanceViews.transparency.set([0.75]); // Less transparent for better visibility
+        waterAppearanceViews.reflectivity.set([0.7]); // More reflective for better HDRI visibility
+        waterAppearanceViews.waveHeight.set([1.5]); // Higher waves for more dramatic effect
+
         this.device.queue.writeBuffer(this.renderUniformBuffer, 0, renderUniformsValues);
         this.device.queue.writeBuffer(this.waterAppearanceBuffer, 0, waterAppearanceValues);
 
@@ -173,9 +190,7 @@ export class HeroSimulation {
                 );
             }
             cubemapTextureView = dummyTexture.createView({ dimension: 'cube' });
-        }
-
-        // Use exact same simulator setup as main demo
+        }        // Use exact same simulator setup as main demo
         const mlsmpmFov = 45 * Math.PI / 180;
         const mlsmpmRadius = 0.6;
         const mlsmpmDiameter = 2 * mlsmpmRadius;
@@ -219,6 +234,100 @@ export class HeroSimulation {
         console.log('MLS-MPM simulation initialized with', numParticles, 'particles');
     }
 
+    setupInteraction() {
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (!this.cursorActive) {
+                this.cursorActive = true;
+            }
+            const rect = this.canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            // Only create splash if we've moved enough and cooldown is done
+            const dx = x - this.lastCursorPosition.x;
+            const dy = y - this.lastCursorPosition.y;
+            const distSquared = dx * dx + dy * dy;
+
+            if (distSquared > 0.001 && this.splashCooldown <= 0) {
+                this.createSplashAtPosition(x, y);
+                this.splashCooldown = 10; // frames between splashes
+            }
+
+            this.lastCursorPosition = { x, y };
+        });
+
+        this.canvas.addEventListener('mouseleave', () => {
+            this.cursorActive = false;
+        });
+    } createSplashAtPosition(x, y) {
+        // Convert normalized coordinates to simulation space - using the box size from simulator
+        const simX = x * 25; // Match initBoxSize[0] from setupSimulation
+        const simY = y * 20; // Match initBoxSize[1] from setupSimulation
+
+        // Create a buffer for new particles
+        const particleCount = 75; // Keep same number of particles
+        const particlesBuf = new ArrayBuffer(mlsmpmParticleStructSize * particleCount);
+
+        // Add particles in a radius with random distribution
+        const radius = 3; // Reduced to match simulation scale
+        for (let i = 0; i < particleCount; i++) {
+            const angle = (i / particleCount) * Math.PI * 2;
+            const r = Math.random() * radius;
+            const px = simX + Math.cos(angle) * r;
+            const py = simY + Math.sin(angle) * r;
+            const pz = 12.5; // Center in Z (half of initBoxSize[2])
+
+            // Calculate velocities
+            const velocityY = 2 + Math.random() * 1;
+            const velocityX = (Math.random() - 0.5) * 1;
+            const velocityZ = (Math.random() - 0.5) * 1;
+
+            // Create particle following MLSMPMSimulator particle format
+            const offset = mlsmpmParticleStructSize * i;
+            const particleViews = {
+                position: new Float32Array(particlesBuf, offset + 0, 3),
+                v: new Float32Array(particlesBuf, offset + 16, 3),
+                C: new Float32Array(particlesBuf, offset + 32, 12),
+            };
+
+            // Set position and velocity
+            particleViews.position.set([px, py, pz]);
+            particleViews.v.set([velocityX, velocityY, velocityZ]);
+            // Initialize C matrix to zero (no deformation)
+            particleViews.C.fill(0);
+        }
+
+        // Write the new particles to the GPU buffer
+        // Write to offset after existing particles to avoid overwriting
+        const bufferOffset = this.simulator.numParticles * mlsmpmParticleStructSize;
+        this.device.queue.writeBuffer(this.particleBuffer, bufferOffset, particlesBuf);
+
+        // Update particle count in simulator
+        this.simulator.numParticles = Math.min(this.simulator.numParticles + particleCount, numParticlesMax);
+    } updateCameraPath() {
+        if (!this.camera) return;
+
+        // Update camera position along a gentle figure-8 path
+        this.cameraPathTime += 0.001;
+        const t = this.cameraPathTime;
+
+        // Create a smooth figure-8 pattern
+        const scale = 20;
+        const x = Math.sin(t) * scale;
+        const y = Math.sin(t * 0.5) * scale * 0.5;
+        const z = Math.cos(t) * scale;
+
+        // Create view matrix for new position
+        const targetPos = [x, y + 30, z];
+        var mat = mat4.lookAt(
+            targetPos, // position
+            [0, 0, 0], // target
+            [0, 1, 0]  // up
+        );        // Update view matrix smoothly
+        renderUniformsViews.view_matrix.set(mat);
+        renderUniformsViews.inv_view_matrix.set(mat4.inverse(mat));
+    }
+
     start() {
         if (this.isRunning) return;
         this.isRunning = true;
@@ -228,12 +337,13 @@ export class HeroSimulation {
 
     stop() {
         this.isRunning = false;
-    }
-
-    animate() {
+    } animate() {
         if (!this.isRunning) return;
 
         try {
+            // Update simulation state
+            this.update();
+
             // Exact same frame execution as main demo
             this.device.queue.writeBuffer(this.renderUniformBuffer, 0, renderUniformsValues);
 
@@ -256,13 +366,28 @@ export class HeroSimulation {
         requestAnimationFrame(() => this.animate());
     }
 
-    resize() {
+    update() {
+        // ...existing code...
+        if (this.splashCooldown > 0) {
+            this.splashCooldown--;
+        }
+
+        this.updateCameraPath();
+    } resize() {
         if (!this.canvas) return;
 
-        // Same resize pattern as main demo
-        let devicePixelRatio = 0.5;
-        this.canvas.width = devicePixelRatio * this.canvas.clientWidth;
-        this.canvas.height = devicePixelRatio * this.canvas.clientHeight;
+        // Use window dimensions for full screen
+        const devicePixelRatio = Math.min(window.devicePixelRatio, 2);
+        this.canvas.width = window.innerWidth * devicePixelRatio;
+        this.canvas.height = window.innerHeight * devicePixelRatio;        // Update CSS size and ensure full viewport coverage
+        this.canvas.style.position = 'fixed';
+        this.canvas.style.top = '0';
+        this.canvas.style.left = '0';
+        this.canvas.style.width = '100vw';
+        this.canvas.style.height = '100vh';
+        this.canvas.style.margin = '0';
+        this.canvas.style.padding = '0';
+        this.canvas.style.overflow = 'hidden';
 
         // Update uniforms
         renderUniformsViews.texel_size.set([1.0 / this.canvas.width, 1.0 / this.canvas.height]);

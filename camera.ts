@@ -17,7 +17,7 @@ export class Camera {
     fov: number
     zoomRate: number
 
-    constructor (canvasElement: HTMLCanvasElement) {
+    constructor(canvasElement: HTMLCanvasElement) {
         canvasElement.addEventListener("mousedown", (event: MouseEvent) => {
             this.isDragging = true;
             this.prevX = event.clientX;
@@ -29,7 +29,7 @@ export class Camera {
             var scrollDelta = event.deltaY;
             this.currentDistance += ((scrollDelta > 0) ? 1 : -1) * this.zoomRate;
             if (this.currentDistance < this.minDistance) this.currentDistance = this.minDistance;
-            if (this.currentDistance > this.maxDistance) this.currentDistance = this.maxDistance;  
+            if (this.currentDistance > this.maxDistance) this.currentDistance = this.maxDistance;
             this.recalculateView()
         })
 
@@ -48,7 +48,7 @@ export class Camera {
                 this.recalculateView()
             }
         });
-        
+
         canvasElement.addEventListener("mouseup", () => {
             if (this.isDragging) this.isDragging = false;
         });
@@ -86,12 +86,20 @@ export class Camera {
         var position = mat4.multiply(mat, [0, 0, 0, 1])
 
         const view = mat4.lookAt(
-          [position[0], position[1], position[2]], // position
-          this.target, // target
-          [0, 1, 0], // up
+            [position[0], position[1], position[2]], // position
+            this.target, // target
+            [0, 1, 0], // up
         )
 
         renderUniformsViews.view_matrix.set(view)
         renderUniformsViews.inv_view_matrix.set(mat4.inverse(view))
+    }
+
+    updateAspectRatio(canvasElement: HTMLCanvasElement) {
+        const aspect = canvasElement.clientWidth / canvasElement.clientHeight;
+        const projection = mat4.perspective(this.fov, aspect, 0.1, 500);
+        renderUniformsViews.projection_matrix.set(projection);
+        renderUniformsViews.inv_projection_matrix.set(mat4.inverse(projection));
+        this.recalculateView();
     }
 }

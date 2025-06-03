@@ -149,6 +149,7 @@
         /* Hero Section with Minimal Design */
         .hero {
             min-height: 100vh;
+            width: 100%;
             background: var(--bg-primary);
             display: flex;
             align-items: center;
@@ -158,25 +159,32 @@
         }
 
         .hero-simulation-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: -1;
+            opacity: 0.4;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .hero-simulation-canvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 1;
-            opacity: 0.4;
-            overflow: hidden;
-        }
-
-        .hero-simulation-canvas {
-            width: 100%;
-            height: 100%;
             object-fit: cover;
             filter: blur(1px) brightness(0.8) contrast(1.2);
+            pointer-events: none;
         }
 
         .hero-overlay {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             right: 0;
@@ -185,7 +193,8 @@
                 radial-gradient(circle at 30% 20%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 70% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
                 linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 100%);
-            z-index: 2;
+            z-index: -1;
+            pointer-events: none;
         }
 
         .hero-content {
@@ -197,7 +206,7 @@
             gap: 6rem;
             align-items: center;
             position: relative;
-            z-index: 3;
+            z-index: 1;
         }
 
         .hero-text {
@@ -424,54 +433,9 @@
             text-align: center;
             max-width: 500px;
             padding: 2rem;
-        }
-
-        .demo-content h3 {
-            font-size: 1.8rem;
-            font-weight: 500;
-            margin: 1.5rem 0 1rem;
-            color: var(--text-color);
-        }
-
-        .demo-content p {
-            font-size: 1.1rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-
-        .demo-icon {
-            font-size: 3rem;
-            color: var(--accent-color);
-            width: 80px;
-            height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(14, 165, 233, 0.1);
-            border-radius: 20px;
-            margin: 0 auto;
-            margin-bottom: 1rem;
-            color: var(--accent-color);
-            animation: bounce 2s ease-in-out infinite;
-        }
-
-        @keyframes bounce {
-
-            0%,
-            20%,
-            50%,
-            80%,
-            100% {
-                transform: translateY(0);
-            }
-
-            40% {
-                transform: translateY(-5px);
-            }
-
-            60% {
-                transform: translateY(-2px);
-            }
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            backdrop-filter: blur(8px);
         }
 
         .demo-showcase-canvas {
@@ -480,7 +444,6 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
             border-radius: 12px;
         }
 
@@ -937,45 +900,10 @@
             flex-direction: column;
             align-items: center;
             gap: 1rem;
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border-color);
         }
 
-        .arch-feature:last-child {
-            border-bottom: none;
-        }
-
-        .arch-feature i {
-            color: var(--accent-color);
-            font-size: 0.9rem;
-        }
-
-        .arch-details {
-            margin-top: 6rem;
-            text-align: center;
-        }
-
-        .arch-diagram {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2rem;
-            padding: 2rem;
-            background: var(--bg-darker);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-        }
-
-        .diagram-node {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
+        .simulation-loading.hidden {
+            display: none;
         }
 
         .diagram-node.primary {
@@ -1385,101 +1313,72 @@
             color: var(--text-subtle);
         }
 
-        .footer-bottom a {
-            color: var(--accent-color);
-            text-decoration: none;
+        .hero-simulation-container {
+            opacity: 0.2;
         }
 
-        .footer-bottom a:hover {
-            text-decoration: underline;
-        }
 
-        /* Responsive Design for Timeline and Footer */
         @media (max-width: 768px) {
-            .timeline::before {
-                left: 30px;
+            .demo-showcase {
+                height: 300px;
             }
 
-            .timeline-marker {
-                width: 60px;
+            .feature-points a:hover,
+            .tech-list a:hover,
+            .arch-feature a:hover {
+                color: var(--accent-color) !important;
+                border-bottom-color: var(--accent-color);
+                transform: translateX(2px);
             }
 
-            .timeline-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 0.5rem;
+            .timeline-desc a:hover {
+                color: var(--text-color) !important;
+                border-bottom-color: var(--accent-color);
             }
 
-            .footer-grid {
-                grid-template-columns: 1fr;
-                gap: 2rem;
+            .section-subtitle a {
+                font-weight: 500;
+                transition: all 0.2s ease;
             }
-        }
 
-        /* Documentation Link Styling */
-        .feature-points a,
-        .tech-list a,
-        .arch-feature a,
-        .timeline-desc a {
-            transition: all 0.2s ease;
-            border-bottom: 1px solid transparent;
-        }
+                .section-subtitle a:hover {
+                    color: var(--text-color) !important;
+                    transform: translateX(4px);
+                }
 
-        .feature-points a:hover,
-        .tech-list a:hover,
-        .arch-feature a:hover {
-            color: var(--accent-color) !important;
-            border-bottom-color: var(--accent-color);
-            transform: translateX(2px);
-        }
+                .metric-context a {
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                    border-bottom: 1px solid transparent;
+                }
 
-        .timeline-desc a:hover {
-            color: var(--text-color) !important;
-            border-bottom-color: var(--accent-color);
-        }
+                .metric-context a:hover {
+                    color: var(--text-color) !important;
+                    border-bottom-color: var(--accent-color);
+                }
 
-        .section-subtitle a {
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
+                /* Enhanced hover effects for links */
+                .feature-points li:hover,
+                .tech-list li:hover,
+                .arch-feature:hover {
+                    transform: translateX(4px);
+                }
 
-        .section-subtitle a:hover {
-            color: var(--text-color) !important;
-            transform: translateX(4px);
-        }
+                /* Consistent link styling across sections */
+                .doc-link {
+                    color: var(--accent-color);
+                    text-decoration: none;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                    border-bottom: 1px solid transparent;
+                }
 
-        .metric-context a {
-            font-weight: 500;
-            transition: all 0.2s ease;
-            border-bottom: 1px solid transparent;
-        }
-
-        .metric-context a:hover {
-            color: var(--text-color) !important;
-            border-bottom-color: var(--accent-color);
-        }
-
-        /* Enhanced hover effects for links */
-        .feature-points li:hover,
-        .tech-list li:hover,
-        .arch-feature:hover {
-            transform: translateX(4px);
-        }
-
-        /* Consistent link styling across sections */
-        .doc-link {
-            color: var(--accent-color);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            border-bottom: 1px solid transparent;
-        }
-
-        .doc-link:hover {
-            color: var(--text-color);
-            border-bottom-color: var(--accent-color);
-            transform: translateX(2px);
-        }
+                .doc-link:hover {
+                    color: var(--text-color);
+                    border-bottom-color: var(--accent-color);
+                    transform: translateX(2px);
+                }
+            }
     </style>
 </head>
 
@@ -1505,7 +1404,13 @@
     <!-- Hero Section with Embedded Simulation -->
     <section class="hero" id="hero">
         <!-- Background Simulation -->
-
+        <div class="hero-simulation-container">
+            <canvas id="heroSimulationCanvas" class="hero-simulation-canvas"></canvas>
+            <div class="simulation-loading" id="simulationLoading">
+                <div class="sim-spinner"></div>
+                <span>Initializing WebGPU Simulation...</span>
+            </div>
+        </div>
 
         <!-- Overlay for better text readability -->
         <div class="hero-overlay"></div>
@@ -1514,12 +1419,9 @@
             <div class="hero-text">
                 <div class="hero-subtitle">Enhanced from matsuoka-601's Original Work</div>
                 <h1>WebGPU Simulation Framework</h1>
-                <p>Building upon matsuoka-601's exceptional WebGPU fluid simulation (git cloned Feb 2025), we've
-                    preserved their brilliant
-                    fluid physics while transforming it into a complete development environment. Their original MLS-MPM
-                    and SPH implementations
-                    now serve as the foundation for a pluggable simulation framework with comprehensive developer tools.
-                </p>
+                <p>Experience real-time fluid dynamics with up to 300,000 particles. Building upon matsuoka-601's
+                    exceptional WebGPU fluid simulation, we've created a complete development environment while
+                    preserving their brilliant physics implementation.</p>
                 <div class="hero-buttons">
                     <a href="index.html" class="btn btn-primary">
                         <i class="fas fa-play"></i>
@@ -2070,7 +1972,8 @@
     <!-- Scripts -->
     <script type="module" src="hero-sim.js"></script>
     <script type="module">
-        // Initialize simulations
+        import { HeroSimulation } from './hero-sim.js';
+
         let heroSim = null;
         let demoSim = null;
 

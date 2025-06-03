@@ -52,9 +52,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var worldRayDir = (uniforms.inv_view_matrix * vec4f(rayDir, 0.0)).xyz;
     var bgColor = textureSampleLevel(envmap_texture, texture_sampler, worldRayDir, 0.).rgb;
 
-    // Use environment map as background instead of white
-    if depth >= 1e4 || depth <= 0. {
-        return vec4f(bgColor, 1.);
+    // Make background transparent, only render water
+    if depth >= 1e4 || depth <= 0.0 {
+        // Return fully transparent for non-water pixels
+        return vec4f(0.0, 0.0, 0.0, 0.0);
     }
 
     var viewPos: vec3f = computeViewPosFromUVDepth(input.uv, depth);
@@ -361,17 +362,21 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Adaptive background handling for white backgrounds
     var bgLuminance = dot(bgColor, vec3f(0.299, 0.587, 0.114));
-    var isWhiteBackground = step(0.9, bgLuminance);
+    var isWhiteBackground = step(0.9, bgLuminance);    // Calculate water opacity based on thickness and view angle
+    var waterOpacity = mix(
+        baseTransparency * 0.4,  // Increased minimum opacity for better visibility
+        1.0 - baseTransparency * 0.6,  // Adjusted maximum opacity
+        clamp(thickness * (1.0 + fresnel) * 1.2, 0.0, 1.0) // Enhanced thickness influence
+    );
 
-    // Enhance contrast and saturation for white backgrounds
-    if isWhiteBackground > 0.5 {
-        finalColor = mix(finalColor, finalColor * 1.5, 0.3); // Boost intensity
-        var saturation = 1.0 + (1.0 - baseTransparency) * 0.4;
-        var gray = dot(finalColor, vec3f(0.299, 0.587, 0.114));
-        finalColor = mix(vec3f(gray), finalColor, saturation);
-    }
+    // Enhanced fresnel effect on opacity for better edge definition
+    waterOpacity = mix(waterOpacity, 1.0, fresnel * 0.8);
 
-    return vec4f(finalColor, 1.0);
+    // Apply additional opacity boost for white backgrounds
+    var bgBoost = isWhiteBackground * 0.2;
+    waterOpacity = clamp(waterOpacity + bgBoost, 0.0, 1.0);
+
+    return vec4f(finalColor, waterOpacity);
 
     // return vec4f(viewPos.y * 100, 0, 0, 1.0);
 
