@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Ocean Simulation - Documentation Hub</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #000000;
+            --secondary-color: #0a0a0a;
+            --accent-color: #0ea5e9;
+            --text-color: #ffffff;
+            --text-muted: #888888;
+            --text-subtle: #555555;
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #000000;
+            --bg-sidebar: #000000;
+            --border-color: #1a1a1a;
+            --shadow-subtle: none;
+            --shadow-card: none;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-weight: 400;
+            line-height: 1.6;
+            color: var(--text-color);
+            background: var(--bg-primary);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            overflow-y: auto;
+            z-index: 100;
+            padding: 30px 20px;
+        }
+
+        .main-content {
+            flex: 1;
+            margin-left: 320px;
+            padding: 40px;
+            max-width: calc(100vw - 320px);
+        }
+
+        .sidebar-header {
+            text-align: left;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.4rem;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 6px;
+        }
+
+        .sidebar-header p {
+            font-size: 0.8rem;
+            color: var(--text-subtle);
+            margin: 0;
+        }
+
+        .demo-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: transparent;
+            color: var(--accent-color);
+            text-decoration: none;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-weight: 400;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+            margin: 15px 0;
+            width: fit-content;
+        }
+
+        .demo-link:hover {
+            border-color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 10px 12px 10px 35px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background: transparent;
+            color: var(--text-color);
+            transition: all 0.2s ease;
+            font-weight: 400;
+        }
+
+        .search-box::placeholder {
+            color: var(--text-subtle);
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.05);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-subtle);
+            font-size: 0.8rem;
+            pointer-events: none;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .search-result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.2s ease;
+        }
+
+        .search-result-item:hover {
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-title {
+            font-size: 0.8rem;
+            color: var(--text-color);
+            font-weight: 400;
+            margin-bottom: 2px;
+        }
+
+        .search-result-section {
+            font-size: 0.7rem;
+            color: var(--text-subtle);
+            text-transform: uppercase;
+        }
+
+        .search-result-context {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            line-height: 1.3;
+        }
+
+        .nav-tabs {
+            display: flex;
+            flex-direction: column;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            margin-bottom: 40px;
+            gap: 1px;
+        }
+
+        .nav-tab {
+            width: 100%;
+            padding: 10px 12px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            font-weight: 400;
+            font-size: 0.85rem;
+            color: var(--text-subtle);
+            transition: all 0.2s ease;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-color);
+        }
+
+        .nav-tab.active {
+            color: var(--accent-color);
+        }
+
+        .sidebar-toc {
+            background: transparent;
+            border: none;
+            padding: 0;
+            border-radius: 0;
+            margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .sidebar-toc h3 {
+            margin-bottom: 15px;
+            color: var(--text-color);
+            font-weight: 400;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .sidebar-toc h3:hover {
+            color: var(--accent-color);
+        }
+
+        .sidebar-toc h3 i {
+            font-size: 0.8rem;
+            transition: transform 0.2s ease;
+        }
+
+        .sidebar-toc.collapsed h3 i {
+            transform: rotate(-90deg);
+        }
+
+        .sidebar-toc ul {
+            list-style: none;
+            padding-left: 0;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-toc.collapsed ul {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+        }
+
+        .sidebar-toc li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-toc a {
+            color: var(--text-subtle);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-weight: 400;
+            font-size: 0.8rem;
+            display: block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .sidebar-toc a:hover {
+            color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .sidebar-toc a.active {
+            color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.15);
+        }
+
+        .sidebar-toc a.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--accent-color);
+        }
+
+        .doc-content {
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 60px 60px 40px 60px;
+            box-shadow: none;
+            min-height: calc(100vh - 120px);
+            width: 100%;
+        }
+
+        .doc-section {
+            display: none;
+        }
+
+        .doc-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .doc-section h1 {
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+            font-size: 2rem;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+        }
+
+        .doc-section h2 {
+            color: var(--text-color);
+            margin: 40px 0 20px;
+            font-size: 1.3rem;
+            font-weight: 400;
+            padding-left: 0;
+            border-left: none;
+        }
+
+        .doc-section h3 {
+            color: var(--text-color);
+            margin: 30px 0 15px;
+            font-size: 1.1rem;
+            font-weight: 400;
+        }
+
+        .doc-section p {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .doc-section ul,
+        .doc-section ol {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+
+        .doc-section li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .doc-section li strong {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        .doc-section pre {
+            background: var(--bg-secondary);
+            color: var(--text-color);
+            padding: 20px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border: 1px solid var(--border-color);
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+        }
+
+        .doc-section code {
+            background: var(--bg-secondary);
+            color: var(--text-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .doc-section pre code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .doc-section blockquote {
+            border-left: 2px solid var(--border-color);
+            padding: 15px 20px;
+            margin: 30px 0;
+            background: transparent;
+            border-radius: 0;
+            font-style: italic;
+            color: var(--text-muted);
+        }
+
+        .doc-section table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            background: transparent;
+            border-radius: 0;
+            overflow: hidden;
+            box-shadow: none;
+            border: 1px solid var(--border-color);
+        }
+
+        .doc-section th,
+        .doc-section td {
+            padding: 16px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .doc-section th {
+            background: var(--bg-secondary);
+            font-weight: 400;
+            color: var(--text-color);
+            font-size: 0.9rem;
+        }
+
+        .doc-section td {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* Remove the duplicate search-box styles */
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding: 40px 0;
+            background: transparent;
+            border: none;
+            border-top: 1px solid var(--border-color);
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .footer a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 400;
+            margin: 0 20px;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .footer a:hover {
+            color: var(--accent-color);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px;
+            color: var(--text-subtle);
+        }
+
+        .spinner {
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .toc {
+            background: transparent;
+            border: none;
+            padding: 0;
+            border-radius: 0;
+            margin: 20px 0;
+        }
+
+        .toc h3 {
+            margin-bottom: 20px;
+            color: var(--text-color);
+            font-weight: 400;
+            font-size: 1rem;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            margin-bottom: 6px;
+        }
+
+        .toc a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-weight: 400;
+            font-size: 0.9rem;
+        }
+
+        .toc a:hover {
+            color: var(--accent-color);
+        }
+
+        .mobile-menu-toggle {
+            display: none;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                max-width: 100vw;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                z-index: 200;
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-color);
+                color: var(--text-color);
+                padding: 10px;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .doc-content {
+                padding: 40px 20px;
+            }
+        }
+
+        .no-results {
+            padding: 20px 12px;
+            text-align: center;
+            color: var(--text-subtle);
+            font-size: 0.8rem;
+        }
+
+        .search-shortcut {
+            font-size: 0.7rem;
+            color: var(--text-subtle);
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .kbd {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+        }
+
+        .highlight {
+            background: rgba(14, 165, 233, 0.3);
+            color: var(--text-color);
+            padding: 1px 3px;
+            border-radius: 2px;
+            font-weight: 400;
+        }
+
+        /* Smooth scrolling for anchor links */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Active heading indicator */
+        .doc-section h1[id],
+        .doc-section h2[id],
+        .doc-section h3[id] {
+            scroll-margin-top: 80px;
+            position: relative;
+        }
+
+        .doc-section h1[id]:target,
+        .doc-section h2[id]:target,
+        .doc-section h3[id]:target {
+            animation: highlightHeading 2s ease-out;
+        }
+
+        @keyframes highlightHeading {
+            0% {
+                background: rgba(14, 165, 233, 0.2);
+                margin-left: -20px;
+                padding-left: 20px;
+            }
+
+            100% {
+                background: transparent;
+                margin-left: 0;
+                padding-left: 0;
+            }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 0;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-subtle);
+        }
+
+        /* Selection styling */
+        ::selection {
+            background: var(--accent-color);
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1><i class="fas fa-water"></i> WebGPU Ocean</h1>
+                <p>Documentation Hub</p>
+                <a href="https://webgpu-ocean.netlify.app/" class="demo-link" target="_blank">
+                    <i class="fas fa-play"></i> Try Live Demo
+                </a>
+            </div>
+
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-box" placeholder="Search documentation..." id="searchBox">
+                <div class="search-results" id="searchResults"></div>
+                <div class="search-shortcut">Press <span class="kbd">Ctrl</span> + <span class="kbd">K</span> to focus
+                </div>
+            </div>
+
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-section="overview">
+                    <i class="fas fa-home"></i> Overview
+                </button>
+                <button class="nav-tab" data-section="api">
+                    <i class="fas fa-code"></i> API Reference
+                </button>
+                <button class="nav-tab" data-section="contributing">
+                    <i class="fas fa-users"></i> Contributing
+                </button>
+                <button class="nav-tab" data-section="architecture">
+                    <i class="fas fa-sitemap"></i> Architecture
+                </button>
+                <button class="nav-tab" data-section="simulators">
+                    <i class="fas fa-cogs"></i> Simulators
+                </button> <button class="nav-tab" data-section="deployment">
+                    <i class="fas fa-rocket"></i> Deployment
+                </button>
+                <button class="nav-tab" data-section="attribution">
+                    <i class="fas fa-award"></i> Attribution
+                </button>
+            </div>
+            <div class="sidebar-toc" id="sidebarToc" style="display: none;">
+                <h3><i class="fas fa-chevron-down"></i> Page Contents</h3>
+                <ul id="tocList"></ul>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="doc-content">
+                <div id="overview" class="doc-section active">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading documentation...
+                    </div>
+                </div>
+
+                <div id="api" class="doc-section">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading API Reference...
+                    </div>
+                </div>
+
+                <div id="contributing" class="doc-section">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading Contributing Guide...
+                    </div>
+                </div>
+
+                <div id="architecture" class="doc-section">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading Architecture Documentation...
+                    </div>
+                </div>
+
+                <div id="simulators" class="doc-section">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading Simulator Reference...
+                    </div>
+                </div>
+                <div id="deployment" class="doc-section">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading Deployment Guide...
+                    </div>
+                </div>
+
+                <div id="attribution" class="doc-section">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading Attribution & Contributions...
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <a href="https://github.com/matsuoka-601/webgpu-ocean" target="_blank">
+                    <i class="fab fa-github"></i> GitHub Repository
+                </a>
+                <a href="https://webgpu-ocean.netlify.app/" target="_blank">
+                    <i class="fas fa-external-link-alt"></i> Live Demo
+                </a>
+                <a href="mailto:contact@webgpu-ocean.dev">
+                    <i class="fas fa-envelope"></i> Contact
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+
+    <script>
+        class DocumentationSite {
+            constructor() {
+                this.currentSection = 'overview';
+                this.documentCache = new Map();
+                this.searchIndex = new Map();
+
+                this.initializeEventListeners();
+                this.loadSection('overview');
+            }
+
+            initializeEventListeners() {
+                // Tab navigation
+                document.querySelectorAll('.nav-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        const section = e.currentTarget.getAttribute('data-section');
+                        this.switchSection(section);
+                    });
+                });
+
+                // Search functionality
+                const searchBox = document.getElementById('searchBox');
+                const searchResults = document.getElementById('searchResults');
+
+                searchBox.addEventListener('input', (e) => {
+                    this.performSearch(e.target.value);
+                });
+
+                searchBox.addEventListener('focus', () => {
+                    if (searchBox.value.trim()) {
+                        searchResults.style.display = 'block';
+                    }
+                });
+
+                searchBox.addEventListener('blur', (e) => {
+                    // Delay hiding to allow clicks on results
+                    setTimeout(() => {
+                        searchResults.style.display = 'none';
+                    }, 200);
+                });
+
+                // TOC collapse functionality
+                const tocHeader = document.querySelector('.sidebar-toc h3');
+                tocHeader.addEventListener('click', () => {
+                    const toc = document.getElementById('sidebarToc');
+                    toc.classList.toggle('collapsed');
+                });
+
+                // Keyboard navigation
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.key === 'k') {
+                        e.preventDefault();
+                        searchBox.focus();
+                        searchBox.select();
+                    }
+
+                    if (e.key === 'Escape') {
+                        searchBox.blur();
+                        searchResults.style.display = 'none';
+                    }
+                });
+
+                // Scroll spy for TOC
+                window.addEventListener('scroll', () => {
+                    this.updateTOCActiveState();
+                });
+            }
+
+            async switchSection(sectionName) {
+                // Update active tab
+                document.querySelectorAll('.nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+
+                // Update active section
+                document.querySelectorAll('.doc-section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById(sectionName).classList.add('active');
+
+                this.currentSection = sectionName;
+                await this.loadSection(sectionName);
+            }
+
+            async loadSection(sectionName) {
+                const section = document.getElementById(sectionName);
+
+                if (this.documentCache.has(sectionName)) {
+                    section.innerHTML = this.documentCache.get(sectionName);
+                    this.highlightCode();
+                    return;
+                }
+
+                try {
+                    let content = '';
+
+                    switch (sectionName) {
+                        case 'overview':
+                            content = await this.loadOverview();
+                            break;
+                        case 'api':
+                            content = await this.loadMarkdownFile('./docs/API_REFERENCE.md');
+                            break;
+                        case 'contributing':
+                            content = await this.loadMarkdownFile('./docs/CONTRIBUTING.md');
+                            break;
+                        case 'architecture':
+                            content = await this.loadMarkdownFile('./docs/CORE_ARCHITECTURE_WHITEPAPER.md');
+                            break;
+                        case 'simulators':
+                            content = await this.loadMarkdownFile('./docs/SIMULATOR_IMPLEMENTATIONS_REFERENCE.md');
+                            break; case 'deployment':
+                            content = await this.loadMarkdownFile('./docs/DEPLOYMENT_GUIDE.md');
+                            break;
+                        case 'attribution':
+                            content = await this.loadMarkdownFile('./docs/ATTRIBUTION_AND_CONTRIBUTIONS.md');
+                            break;
+                    }
+
+                    this.documentCache.set(sectionName, content);
+                    section.innerHTML = content;
+                    this.buildSearchIndex(sectionName, content);
+                    this.highlightCode();
+                    this.addTableOfContents(section);
+
+                } catch (error) {
+                    section.innerHTML = `
+                        <div style="text-align: center; padding: 50px; color: #e53e3e;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                            <h2>Failed to Load Documentation</h2>
+                            <p>Error: ${error.message}</p>
+                            <p>Please check if the documentation files exist in the /docs directory.</p>
+                        </div>
+                    `;
+                }
+            }
+
+            async loadOverview() {
+                return `
+                    <h1><i class="fas fa-water"></i> WebGPU Ocean Simulation System</h1>
+
+                    <div class="toc">
+                        <h3>Quick Navigation</h3>
+                        <ul>                            <li><a href="#" onclick="docSite.switchSection('api')">📚 API Reference - Complete developer documentation</a></li>
+                            <li><a href="#" onclick="docSite.switchSection('contributing')">👥 Contributing Guide - How to contribute to the project</a></li>
+                            <li><a href="#" onclick="docSite.switchSection('architecture')">🏗️ Core Architecture - Technical deep-dive into system design</a></li>
+                            <li><a href="#" onclick="docSite.switchSection('simulators')">⚙️ Simulator Implementations - Detailed simulator documentation</a></li>
+                            <li><a href="#" onclick="docSite.switchSection('deployment')">🚀 Deployment Guide - Production deployment procedures</a></li>
+                            <li><a href="#" onclick="docSite.switchSection('attribution')">🏆 Attribution & Contributions - Project credits and contribution history</a></li>
+                        </ul>
+                    </div>
+
+                    <h2>🌊 About the Project</h2>
+                    <p>The WebGPU Ocean Simulation System is a cutting-edge real-time 3D fluid simulation platform that leverages the power of WebGPU for high-performance computing directly in the browser. This project implements multiple advanced simulation algorithms including Material Point Method (MLS-MPM), Smoothed Particle Hydrodynamics (SPH), and interactive boids flocking.</p>
+
+                    <h2>🚀 Key Features</h2>
+                    <ul>
+                        <li><strong>Real-time Performance</strong> - Simulate up to 300,000 particles at 60fps on modern GPUs</li>
+                        <li><strong>Multiple Algorithms</strong> - MLS-MPM, SPH, Boids, and Wave simulations</li>
+                        <li><strong>WebGPU Powered</strong> - Utilizes compute shaders for maximum performance</li>
+                        <li><strong>Plugin Architecture</strong> - Extensible system for adding new simulation types</li>
+                        <li><strong>Screen-Space Rendering</strong> - Beautiful fluid visualization with realistic lighting</li>
+                        <li><strong>Interactive Controls</strong> - Mouse interaction and real-time parameter adjustment</li>
+                    </ul>
+
+                    <h2>🎯 Simulation Algorithms</h2>
+
+                    <h3>Material Point Method (MLS-MPM)</h3>
+                    <p>The primary fluid simulation algorithm that combines particle and grid-based methods for optimal performance. Capable of handling complex fluid behaviors including viscosity, surface tension, and multi-phase interactions.</p>
+
+                    <h3>Smoothed Particle Hydrodynamics (SPH)</h3>
+                    <p>A Lagrangian method for simulating fluid dynamics using particle interactions. Features fast neighborhood search algorithms optimized for GPU execution.</p>
+
+                    <h3>Boids Flocking Simulation</h3>
+                    <p>Implementation of Craig Reynolds' classic flocking algorithm with GPU acceleration, demonstrating emergent behavior through simple rules.</p>
+
+                    <h3>Interactive Wave Simulation</h3>
+                    <p>Real-time water surface simulation with mouse-driven wave generation and realistic wave propagation physics.</p>
+
+                    <h2>🛠️ Technical Stack</h2>
+                    <ul>
+                        <li><strong>WebGPU</strong> - Modern GPU computing API</li>
+                        <li><strong>TypeScript</strong> - Type-safe development</li>
+                        <li><strong>WGSL</strong> - WebGPU Shading Language for compute shaders</li>
+                        <li><strong>Vite</strong> - Fast build tooling</li>
+                        <li><strong>Modern Web Standards</strong> - ES6+ modules, WebAssembly ready</li>
+                    </ul>
+
+                    <h2>📈 Performance Benchmarks</h2>
+                    <ul>
+                        <li><strong>Integrated Graphics</strong> - ~100,000 particles at 60fps</li>
+                        <li><strong>Dedicated GPUs</strong> - ~300,000 particles at 60fps</li>
+                        <li><strong>Memory Usage</strong> - Optimized buffer management for minimal GPU memory footprint</li>
+                        <li><strong>Startup Time</strong> - Sub-second initialization with shader precompilation</li>
+                    </ul>
+
+                    <h2>🎮 Getting Started</h2>
+                    <ol>
+                        <li><strong>Try the Demo</strong> - Visit our <a href="https://webgpu-ocean.netlify.app/" target="_blank">live demo</a> to experience the simulation</li>
+                        <li><strong>Check Browser Support</strong> - Requires Chrome 113+, Edge 113+, or Firefox with WebGPU enabled</li>
+                        <li><strong>Explore the Code</strong> - Visit our <a href="https://github.com/matsuoka-601/webgpu-ocean" target="_blank">GitHub repository</a></li>
+                        <li><strong>Read the Docs</strong> - Use the navigation above to explore detailed documentation</li>
+                    </ol>
+
+                    <h2>🤝 Contributing</h2>
+                    <p>We welcome contributions! Whether you're interested in adding new simulation algorithms, improving performance, or enhancing documentation, there are many ways to get involved. Check out our <a href="#" onclick="docSite.switchSection('contributing')">Contributing Guide</a> for detailed information.</p>
+
+                    <h2>📚 Documentation Structure</h2>
+                    <ul>
+                        <li><strong>API Reference</strong> - Complete interface documentation for developers</li>
+                        <li><strong>Architecture Guide</strong> - Deep technical dive into system design patterns</li>
+                        <li><strong>Simulator Reference</strong> - Detailed implementation documentation for each algorithm</li>
+                        <li><strong>Deployment Guide</strong> - Production deployment and optimization strategies</li>
+                    </ul>
+
+                    <blockquote>
+                        <p><strong>💡 Pro Tip:</strong> Use Ctrl+K to quickly search through all documentation, or click on any navigation tab above to jump to specific sections.</p>                    </blockquote>
+                `;
+            }
+
+            async loadMarkdownFile(filePath) {
+                try {
+                    console.log(`Attempting to load: ${filePath}`);
+                    const response = await fetch(filePath);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const markdown = await response.text();
+                    console.log(`Successfully loaded ${filePath}, length: ${markdown.length}`);
+                    return marked.parse(markdown);
+                } catch (error) {
+                    console.error(`Failed to load ${filePath}:`, error);
+                    return `
+                        <div style="text-align: center; padding: 30px; color: #e53e3e; background: #fef2f2; border-radius: 10px; margin: 20px 0;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                            <h3>Failed to Load ${filePath}</h3>
+                            <p style="margin: 10px 0;">Error: ${error.message}</p>
+                            <p style="font-size: 0.9em; color: #666;">Make sure you're accessing this page through a web server (not file:// protocol)</p>
+                        </div>
+                    `;
+                }
+            } highlightCode() {
+                Prism.highlightAll();
+            }
+
+            addTableOfContents(section) {
+                const headings = section.querySelectorAll('h1, h2, h3');
+                if (headings.length < 2) {
+                    document.getElementById('sidebarToc').style.display = 'none';
+                    return;
+                }
+
+                const sidebarToc = document.getElementById('sidebarToc');
+                const tocList = document.getElementById('tocList');
+                tocList.innerHTML = '';
+
+                headings.forEach((heading, index) => {
+                    const id = `heading-${this.currentSection}-${index}`;
+                    heading.id = id;
+
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.href = `#${id}`;
+                    a.textContent = heading.textContent;
+                    a.style.paddingLeft = `${(parseInt(heading.tagName[1]) - 1) * 12}px`;
+                    a.dataset.headingId = id;
+
+                    // Smooth scroll to heading
+                    a.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                        // Update active state
+                        document.querySelectorAll('.sidebar-toc a').forEach(link => {
+                            link.classList.remove('active');
+                        });
+                        a.classList.add('active');
+                    });
+
+                    li.appendChild(a);
+                    tocList.appendChild(li);
+                });
+
+                sidebarToc.style.display = 'block';
+
+                // Initialize scroll spy
+                this.updateTOCActiveState();
+            }
+
+            updateTOCActiveState() {
+                const headings = document.querySelectorAll(`#${this.currentSection} h1[id], #${this.currentSection} h2[id], #${this.currentSection} h3[id]`);
+                const tocLinks = document.querySelectorAll('.sidebar-toc a');
+
+                if (headings.length === 0 || tocLinks.length === 0) return;
+
+                let activeHeading = null;
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+                // Find the currently visible heading
+                for (let i = headings.length - 1; i >= 0; i--) {
+                    const heading = headings[i];
+                    const rect = heading.getBoundingClientRect();
+                    if (rect.top <= 100) { // 100px offset from top
+                        activeHeading = heading;
+                        break;
+                    }
+                }
+
+                // Update active state in TOC
+                tocLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (activeHeading && link.dataset.headingId === activeHeading.id) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            buildSearchIndex(sectionName, content) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = content;
+
+                // Extract headings and their content
+                const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                headings.forEach((heading, index) => {
+                    const headingText = heading.textContent.toLowerCase();
+                    const nextHeading = headings[index + 1];
+
+                    // Get content between this heading and the next
+                    let content = '';
+                    let current = heading.nextElementSibling;
+                    while (current && current !== nextHeading) {
+                        content += current.textContent + ' ';
+                        current = current.nextElementSibling;
+                    }
+
+                    if (!this.searchIndex.has(sectionName)) {
+                        this.searchIndex.set(sectionName, []);
+                    }
+
+                    this.searchIndex.get(sectionName).push({
+                        title: heading.textContent,
+                        content: content.substring(0, 200) + '...',
+                        level: heading.tagName,
+                        headingText
+                    });
+                });
+
+                // Also index general content
+                const text = tempDiv.textContent.toLowerCase();
+                const words = text.split(/\W+/).filter(word => word.length > 2);
+                words.forEach(word => {
+                    if (!this.searchIndex.has(word)) {
+                        this.searchIndex.set(word, new Set());
+                    }
+                    this.searchIndex.get(word).add(sectionName);
+                });
+            }
+
+            performSearch(query) {
+                const searchResults = document.getElementById('searchResults');
+
+                if (!query.trim()) {
+                    searchResults.style.display = 'none';
+                    this.clearHighlights();
+                    return;
+                }
+
+                const results = this.getSearchResults(query);
+                this.displaySearchResults(results);
+                this.highlightSearchTerms(query);
+            }
+
+            getSearchResults(query) {
+                const results = [];
+                const terms = query.toLowerCase().split(/\s+/).filter(term => term.length > 1);
+
+                // Search through all sections
+                for (const [sectionName, items] of this.searchIndex.entries()) {
+                    if (Array.isArray(items)) {
+                        // Search through structured content (headings)
+                        items.forEach(item => {
+                            let score = 0;
+                            terms.forEach(term => {
+                                if (item.headingText.includes(term)) score += 10;
+                                if (item.content.toLowerCase().includes(term)) score += 5;
+                            });
+
+                            if (score > 0) {
+                                results.push({
+                                    section: sectionName,
+                                    title: item.title,
+                                    content: item.content,
+                                    score
+                                });
+                            }
+                        });
+                    }
+                }
+
+                return results.sort((a, b) => b.score - a.score).slice(0, 8);
+            }
+
+            displaySearchResults(results) {
+                const searchResults = document.getElementById('searchResults');
+
+                if (results.length === 0) {
+                    searchResults.innerHTML = '<div class="no-results">No results found</div>';
+                } else {
+                    searchResults.innerHTML = results.map(result => `
+                        <div class="search-result-item" onclick="docSite.goToSearchResult('${result.section}', '${result.title}')">
+                            <div class="search-result-title">${result.title}</div>
+                            <div class="search-result-section">${result.section}</div>
+                            <div class="search-result-context">${result.content}</div>
+                        </div>
+                    `).join('');
+                }
+
+                searchResults.style.display = 'block';
+            }
+
+            goToSearchResult(sectionName, title) {
+                // Switch to the section first
+                this.switchSection(sectionName);
+
+                // After section loads, scroll to the specific heading
+                setTimeout(() => {
+                    const headings = document.querySelectorAll(`#${sectionName} h1, #${sectionName} h2, #${sectionName} h3`);
+                    for (const heading of headings) {
+                        if (heading.textContent === title) {
+                            heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            // Highlight the heading briefly
+                            heading.style.background = 'rgba(14, 165, 233, 0.2)';
+                            setTimeout(() => {
+                                heading.style.background = 'transparent';
+                            }, 2000);
+                            break;
+                        }
+                    }
+                }, 300);
+
+                // Hide search results
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('searchBox').blur();
+            }
+
+            highlightSearchTerms(query) {
+                const terms = query.toLowerCase().split(/\s+/).filter(term => term.length > 1);
+                const currentSection = document.getElementById(this.currentSection);
+
+                this.clearHighlights();
+                if (terms.length > 0) {
+                    this.highlightTerms(currentSection, terms);
+                }
+            }
+
+            highlightTerms(element, terms) {
+                const walker = document.createTreeWalker(
+                    element,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+
+                const textNodes = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    textNodes.push(node);
+                }
+
+                textNodes.forEach(textNode => {
+                    let content = textNode.textContent;
+                    let hasHighlight = false;
+
+                    terms.forEach(term => {
+                        const regex = new RegExp(`(${term})`, 'gi');
+                        if (regex.test(content)) {
+                            content = content.replace(regex, '<span class="highlight">$1</span>');
+                            hasHighlight = true;
+                        }
+                    });
+
+                    if (hasHighlight) {
+                        const span = document.createElement('span');
+                        span.innerHTML = content;
+                        textNode.parentNode.replaceChild(span, textNode);
+                    }
+                });
+            }
+
+            clearHighlights() {
+                document.querySelectorAll('.highlight').forEach(highlight => {
+                    const parent = highlight.parentNode;
+                    parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+                    parent.normalize();
+                });
+            }
+        }
+
+        // Mobile sidebar toggle function
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // Initialize the documentation site
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                const docSite = new DocumentationSite();
+                window.docSite = docSite; // Make it globally accessible for onclick handlers
+                console.log('Documentation site initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize documentation site:', error);
+                document.body.innerHTML = `
+                    <div style="padding: 50px; text-align: center; font-family: Arial, sans-serif;">
+                        <h1 style="color: #e53e3e;">Error Loading Documentation</h1>
+                        <p>Failed to initialize the documentation site: ${error.message}</p>
+                        <p>Please check the browser console for more details.</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+
+</html>
