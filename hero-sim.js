@@ -24,6 +24,11 @@ export class HeroSimulation {
         this.cursorActive = false;
         this.cameraPathTime = 0;
         this.splashCooldown = 0;
+        this.scrollProgress = 0;
+        this.currentSection = 'hero';
+        this.targetCameraPosition = { x: 0, y: 30, z: 20 };
+        this.currentCameraPosition = { x: 0, y: 30, z: 20 };
+        this.cameraLerpFactor = 0.05;
     }
 
     async init(canvas) {
@@ -71,13 +76,16 @@ export class HeroSimulation {
         // Use full window dimensions instead of parent element
         let devicePixelRatio = Math.min(window.devicePixelRatio, 2);
         this.canvas.width = window.innerWidth * devicePixelRatio;
-        this.canvas.height = window.innerHeight * devicePixelRatio;        // Set CSS size to full screen and ensure it covers the entire viewport        this.canvas.style.position = 'absolute';
+        this.canvas.height = window.innerHeight * devicePixelRatio;
+
+        // Set CSS size to full screen and ensure it covers the entire viewport
+        this.canvas.style.position = 'fixed';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
         this.canvas.style.width = '100%';
         this.canvas.style.height = '100%';
-        this.canvas.style.zIndex = '1';
-        this.canvas.style.pointerEvents = 'none'; // Prevent interfering with other elements
+        this.canvas.style.zIndex = '-1';
+        this.canvas.style.pointerEvents = 'none';
         this.canvas.style.margin = '0';
         this.canvas.style.padding = '0';
         this.canvas.style.overflow = 'hidden';
@@ -262,7 +270,54 @@ export class HeroSimulation {
         this.canvas.addEventListener('mouseleave', () => {
             this.cursorActive = false;
         });
-    } createSplashAtPosition(x, y) {
+
+        // Add scroll event listener
+        window.addEventListener('scroll', () => {
+            const scrollPosition = window.scrollY;
+            const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+            this.scrollProgress = Math.min(Math.max(scrollPosition / documentHeight, 0), 1);
+
+            // Determine current section based on scroll position
+            const sections = ['hero', 'features', 'performance', 'technology', 'architecture'];
+            const sectionElements = sections.map(id => document.getElementById(id));
+
+            for (let i = 0; i < sectionElements.length; i++) {
+                const element = sectionElements[i];
+                if (!element) continue;
+
+                const rect = element.getBoundingClientRect();
+                const visible = rect.top < window.innerHeight / 2 && rect.bottom > window.innerHeight / 2;
+
+                if (visible) {
+                    this.currentSection = sections[i];
+                    break;
+                }
+            }
+
+            // Update camera target position based on current section
+            this.updateCameraTargetPosition();
+        });
+    } updateCameraTargetPosition() {
+        switch (this.currentSection) {
+            case 'hero':
+                this.targetCameraPosition = { x: 0, y: 30, z: 20 };
+                break;
+            case 'features':
+                this.targetCameraPosition = { x: 20, y: 40, z: 20 };
+                break;
+            case 'performance':
+                this.targetCameraPosition = { x: -20, y: 35, z: 25 };
+                break;
+            case 'technology':
+                this.targetCameraPosition = { x: 0, y: 45, z: 30 };
+                break;
+            case 'architecture':
+                this.targetCameraPosition = { x: 15, y: 25, z: 35 };
+                break;
+        }
+    }
+
+    createSplashAtPosition(x, y) {
         // Convert normalized coordinates to simulation space - using the box size from simulator
         const simX = x * 25; // Match initBoxSize[0] from setupSimulation
         const simY = y * 20; // Match initBoxSize[1] from setupSimulation
@@ -307,26 +362,19 @@ export class HeroSimulation {
 
         // Update particle count in simulator
         this.simulator.numParticles = Math.min(this.simulator.numParticles + particleCount, numParticlesMax);
-    } updateCameraPath() {
-        if (!this.camera) return;
-
-        // Update camera position along a gentle figure-8 path
-        this.cameraPathTime += 0.001;
-        const t = this.cameraPathTime;
-
-        // Create a smooth figure-8 pattern
-        const scale = 20;
-        const x = Math.sin(t) * scale;
-        const y = Math.sin(t * 0.5) * scale * 0.5;
-        const z = Math.cos(t) * scale;
+    } updateCameraPosition() {
+        // Smoothly interpolate current camera position to target position
+        this.currentCameraPosition.x += (this.targetCameraPosition.x - this.currentCameraPosition.x) * this.cameraLerpFactor;
+        this.currentCameraPosition.y += (this.targetCameraPosition.y - this.currentCameraPosition.y) * this.cameraLerpFactor;
+        this.currentCameraPosition.z += (this.targetCameraPosition.z - this.currentCameraPosition.z) * this.cameraLerpFactor;
 
         // Create view matrix for new position
-        const targetPos = [x, y + 30, z];
-        var mat = mat4.lookAt(
-            targetPos, // position
-            [0, 0, 0], // target
-            [0, 1, 0]  // up
-        );        // Update view matrix smoothly
+        const mat = mat4.lookAt(
+            [this.currentCameraPosition.x, this.currentCameraPosition.y, this.currentCameraPosition.z],
+            [0, 0, 0],
+            [0, 1, 0]
+        );
+
         renderUniformsViews.view_matrix.set(mat);
         renderUniformsViews.inv_view_matrix.set(mat4.inverse(mat));
     }
@@ -370,12 +418,19 @@ export class HeroSimulation {
     }
 
     update() {
-        // ...existing code...
         if (this.splashCooldown > 0) {
             this.splashCooldown--;
         }
 
-        this.updateCameraPath();
+        this.updateCameraPosition();
+
+        // Update splash effect based on scroll progress
+        if (this.scrollProgress > 0.1 && this.splashCooldown === 0) {
+            const normalizedX = 0.5 + Math.cos(this.scrollProgress * Math.PI * 2) * 0.3;
+            const normalizedY = 0.5 + Math.sin(this.scrollProgress * Math.PI * 2) * 0.3;
+            this.createSplashAtPosition(normalizedX, normalizedY);
+            this.splashCooldown = 30;
+        }
     } resize() {
         if (!this.canvas) return;
 
