@@ -265,27 +265,143 @@
 
         .nav-tab {
             width: 100%;
-            padding: 10px 12px;
+            padding: 12px 16px;
             background: transparent;
             border: none;
-            border-radius: 0;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: 400;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             color: var(--text-subtle);
             transition: all 0.2s ease;
             text-align: left;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            margin-bottom: 4px;
+            position: relative;
+        }
+
+        .nav-tab span {
+            flex: 1;
+        }
+
+        .nav-chevron {
+            font-size: 0.7rem;
+            transition: transform 0.2s ease;
+            opacity: 0.6;
         }
 
         .nav-tab:hover {
             color: var(--text-color);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .nav-tab.active {
             color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+        }
+
+        .nav-tab.active .nav-chevron {
+            transform: rotate(180deg);
+        }
+
+        .nav-tab.collapsed .nav-chevron {
+            transform: rotate(-90deg);
+        }
+
+        .nav-subtabs {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .nav-subtabs:not([style*="display: block"]) {
+            display: none;
+        }
+
+        .nav-subtabs.collapsed {
+            opacity: 0;
+            transform: translateY(-8px);
+            max-height: 0;
+            overflow: hidden;
+        }
+
+        .nav-toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-toc-list li {
+            margin: 0;
+        }
+
+        .nav-toc-list a {
+            display: block;
+            padding: 8px 16px 8px 32px;
+            color: var(--text-subtle);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 400;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            margin: 1px 8px;
+            position: relative;
+            border-left: 2px solid transparent;
+        }
+
+        .nav-toc-list a:hover {
+            color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.08);
+            border-left-color: rgba(14, 165, 233, 0.3);
+            transform: translateX(4px);
+        }
+
+        .nav-toc-list a.active {
+            color: var(--accent-color);
+            background: rgba(14, 165, 233, 0.15);
+            border-left-color: var(--accent-color);
+            font-weight: 500;
+            transform: translateX(2px);
+        }
+
+        .nav-toc-list a[data-level="2"] {
+            padding-left: 36px;
+        }
+
+        .nav-toc-list a[data-level="3"] {
+            padding-left: 48px;
+            font-size: 0.75rem;
+        }
+
+        .nav-toc-list a[data-level="4"] {
+            padding-left: 60px;
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        /* Custom scrollbar for nav subtabs */
+        .nav-subtabs::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .nav-subtabs::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 2px;
+        }
+
+        .nav-subtabs::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+
+        .nav-subtabs::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .sidebar-toc {
@@ -873,31 +989,67 @@
 
             <div class="nav-tabs">
                 <button class="nav-tab active" data-section="overview">
-                    <i class="fas fa-home"></i> Overview
+                    <i class="fas fa-home"></i>
+                    <span>Overview</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
                 </button>
-                <button class="nav-tab" data-section="api">
-                    <i class="fas fa-code"></i> API Reference
-                </button>
-                <button class="nav-tab" data-section="architecture">
-                    <i class="fas fa-sitemap"></i> Architecture
-                </button>
-                <button class="nav-tab" data-section="simulators">
-                    <i class="fas fa-cogs"></i> Simulators
-                </button>
-                <button class="nav-tab" data-section="contributing">
-                    <i class="fas fa-users"></i> Contributing
-                </button>
-                <button class="nav-tab" data-section="deployment">
-                    <i class="fas fa-rocket"></i> Deployment
-                </button>
-                <button class="nav-tab" data-section="attribution">
-                    <i class="fas fa-heart"></i> Attribution
-                </button>
-            </div>
+                <div class="nav-subtabs" id="nav-overview-subtabs" style="display: block;">
+                    <ul class="nav-toc-list" id="nav-overview-toc"></ul>
+                </div>
 
-            <div class="sidebar-toc" id="sidebarToc" style="display: none;">
-                <h3><i class="fas fa-chevron-down"></i> Table of Contents</h3>
-                <ul id="tocList"></ul>
+                <button class="nav-tab" data-section="api">
+                    <i class="fas fa-code"></i>
+                    <span>API Reference</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
+                </button>
+                <div class="nav-subtabs" id="nav-api-subtabs">
+                    <ul class="nav-toc-list" id="nav-api-toc"></ul>
+                </div>
+
+                <button class="nav-tab" data-section="architecture">
+                    <i class="fas fa-sitemap"></i>
+                    <span>Architecture</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
+                </button>
+                <div class="nav-subtabs" id="nav-architecture-subtabs">
+                    <ul class="nav-toc-list" id="nav-architecture-toc"></ul>
+                </div>
+
+                <button class="nav-tab" data-section="simulators">
+                    <i class="fas fa-cogs"></i>
+                    <span>Simulators</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
+                </button>
+                <div class="nav-subtabs" id="nav-simulators-subtabs">
+                    <ul class="nav-toc-list" id="nav-simulators-toc"></ul>
+                </div>
+
+                <button class="nav-tab" data-section="contributing">
+                    <i class="fas fa-users"></i>
+                    <span>Contributing</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
+                </button>
+                <div class="nav-subtabs" id="nav-contributing-subtabs">
+                    <ul class="nav-toc-list" id="nav-contributing-toc"></ul>
+                </div>
+
+                <button class="nav-tab" data-section="deployment">
+                    <i class="fas fa-rocket"></i>
+                    <span>Deployment</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
+                </button>
+                <div class="nav-subtabs" id="nav-deployment-subtabs">
+                    <ul class="nav-toc-list" id="nav-deployment-toc"></ul>
+                </div>
+
+                <button class="nav-tab" data-section="attribution">
+                    <i class="fas fa-heart"></i>
+                    <span>Attribution</span>
+                    <i class="fas fa-chevron-down nav-chevron"></i>
+                </button>
+                <div class="nav-subtabs" id="nav-attribution-subtabs">
+                    <ul class="nav-toc-list" id="nav-attribution-toc"></ul>
+                </div>
             </div>
         </div>
 
@@ -996,11 +1148,18 @@
             }
 
             setupEventListeners() {
-                // Tab navigation
+                // Tab navigation with nested TOC
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.addEventListener('click', (e) => {
-                        const section = e.currentTarget.getAttribute('data-section');
-                        this.switchSection(section);
+                        const section = tab.dataset.section;
+                        const subtabs = document.getElementById(`nav-${section}-subtabs`);
+
+                        // If clicking on the active tab, toggle the subtabs
+                        if (tab.classList.contains('active')) {
+                            this.toggleSubtabs(tab, subtabs);
+                        } else {
+                            this.switchSection(section);
+                        }
                     });
                 });
 
@@ -1028,7 +1187,7 @@
 
                 searchBox.addEventListener('focus', () => {
                     if (searchBox.value.trim()) {
-                        this.showSearchResults();
+                        this.performSearch(searchBox.value.trim());
                     }
                 });
 
@@ -1038,15 +1197,6 @@
                         this.hideSearchResults();
                     }
                 });
-
-                // TOC toggle functionality
-                const sidebarToc = document.getElementById('sidebarToc');
-                const tocHeader = sidebarToc.querySelector('h3');
-                if (tocHeader) {
-                    tocHeader.addEventListener('click', () => {
-                        sidebarToc.classList.toggle('collapsed');
-                    });
-                }
             }
 
             setupKeyboardShortcuts() {
@@ -1117,8 +1267,22 @@
                 // Update tab states
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.classList.remove('active');
+                    tab.classList.add('collapsed');
                 });
-                document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+
+                // Hide all subtabs
+                document.querySelectorAll('.nav-subtabs').forEach(subtab => {
+                    subtab.style.display = 'none';
+                });
+
+                // Activate current tab and show its subtabs
+                const activeTab = document.querySelector(`[data-section="${sectionName}"]`);
+                const activeSubtabs = document.getElementById(`nav-${sectionName}-subtabs`);
+
+                activeTab.classList.add('active');
+                activeTab.classList.remove('collapsed');
+                activeSubtabs.style.display = 'block';
+                activeSubtabs.classList.remove('collapsed');
 
                 // Update section visibility
                 document.querySelectorAll('.doc-section').forEach(section => {
@@ -1132,7 +1296,7 @@
                 // Ensure content is fully rendered before resolving
                 await new Promise(resolve => {
                     requestAnimationFrame(() => {
-                        setTimeout(resolve, 50); // Small delay to ensure content is rendered
+                        setTimeout(resolve, 50);
                     });
                 });
 
@@ -1198,20 +1362,17 @@
             } updateTableOfContents() {
                 const currentSectionElement = document.getElementById(`section-${this.currentSection}`);
                 const headings = currentSectionElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                const tocList = document.getElementById('tocList');
-                const sidebarToc = document.getElementById('sidebarToc');
+                const navTocList = document.getElementById(`nav-${this.currentSection}-toc`);
 
                 if (headings.length === 0) {
-                    sidebarToc.style.display = 'none';
+                    navTocList.innerHTML = '';
                     return;
                 }
 
-                sidebarToc.style.display = 'block';
-
                 // Check cache
-                const cacheKey = `${this.currentSection}-toc`;
+                const cacheKey = `${this.currentSection}-nav-toc`;
                 if (this.tocCache.has(cacheKey)) {
-                    tocList.innerHTML = this.tocCache.get(cacheKey);
+                    navTocList.innerHTML = this.tocCache.get(cacheKey);
                     this.setupTocEventListeners();
                     return;
                 }
@@ -1227,11 +1388,13 @@
                     }
 
                     const level = parseInt(heading.tagName.charAt(1));
-                    const indent = Math.max(0, (level - 1) * 12);
 
                     tocHtml += `
-                        <li style="margin-left: ${indent}px;">
-                            <a href="#${id}" data-heading-id="${id}">
+                        <li>
+                            <a href="#${id}"
+                               data-heading-id="${id}"
+                               data-level="${level}"
+                               title="${headingText}">
                                 ${headingText}
                             </a>
                         </li>
@@ -1239,10 +1402,9 @@
                 });
 
                 this.tocCache.set(cacheKey, tocHtml);
-                tocList.innerHTML = tocHtml;
+                navTocList.innerHTML = tocHtml;
                 this.setupTocEventListeners();
             }
-
             generateHeadingId(text, index) {
                 // Create a URL-friendly ID from heading text
                 const baseId = text
@@ -1253,16 +1415,19 @@
                     .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
 
                 return baseId || `heading-${index}`;
-            } setupTocEventListeners() {
-                const tocLinks = document.querySelectorAll('#tocList a'); tocLinks.forEach(link => {
+            }
+            setupTocEventListeners() {
+                const navTocLinks = document.querySelectorAll(`#nav-${this.currentSection}-toc a`);
+
+                navTocLinks.forEach(link => {
                     link.addEventListener('click', (e) => {
                         e.preventDefault();
-                        const targetId = link.getAttribute('data-heading-id');
+                        const targetId = link.dataset.headingId;
                         this.scrollToHeading(targetId);
                     });
                 });
 
-                // Set up scroll spy for TOC
+                // Set up scroll spy for nested TOC
                 this.setupScrollSpy();
             } scrollToHeading(headingId) {
                 // Wait for any pending content to render
@@ -1275,29 +1440,46 @@
                         const mainContent = document.querySelector('.main-content');
 
                         if (mainContent) {
-                            // Calculate position relative to the main content container
-                            const containerRect = mainContent.getBoundingClientRect();
+                            // Get the target element's position relative to the document
                             const targetRect = targetElement.getBoundingClientRect();
+                            const mainContentRect = mainContent.getBoundingClientRect();
+
+                            // Calculate the current scroll position
                             const currentScrollTop = mainContent.scrollTop;
 
-                            // Calculate the target scroll position
-                            const targetScrollTop = currentScrollTop + targetRect.top - containerRect.top - 80;
+                            // Calculate the target's position relative to the main content's scroll area
+                            const targetOffsetFromViewport = targetRect.top - mainContentRect.top;
 
-                            console.log('Scrolling main content to:', targetScrollTop);
+                            // Add a small offset to position the heading nicely (not right at the top)
+                            const scrollOffset = 20; // Reduced from 80 to prevent overshooting
+
+                            // Calculate the final scroll position
+                            const targetScrollTop = currentScrollTop + targetOffsetFromViewport - scrollOffset;
+
+                            console.log('Scroll calculation:', {
+                                currentScrollTop,
+                                targetOffsetFromViewport,
+                                scrollOffset,
+                                targetScrollTop,
+                                targetRect: targetRect.top,
+                                mainContentRect: mainContentRect.top
+                            });
 
                             mainContent.scrollTo({
-                                top: targetScrollTop,
+                                top: Math.max(0, targetScrollTop), // Ensure we don't scroll to negative values
                                 behavior: 'smooth'
                             });
                         } else {
                             // Fallback to window scrolling
                             console.log('Fallback to window scrolling');
-                            const elementTop = targetElement.getBoundingClientRect().top + window.pageYOffset;
-                            window.scrollTo({
-                                top: elementTop - 80,
-                                behavior: 'smooth'
+                            targetElement.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start',
+                                inline: 'nearest'
                             });
-                        }                        // Add visual highlight
+                        }
+
+                        // Add visual highlight
                         targetElement.style.transition = 'background-color 0.3s ease';
                         targetElement.style.backgroundColor = 'rgba(14, 165, 233, 0.1)';
                         setTimeout(() => {
@@ -1317,11 +1499,11 @@
                 }
 
                 const headings = document.querySelectorAll(`#section-${this.currentSection} h1, #section-${this.currentSection} h2, #section-${this.currentSection} h3, #section-${this.currentSection} h4, #section-${this.currentSection} h5, #section-${this.currentSection} h6`);
-                const tocLinks = document.querySelectorAll('#tocList a');
+                const navTocLinks = document.querySelectorAll(`#nav-${this.currentSection}-toc a`);
 
-                if (headings.length === 0 || tocLinks.length === 0) return;
+                if (headings.length === 0 || navTocLinks.length === 0) return;
 
-                // Also listen to scroll events for more responsive TOC updates
+                // Listen to scroll events for responsive TOC updates
                 const mainContent = document.querySelector('.main-content');
                 if (mainContent) {
                     // Remove previous scroll listener
@@ -1346,28 +1528,31 @@
                             visibleHeadings.push({
                                 element: entry.target,
                                 ratio: entry.intersectionRatio,
-                                boundingRect: entry.boundingClientRect
+                                top: entry.boundingClientRect.top
                             });
                         }
                     });
 
                     if (visibleHeadings.length > 0) {
-                        // Find the heading that's most visible or closest to the top
-                        const bestHeading = visibleHeadings.reduce((best, current) => {
-                            // Prefer headings that are closer to the top of the viewport
-                            const currentDistance = Math.abs(current.boundingRect.top);
-                            const bestDistance = Math.abs(best.boundingRect.top);
-
-                            return currentDistance < bestDistance ? current : best;
+                        // Sort by position and pick the most prominent one
+                        visibleHeadings.sort((a, b) => {
+                            if (Math.abs(a.top) < Math.abs(b.top)) return -1;
+                            if (Math.abs(a.top) > Math.abs(b.top)) return 1;
+                            return b.ratio - a.ratio;
                         });
 
-                        this.updateActiveTocItem(bestHeading.element.id);
+                        const activeHeading = visibleHeadings[0].element;
+                        if (activeHeading.id) {
+                            this.updateActiveTocItem(activeHeading.id);
+                        }
                     }
                 }, {
                     root: document.querySelector('.main-content'),
-                    rootMargin: '-20px 0px -60% 0px', // More sensitive detection
-                    threshold: [0, 0.25, 0.5, 0.75, 1] // Multiple thresholds for better detection
-                }); headings.forEach(heading => this.scrollSpyObserver.observe(heading));
+                    rootMargin: '-20px 0px -60% 0px',
+                    threshold: [0, 0.25, 0.5, 0.75, 1]
+                });
+
+                headings.forEach(heading => this.scrollSpyObserver.observe(heading));
             } updateTocBasedOnScroll(headings) {
                 if (!headings || headings.length === 0) return;
 
@@ -1420,150 +1605,168 @@
                     }
                 }
             } updateActiveTocItem(headingId) {
-                const tocLinks = document.querySelectorAll('#tocList a');
-                const activeLink = document.querySelector(`#tocList a[data-heading-id="${headingId}"]`);
+                const navTocLinks = document.querySelectorAll(`#nav-${this.currentSection}-toc a`);
+                const activeLink = document.querySelector(`#nav-${this.currentSection}-toc a[data-heading-id="${headingId}"]`);
 
                 // Remove active class from all links
-                tocLinks.forEach(link => link.classList.remove('active'));
+                navTocLinks.forEach(link => link.classList.remove('active'));
 
                 // Add active class to current link
                 if (activeLink) {
                     activeLink.classList.add('active');
-                    console.log('TOC: Activating item:', headingId, activeLink.textContent.trim());
+                    console.log('Nav TOC: Activating item:', headingId, activeLink.textContent.trim());
 
-                    // Ensure the active TOC item is visible in the sidebar
-                    this.scrollTocItemIntoView(activeLink);
+                    // Ensure the active TOC item is visible in the nav subtabs
+                    this.scrollNavTocItemIntoView(activeLink);
                 } else {
-                    console.log('TOC: No link found for heading:', headingId);
+                    console.log('Nav TOC: No link found for heading:', headingId);
                 }
-            } scrollTocItemIntoView(tocItem) {
+            }
+
+            scrollNavTocItemIntoView(tocItem) {
                 if (!tocItem) return;
 
-                const sidebarToc = document.getElementById('sidebarToc');
-                if (!sidebarToc) return;
+                const navSubtabs = document.getElementById(`nav-${this.currentSection}-subtabs`);
+                if (!navSubtabs) return;
 
-                console.log('TOC: Scrolling item into view:', tocItem.textContent.trim());
+                console.log('Nav TOC: Scrolling item into view:', tocItem.textContent.trim());
 
-                // Use requestAnimationFrame to ensure DOM is ready
                 requestAnimationFrame(() => {
-                    // Get the scrollable container (the sidebarToc itself)
-                    const containerRect = sidebarToc.getBoundingClientRect();
+                    const containerRect = navSubtabs.getBoundingClientRect();
                     const itemRect = tocItem.getBoundingClientRect();
 
-                    // Calculate if item is outside the visible area of the container
                     const containerTop = containerRect.top;
                     const containerBottom = containerRect.bottom;
                     const itemTop = itemRect.top;
                     const itemBottom = itemRect.bottom;
 
-                    // Add padding for better visibility
                     const padding = 20;
-
                     const isAbove = itemTop < (containerTop + padding);
                     const isBelow = itemBottom > (containerBottom - padding);
 
-                    console.log('TOC scroll check:', {
-                        isAbove,
-                        isBelow,
-                        itemTop,
-                        itemBottom,
-                        containerTop,
-                        containerBottom,
-                        containerHeight: containerRect.height,
-                        scrollTop: sidebarToc.scrollTop,
-                        scrollHeight: sidebarToc.scrollHeight
-                    });
-
                     if (isAbove || isBelow) {
-                        // Calculate the target scroll position
-                        const itemOffsetTop = tocItem.offsetTop;
-                        const containerHeight = sidebarToc.clientHeight;
-                        const itemHeight = tocItem.offsetHeight;
-
-                        let targetScrollTop;
-
-                        if (isAbove) {
-                            // Scroll up to show item at top with padding
-                            targetScrollTop = itemOffsetTop - padding;
-                        } else {
-                            // Scroll down to show item at bottom with padding
-                            targetScrollTop = itemOffsetTop - containerHeight + itemHeight + padding;
-                        }
-
-                        // Clamp to valid scroll range
-                        const maxScrollTop = sidebarToc.scrollHeight - containerHeight;
-                        targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
-
-                        console.log('TOC: Scrolling to position:', targetScrollTop, 'from current:', sidebarToc.scrollTop);
-
-                        // Scroll to the calculated position
-                        sidebarToc.scrollTo({
-                            top: targetScrollTop,
-                            behavior: 'smooth'
+                        tocItem.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center',
+                            inline: 'nearest'
                         });
-                    } else {
-                        console.log('TOC: Item already visible, no scrolling needed');
                     }
                 });
-            } async buildSearchIndex() {
+            }
+
+            toggleSubtabs(navTab, subtabs) {
+                if (subtabs.style.display === 'none' || !subtabs.style.display) {
+                    subtabs.style.display = 'block';
+                    subtabs.classList.remove('collapsed');
+                    navTab.classList.remove('collapsed');
+                } else {
+                    subtabs.classList.add('collapsed');
+                    navTab.classList.add('collapsed');
+                    setTimeout(() => {
+                        subtabs.style.display = 'none';
+                    }, 300);
+                }
+            }
+            async buildSearchIndex() {
                 console.log('Building search index...');
 
                 // FIXED: Initialize search index consistently as Map with arrays
                 this.searchIndex.clear();
 
+                // Add specific anchor mappings for landing page links
+                const specificAnchors = {
+                    'mls-mpm-implementation': 'simulators',
+                    'enhanced-fluid-rendering': 'simulators',
+                    'multi-environment-support': 'simulators',
+                    'webgpu-pipeline-optimization': 'api',
+                    'simulator-registry': 'architecture',
+                    'configuration-system': 'api',
+                    'ui-manager': 'architecture',
+                    'error-handling-system': 'api',
+                    'plugin-architecture': 'architecture',
+                    'fluid-physics-enhancements': 'simulators',
+                    'boids-implementation': 'simulators',
+                    'simulator-template': 'contributing',
+                    'debugging-tools': 'api',
+                    'performance-monitoring': 'api',
+                    'integration-guide': 'contributing',
+                    'performance-benchmarks': 'api',
+                    'compute-pipeline-optimization': 'architecture',
+                    'webgpu-compute-pipeline': 'simulators',
+                    'sph-fluid-physics': 'simulators',
+                    'screen-space-rendering': 'architecture',
+                    'camera-system': 'api',
+                    'error-handling-framework': 'api',
+                    'enhanced-fluid-shaders': 'architecture',
+                    'environment-mapping': 'simulators',
+                    'documentation-system': 'overview',
+                    'integration-templates': 'contributing',
+                    'type-safe-configuration': 'api',
+                    'architecture-overview': 'architecture',
+                    'plugin-interface': 'contributing',
+                    'runtime-registration': 'api',
+                    'element-caching': 'api',
+                    'dynamic-controls': 'architecture',
+                    'event-driven-updates': 'api',
+                    'shader-error-reporter': 'api',
+                    'error-monitoring': 'api',
+                    'validation-framework': 'api',
+                    'error-streaming': 'api',
+                    'project-history': 'attribution',
+                    'original-attribution': 'attribution',
+                    'visual-enhancements': 'simulators',
+                    'architecture-transformation': 'architecture',
+                    'documentation-launch': 'overview',
+                    'getting-started': 'overview',
+                    'api-reference': 'api',
+                    'contributing-guidelines': 'contributing',
+                    'attribution-credits': 'attribution',
+                    'license-information': 'overview',
+                    'core-architecture': 'architecture',
+                    'deployment-setup': 'deployment',
+                    'example-implementation': 'contributing'
+                };
+
                 for (const [sectionName, config] of Object.entries(this.sections)) {
                     try {
+                        console.log(`Building search index for ${sectionName}...`);
                         const response = await fetch(config.file);
                         if (!response.ok) continue;
 
                         const content = await response.text();
                         const lines = content.split('\n');
-
-                        // Also store heading information for better navigation
                         const headings = [];
-                        lines.forEach((line, lineIndex) => {
-                            const trimmedLine = line.trim();
 
-                            // Check if this line is a heading (markdown format)
-                            const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+                        // Parse headings and content
+                        lines.forEach((line, index) => {
+                            const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
                             if (headingMatch) {
                                 headings.push({
                                     level: headingMatch[1].length,
-                                    text: headingMatch[2],
-                                    lineIndex: lineIndex
+                                    text: headingMatch[2].trim(),
+                                    lineIndex: index
                                 });
                             }
-                        });
 
-                        lines.forEach((line, lineIndex) => {
-                            const trimmedLine = line.trim();
-                            if (trimmedLine.length === 0) return;
-
-                            // Find the closest heading for this line
-                            const closestHeading = this.findClosestHeading(headings, lineIndex);
-
-                            // Extract words and create search entries
-                            const words = trimmedLine.toLowerCase().match(/\b\w+\b/g) || [];
-
-                            words.forEach(word => {
-                                if (word.length < 2) return; // Skip very short words
-
-                                // FIXED: Consistently use arrays for search index storage
-                                if (!this.searchIndex.has(word)) {
-                                    this.searchIndex.set(word, []);
-                                }
-
-                                // Get the array and push new entry
-                                const entries = this.searchIndex.get(word);
-                                entries.push({
-                                    section: sectionName,
-                                    title: config.title,
-                                    line: trimmedLine,
-                                    lineIndex: lineIndex,
-                                    context: this.getContext(lines, lineIndex),
-                                    heading: closestHeading // Store the closest heading for better navigation
+                            // Index content for search
+                            const cleanLine = line.replace(/[#\*\[\]()]/g, '').trim();
+                            if (cleanLine.length > 0) {
+                                const words = cleanLine.toLowerCase().split(/\s+/);
+                                words.forEach(word => {
+                                    if (word.length > 2) {
+                                        if (!this.searchIndex.has(word)) {
+                                            this.searchIndex.set(word, []);
+                                        }
+                                        this.searchIndex.get(word).push({
+                                            section: sectionName,
+                                            line: cleanLine,
+                                            lineIndex: index,
+                                            heading: this.findClosestHeading(headings, index),
+                                            context: this.getContext(lines, index)
+                                        });
+                                    }
                                 });
-                            });
+                            }
                         });
                     } catch (error) {
                         console.warn(`Failed to index section ${sectionName}:`, error);
@@ -1592,7 +1795,9 @@
                 const start = Math.max(0, lineIndex - contextLines);
                 const end = Math.min(lines.length, lineIndex + contextLines + 1);
                 return lines.slice(start, end).join(' ').trim();
-            } performSearch(query) {
+            }
+
+            performSearch(query) {
                 const searchResults = document.getElementById('searchResults');
                 const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
 
@@ -1614,12 +1819,14 @@
                             entries.forEach(entry => {
                                 const key = `${entry.section}-${entry.lineIndex}`;
                                 if (!results.has(key)) {
-                                    results.set(key, { ...entry, score: 0, matchedTerms: new Set() });
+                                    results.set(key, {
+                                        ...entry,
+                                        score: 0
+                                    });
                                 }
-
-                                const result = results.get(key);
-                                result.score += indexedTerm === term ? 10 : 5; // Exact match bonus
-                                result.matchedTerms.add(term);
+                                // Increase score for exact matches
+                                const scoreBoost = indexedTerm === term ? 2 : 1;
+                                results.get(key).score += scoreBoost;
                             });
                         }
                     }
@@ -1631,7 +1838,9 @@
                     .slice(0, maxResults);
 
                 this.displaySearchResults(sortedResults, terms);
-            } displaySearchResults(results, searchTerms) {
+            }
+
+            displaySearchResults(results, searchTerms) {
                 const searchResults = document.getElementById('searchResults');
 
                 if (results.length === 0) {
@@ -1642,21 +1851,18 @@
 
                 const resultsHtml = results.map((result, index) => {
                     const highlightedLine = this.highlightSearchTerms(result.line, searchTerms);
-                    const highlightedContext = this.highlightSearchTerms(result.context, searchTerms);                    // Store result data as data attributes to avoid JSON parsing issues
+                    const highlightedContext = this.highlightSearchTerms(result.context, searchTerms);
+
+                    // Store result data as data attributes to avoid JSON parsing issues
                     const headingText = result.heading ? result.heading.text : '';
                     const headingLevel = result.heading ? result.heading.level : 0;
                     const searchTermsJson = JSON.stringify(searchTerms);
 
                     return `
                         <div class="search-result-item"
-                             onclick="site.navigateToResult('${result.section}', ${result.lineIndex}, '${headingText.replace(/'/g, "\\'")}', ${headingLevel}, ${searchTermsJson.replace(/"/g, '&quot;')})"
-                             data-section="${result.section}"
-                             data-line-index="${result.lineIndex}"
-                             data-heading-text="${headingText}"
-                             data-heading-level="${headingLevel}"
-                             data-search-terms="${searchTermsJson.replace(/"/g, '&quot;')}">
+                             onclick="site.navigateToResult('${result.section}', ${result.lineIndex}, '${headingText}', ${headingLevel}, '${searchTermsJson}')">
                             <div class="search-result-title">${highlightedLine}</div>
-                            <div class="search-result-section">${result.title}</div>
+                            <div class="search-result-section">${result.section}</div>
                             <div class="search-result-context">${highlightedContext}</div>
                         </div>
                     `;
@@ -1692,6 +1898,66 @@
                     perfIndicator.textContent = `${Math.round(duration)}ms`;
                 }
             } async navigateToResult(sectionName, lineIndex, headingText = '', headingLevel = 0, searchTerms = []) {
+                // Handle specific anchor navigation from landing page
+                const specificAnchors = {
+                    'mls-mmp-implementation': 'simulators',
+                    'enhanced-fluid-rendering': 'simulators',
+                    'multi-environment-support': 'simulators',
+                    'webgpu-pipeline-optimization': 'api',
+                    'simulator-registry': 'architecture',
+                    'configuration-system': 'api',
+                    'ui-manager': 'architecture',
+                    'error-handling-system': 'api',
+                    'plugin-architecture': 'architecture',
+                    'fluid-physics-enhancements': 'simulators',
+                    'boids-implementation': 'simulators',
+                    'simulator-template': 'contributing',
+                    'debugging-tools': 'api',
+                    'performance-monitoring': 'api',
+                    'integration-guide': 'contributing',
+                    'performance-benchmarks': 'api',
+                    'compute-pipeline-optimization': 'architecture',
+                    'webgpu-compute-pipeline': 'simulators',
+                    'sph-fluid-physics': 'simulators',
+                    'screen-space-rendering': 'architecture',
+                    'camera-system': 'api',
+                    'error-handling-framework': 'api',
+                    'enhanced-fluid-shaders': 'architecture',
+                    'environment-mapping': 'simulators',
+                    'documentation-system': 'overview',
+                    'integration-templates': 'contributing',
+                    'type-safe-configuration': 'api',
+                    'architecture-overview': 'architecture',
+                    'plugin-interface': 'contributing',
+                    'runtime-registration': 'api',
+                    'element-caching': 'api',
+                    'dynamic-controls': 'architecture',
+                    'event-driven-updates': 'api',
+                    'shader-error-reporter': 'api',
+                    'error-monitoring': 'api',
+                    'validation-framework': 'api',
+                    'error-streaming': 'api',
+                    'project-history': 'attribution',
+                    'original-attribution': 'attribution',
+                    'visual-enhancements': 'simulators',
+                    'architecture-transformation': 'architecture',
+                    'documentation-launch': 'overview',
+                    'getting-started': 'overview',
+                    'api-reference': 'api',
+                    'contributing-guidelines': 'contributing',
+                    'attribution-credits': 'attribution',
+                    'license-information': 'overview',
+                    'core-architecture': 'architecture',
+                    'deployment-setup': 'deployment',
+                    'example-implementation': 'contributing'
+                };
+
+                // Check if this is a specific anchor navigation
+                const currentHash = window.location.hash.substring(1);
+                if (currentHash && specificAnchors[currentHash]) {
+                    sectionName = specificAnchors[currentHash];
+                }
+
                 await this.switchSection(sectionName);
                 this.hideSearchResults();
 
@@ -1713,17 +1979,11 @@
 
                     // Try to find the exact heading if we have heading info
                     if (headingText) {
-                        const headingId = this.generateHeadingId(headingText, 0);
-                        targetElement = document.getElementById(headingId);
-
-                        // If not found by generated ID, try to find by text content
-                        if (!targetElement) {
-                            const headings = document.querySelectorAll(`#section-${sectionName} h1, #section-${sectionName} h2, #section-${sectionName} h3, #section-${sectionName} h4, #section-${sectionName} h5, #section-${sectionName} h6`);
-                            for (const heading of headings) {
-                                if (heading.textContent.trim() === headingText) {
-                                    targetElement = heading;
-                                    break;
-                                }
+                        const headings = document.querySelectorAll(`#section-${sectionName} h1, #section-${sectionName} h2, #section-${sectionName} h3, #section-${sectionName} h4, #section-${sectionName} h5, #section-${sectionName} h6`);
+                        for (const heading of headings) {
+                            if (heading.textContent.trim().includes(headingText)) {
+                                targetElement = heading;
+                                break;
                             }
                         }
                     }
@@ -1731,56 +1991,25 @@
                     // Fallback: find the closest heading by position
                     if (!targetElement) {
                         const allHeadings = document.querySelectorAll(`#section-${sectionName} h1, #section-${sectionName} h2, #section-${sectionName} h3, #section-${sectionName} h4, #section-${sectionName} h5, #section-${sectionName} h6`);
-                        if (allHeadings.length > 0) {
-                            // Use a more intelligent algorithm to find the closest heading
-                            const headingIndex = Math.min(
-                                Math.floor(lineIndex / 20), // Better ratio than /10
-                                allHeadings.length - 1
-                            );
-                            targetElement = allHeadings[headingIndex];
+                        if (allHeadings.length > Math.floor(lineIndex / 10)) {
+                            targetElement = allHeadings[Math.floor(lineIndex / 10)];
                         }
                     }
 
                     // Final fallback: scroll to top of section
                     if (!targetElement) {
                         targetElement = document.getElementById(`section-${sectionName}`);
-                    } if (targetElement) {
-                        const elementId = targetElement.id || targetElement.getAttribute('id');
+                    }
 
-                        if (elementId) {
-                            this.scrollToHeading(elementId);
-                        } else {
-                            // Direct scroll if no ID - use the same logic as scrollToHeading
-                            const mainContent = document.querySelector('.main-content');
-                            if (mainContent) {
-                                const containerRect = mainContent.getBoundingClientRect();
-                                const targetRect = targetElement.getBoundingClientRect();
-                                const currentScrollTop = mainContent.scrollTop;
-                                const targetScrollTop = currentScrollTop + targetRect.top - containerRect.top - 80;
+                    if (targetElement) {
+                        targetElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                            inline: 'nearest'
+                        });
 
-                                mainContent.scrollTo({
-                                    top: targetScrollTop,
-                                    behavior: 'smooth'
-                                });
-                            } else {
-                                targetElement.scrollIntoView({
-                                    behavior: 'smooth',
-                                    block: 'start'
-                                });
-                            }
-                        }                        // Highlight search terms after scrolling
-                        if (searchTerms && searchTerms.length > 0) {
-                            setTimeout(() => {
-                                this.highlightSearchTermsInContent(sectionName, searchTerms);
-                            }, 800); // Wait for scroll animation to complete
-                        }
-
-                        // Ensure TOC is updated if we have a target element with an ID
-                        if (targetElement && targetElement.id) {
-                            setTimeout(() => {
-                                this.updateActiveTocItem(targetElement.id);
-                            }, 400); // Update TOC after scroll starts
-                        }
+                        // Highlight search terms in the content
+                        this.highlightSearchTermsInContent(sectionName, searchTerms);
                     }
                 }, 300); // Increased timeout for better reliability
             }
@@ -1810,15 +2039,8 @@
                     NodeFilter.SHOW_TEXT,
                     {
                         acceptNode: function (node) {
-                            // Skip script, style, and already highlighted elements
-                            const parent = node.parentNode;
-                            if (parent.tagName === 'SCRIPT' ||
-                                parent.tagName === 'STYLE' ||
-                                parent.classList.contains('highlight') ||
-                                parent.classList.contains('temp-highlight')) {
-                                return NodeFilter.FILTER_REJECT;
-                            }
-                            return NodeFilter.FILTER_ACCEPT;
+                            return node.parentNode.tagName !== 'SCRIPT' && node.parentNode.tagName !== 'STYLE'
+                                ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
                         }
                     }
                 );
@@ -1842,28 +2064,21 @@
                     });
 
                     if (hasMatch) {
-                        // Create highlighted version
-                        let highlightedHtml = text;
-                        const colors = ['temp-highlight-1', 'temp-highlight-2', 'temp-highlight-3', 'temp-highlight-4'];
-
+                        let newHTML = text;
                         searchTerms.forEach((term, index) => {
-                            const colorClass = colors[index % colors.length];
                             const regex = new RegExp(`(${this.escapeRegex(term)})`, 'gi');
-                            highlightedHtml = highlightedHtml.replace(regex, `<span class="temp-highlight ${colorClass}">$1</span>`);
+                            const colorClass = `temp-highlight-${(index % 4) + 1}`;
+                            newHTML = newHTML.replace(regex, `<span class="temp-highlight ${colorClass}">$1</span>`);
                         });
 
-                        // Replace text node with highlighted HTML
-                        if (highlightedHtml !== text) {
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = highlightedHtml;
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = newHTML;
+                        const parent = textNode.parentNode;
 
-                            // Replace the text node with the highlighted content
-                            const parent = textNode.parentNode;
-                            while (tempDiv.firstChild) {
-                                parent.insertBefore(tempDiv.firstChild, textNode);
-                            }
-                            parent.removeChild(textNode);
+                        while (tempDiv.firstChild) {
+                            parent.insertBefore(tempDiv.firstChild, textNode);
                         }
+                        parent.removeChild(textNode);
                     }
                 });
 
@@ -1893,6 +2108,69 @@
         let site;
         document.addEventListener('DOMContentLoaded', () => {
             site = new DocumentationSite();
+
+            // Handle direct hash navigation from landing page
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                const specificAnchors = {
+                    'mls-mmp-implementation': 'simulators',
+                    'enhanced-fluid-rendering': 'simulators',
+                    'multi-environment-support': 'simulators',
+                    'webgpu-pipeline-optimization': 'api',
+                    'simulator-registry': 'architecture',
+                    'configuration-system': 'api',
+                    'ui-manager': 'architecture',
+                    'error-handling-system': 'api',
+                    'plugin-architecture': 'architecture',
+                    'fluid-physics-enhancements': 'simulators',
+                    'boids-implementation': 'simulators',
+                    'simulator-template': 'contributing',
+                    'debugging-tools': 'api',
+                    'performance-monitoring': 'api',
+                    'integration-guide': 'contributing',
+                    'performance-benchmarks': 'api',
+                    'compute-pipeline-optimization': 'architecture',
+                    'webgpu-compute-pipeline': 'simulators',
+                    'sph-fluid-physics': 'simulators',
+                    'screen-space-rendering': 'architecture',
+                    'camera-system': 'api',
+                    'error-handling-framework': 'api',
+                    'enhanced-fluid-shaders': 'architecture',
+                    'environment-mapping': 'simulators',
+                    'documentation-system': 'overview',
+                    'integration-templates': 'contributing',
+                    'type-safe-configuration': 'api',
+                    'architecture-overview': 'architecture',
+                    'plugin-interface': 'contributing',
+                    'runtime-registration': 'api',
+                    'element-caching': 'api',
+                    'dynamic-controls': 'architecture',
+                    'event-driven-updates': 'api',
+                    'shader-error-reporter': 'api',
+                    'error-monitoring': 'api',
+                    'validation-framework': 'api',
+                    'error-streaming': 'api',
+                    'project-history': 'attribution',
+                    'original-attribution': 'attribution',
+                    'visual-enhancements': 'simulators',
+                    'architecture-transformation': 'architecture',
+                    'documentation-launch': 'overview',
+                    'getting-started': 'overview',
+                    'api-reference': 'api',
+                    'contributing-guidelines': 'contributing',
+                    'attribution-credits': 'attribution',
+                    'license-information': 'overview',
+                    'core-architecture': 'architecture',
+                    'deployment-setup': 'deployment',
+                    'example-implementation': 'contributing'
+                };
+
+                if (specificAnchors[hash]) {
+                    setTimeout(() => {
+                        site.switchSection(specificAnchors[hash]);
+                    }, 100);
+                }
+            }
         });
 
         // Handle mobile responsiveness

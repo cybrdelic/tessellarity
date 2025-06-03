@@ -1462,6 +1462,71 @@
                 gap: 2rem;
             }
         }
+
+        /* Documentation Link Styling */
+        .feature-points a,
+        .tech-list a,
+        .arch-feature a,
+        .timeline-desc a {
+            transition: all 0.2s ease;
+            border-bottom: 1px solid transparent;
+        }
+
+        .feature-points a:hover,
+        .tech-list a:hover,
+        .arch-feature a:hover {
+            color: var(--accent-color) !important;
+            border-bottom-color: var(--accent-color);
+            transform: translateX(2px);
+        }
+
+        .timeline-desc a:hover {
+            color: var(--text-color) !important;
+            border-bottom-color: var(--accent-color);
+        }
+
+        .section-subtitle a {
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .section-subtitle a:hover {
+            color: var(--text-color) !important;
+            transform: translateX(4px);
+        }
+
+        .metric-context a {
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid transparent;
+        }
+
+        .metric-context a:hover {
+            color: var(--text-color) !important;
+            border-bottom-color: var(--accent-color);
+        }
+
+        /* Enhanced hover effects for links */
+        .feature-points li:hover,
+        .tech-list li:hover,
+        .arch-feature:hover {
+            transform: translateX(4px);
+        }
+
+        /* Consistent link styling across sections */
+        .doc-link {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid transparent;
+        }
+
+        .doc-link:hover {
+            color: var(--text-color);
+            border-bottom-color: var(--accent-color);
+            transform: translateX(2px);
+        }
     </style>
 </head>
 
@@ -1502,9 +1567,9 @@
                         <i class="fas fa-play"></i>
                         Launch Demo
                     </a>
-                    <a href="https://github.com/user/WebGPU-Ocean" class="btn btn-secondary">
-                        <i class="fab fa-github"></i>
-                        View Source
+                    <a href="docs.html#architecture" class="btn btn-secondary">
+                        <i class="fas fa-book"></i>
+                        View Architecture
                     </a>
                 </div>
             </div>
@@ -1553,10 +1618,18 @@
                         </div>
                     </div>
                     <ul class="feature-points">
-                        <li>Original MLS-MPM & SPH Implementation</li>
-                        <li>Enhanced Fluid Shaders & Rendering</li>
-                        <li>Multi-Environment Support</li>
-                        <li>Optimized WebGPU Pipeline</li>
+                        <li><a href="docs.html#mls-mpm-implementation"
+                                style="color: var(--text-muted); text-decoration: none;">Original MLS-MPM & SPH
+                                Implementation</a></li>
+                        <li><a href="docs.html#enhanced-fluid-rendering"
+                                style="color: var(--text-muted); text-decoration: none;">Enhanced Fluid Shaders &
+                                Rendering</a></li>
+                        <li><a href="docs.html#multi-environment-support"
+                                style="color: var(--text-muted); text-decoration: none;">Multi-Environment Support</a>
+                        </li>
+                        <li><a href="docs.html#webgpu-pipeline-optimization"
+                                style="color: var(--text-muted); text-decoration: none;">Optimized
+                                WebGPU Pipeline</a></li>
                     </ul>
                 </div>
 
@@ -1566,14 +1639,24 @@
                     </div>
                     <h3>Plugin Architecture</h3>
                     <ul class="feature-points">
-                        <li>Dynamic Simulator Registration</li>
-                        <li>Type-Safe Configuration System</li>
-                        <li>Centralized UI Management</li>
-                        <li>Runtime Error Handling</li>
+                        <li><a href="docs.html#simulator-registry"
+                                style="color: var(--text-muted); text-decoration: none;">Dynamic Simulator
+                                Registration</a></li>
+                        <li><a href="docs.html#configuration-system"
+                                style="color: var(--text-muted); text-decoration: none;">Type-Safe
+                                Configuration System</a></li>
+                        <li><a href="docs.html#ui-manager"
+                                style="color: var(--text-muted); text-decoration: none;">Centralized UI Management</a>
+                        </li>
+                        <li><a href="docs.html#error-handling-system"
+                                style="color: var(--text-muted); text-decoration: none;">Runtime
+                                Error Handling</a></li>
                     </ul>
                     <div class="feature-highlight">
                         <i class="fas fa-code-branch"></i>
-                        <span>Extensible Framework</span>
+                        <span><a href="docs.html#plugin-architecture"
+                                style="color: var(--accent-color); text-decoration: none;">Extensible
+                                Framework</a></span>
                     </div>
                 </div>
 
@@ -1586,17 +1669,29 @@
                         <div class="feature-column">
                             <h4>Ready Simulators</h4>
                             <ul class="feature-points compact">
-                                <li>Enhanced Fluid Physics</li>
-                                <li>Boids Flocking System</li>
-                                <li>Template Framework</li>
+                                <li><a href="docs.html#fluid-physics-enhancements"
+                                        style="color: var(--text-muted); text-decoration: none;">Enhanced Fluid
+                                        Physics</a></li>
+                                <li><a href="docs.html#boids-implementation"
+                                        style="color: var(--text-muted); text-decoration: none;">Boids Flocking
+                                        System</a></li>
+                                <li><a href="docs.html#simulator-template"
+                                        style="color: var(--text-muted); text-decoration: none;">Template Framework</a>
+                                </li>
                             </ul>
                         </div>
                         <div class="feature-column">
                             <h4>Dev Tools</h4>
                             <ul class="feature-points compact">
-                                <li>Real-time Debugging</li>
-                                <li>Performance Monitoring</li>
-                                <li>Integration Docs</li>
+                                <li><a href="docs.html#debugging-tools"
+                                        style="color: var(--text-muted); text-decoration: none;">Real-time Debugging</a>
+                                </li>
+                                <li><a href="docs.html#performance-monitoring"
+                                        style="color: var(--text-muted); text-decoration: none;">Performance
+                                        Monitoring</a></li>
+                                <li><a href="docs.html#integration-guide"
+                                        style="color: var(--text-muted); text-decoration: none;">Integration Docs</a>
+                                </li>
                             </ul>
                         </div>
                     </div>
@@ -1607,12 +1702,21 @@
     <section class="stats" id="performance">
         <div class="container">
             <h2 class="section-title">Performance Analysis</h2>
+            <p class="section-subtitle">
+                <a href="docs.html#performance-benchmarks" style="color: var(--text-muted); text-decoration: none;">
+                    Detailed benchmarks and optimization insights →
+                </a>
+            </p>
             <div class="performance-grid">
                 <div class="performance-card main-metric">
                     <div class="metric-icon">⚡</div>
                     <div class="metric-value">300,000+</div>
                     <div class="metric-label">Particles on Dedicated GPU</div>
-                    <div class="metric-context">Achieved with optimized compute shaders and efficient memory management
+                    <div class="metric-context">Achieved with optimized compute shaders and efficient memory management.
+                        <a href="docs.html#compute-pipeline-optimization"
+                            style="color: var(--accent-color); text-decoration: none; font-size: 0.8rem;">
+                            Learn more about the pipeline →
+                        </a>
                     </div>
                 </div>
                 <div class="performance-metrics">
@@ -1653,33 +1757,56 @@
                 <div class="tech-column">
                     <h4>Original Core (matsuoka-601)</h4>
                     <ul class="tech-list">
-                        <li>WebGPU Compute Pipeline</li>
-                        <li>MLS-MPM Implementation</li>
-                        <li>SPH Fluid Physics</li>
-                        <li>Screen-Space Fluid Rendering</li>
-                        <li>Basic Camera System</li>
+                        <li><a href="docs.html#webgpu-compute-pipeline"
+                                style="color: var(--text-muted); text-decoration: none;">WebGPU Compute Pipeline</a>
+                        </li>
+                        <li><a href="docs.html#mls-mpm-implementation"
+                                style="color: var(--text-muted); text-decoration: none;">MLS-MPM Implementation</a></li>
+                        <li><a href="docs.html#sph-fluid-physics"
+                                style="color: var(--text-muted); text-decoration: none;">SPH
+                                Fluid Physics</a></li>
+                        <li><a href="docs.html#screen-space-rendering"
+                                style="color: var(--text-muted); text-decoration: none;">Screen-Space Fluid
+                                Rendering</a></li>
+                        <li><a href="docs.html#camera-system"
+                                style="color: var(--text-muted); text-decoration: none;">Basic
+                                Camera System</a></li>
                     </ul>
                 </div>
 
                 <div class="tech-column">
                     <h4>Enhanced Systems</h4>
                     <ul class="tech-list">
-                        <li>Plugin Architecture</li>
-                        <li>Boids Simulation</li>
-                        <li>Error Handling Framework</li>
-                        <li>Enhanced Fluid Shaders</li>
-                        <li>Environment Mapping</li>
+                        <li><a href="docs.html#plugin-architecture"
+                                style="color: var(--text-muted); text-decoration: none;">Plugin Architecture</a></li>
+                        <li><a href="docs.html#boids-implementation"
+                                style="color: var(--text-muted); text-decoration: none;">Boids Simulation</a></li>
+                        <li><a href="docs.html#error-handling-framework"
+                                style="color: var(--text-muted); text-decoration: none;">Error
+                                Handling Framework</a></li>
+                        <li><a href="docs.html#enhanced-fluid-shaders"
+                                style="color: var(--text-muted); text-decoration: none;">Enhanced Fluid Shaders</a></li>
+                        <li><a href="docs.html#environment-mapping"
+                                style="color: var(--text-muted); text-decoration: none;">Environment Mapping</a></li>
                     </ul>
                 </div>
 
                 <div class="tech-column">
                     <h4>Developer Tools</h4>
                     <ul class="tech-list">
-                        <li>Documentation System</li>
-                        <li>Integration Templates</li>
-                        <li>Type-Safe Configs</li>
-                        <li>Debug Tools</li>
-                        <li>Performance Monitoring</li>
+                        <li><a href="docs.html#documentation-system"
+                                style="color: var(--text-muted); text-decoration: none;">Documentation System</a></li>
+                        <li><a href="docs.html#integration-templates"
+                                style="color: var(--text-muted); text-decoration: none;">Integration Templates</a></li>
+                        <li><a href="docs.html#type-safe-configuration"
+                                style="color: var(--text-muted); text-decoration: none;">Type-Safe
+                                Configs</a></li>
+                        <li><a href="docs.html#debugging-tools"
+                                style="color: var(--text-muted); text-decoration: none;">Debug
+                                Tools</a></li>
+                        <li><a href="docs.html#performance-monitoring"
+                                style="color: var(--text-muted); text-decoration: none;">Performance
+                                Monitoring</a></li>
                     </ul>
                 </div>
             </div>
@@ -1688,7 +1815,11 @@
     <section class="tech-stack" id="architecture">
         <div class="container">
             <h2 class="section-title">Core Architecture</h2>
-            <p class="section-subtitle">A flexible and extensible system designed for performance and scalability</p>
+            <p class="section-subtitle">A flexible and extensible system designed for performance and scalability.
+                <a href="docs.html#architecture-overview" style="color: var(--accent-color); text-decoration: none;">
+                    Read the complete whitepaper →
+                </a>
+            </p>
 
             <div class="architecture-grid">
                 <div class="arch-card">
@@ -1699,19 +1830,27 @@
                     <div class="arch-features">
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>SimulatorRegistry for Dynamic Loading</span>
+                            <span><a href="docs.html#simulator-registry"
+                                    style="color: var(--text-muted); text-decoration: none;">SimulatorRegistry for
+                                    Dynamic Loading</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Type-Safe Configuration System</span>
+                            <span><a href="docs.html#configuration-system"
+                                    style="color: var(--text-muted); text-decoration: none;">Type-Safe Configuration
+                                    System</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Standardized Plugin Interface</span>
+                            <span><a href="docs.html#plugin-interface"
+                                    style="color: var(--text-muted); text-decoration: none;">Standardized Plugin
+                                    Interface</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Runtime Simulator Registration</span>
+                            <span><a href="docs.html#runtime-registration"
+                                    style="color: var(--text-muted); text-decoration: none;">Runtime Simulator
+                                    Registration</a></span>
                         </div>
                     </div>
                 </div>
@@ -1724,19 +1863,27 @@
                     <div class="arch-features">
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Centralized UIManager</span>
+                            <span><a href="docs.html#ui-manager"
+                                    style="color: var(--text-muted); text-decoration: none;">Centralized
+                                    UIManager</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Element Caching Strategy</span>
+                            <span><a href="docs.html#element-caching"
+                                    style="color: var(--text-muted); text-decoration: none;">Element Caching
+                                    Strategy</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Dynamic Control Adaptation</span>
+                            <span><a href="docs.html#dynamic-controls"
+                                    style="color: var(--text-muted); text-decoration: none;">Dynamic Control
+                                    Adaptation</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Event-Driven Updates</span>
+                            <span><a href="docs.html#event-driven-updates"
+                                    style="color: var(--text-muted); text-decoration: none;">Event-Driven
+                                    Updates</a></span>
                         </div>
                     </div>
                 </div>
@@ -1749,19 +1896,27 @@
                     <div class="arch-features">
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>ShaderErrorReporter System</span>
+                            <span><a href="docs.html#shader-error-reporter"
+                                    style="color: var(--text-muted); text-decoration: none;">ShaderErrorReporter
+                                    System</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Real-time Error Monitoring</span>
+                            <span><a href="docs.html#error-monitoring"
+                                    style="color: var(--text-muted); text-decoration: none;">Real-time Error
+                                    Monitoring</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Validation Framework</span>
+                            <span><a href="docs.html#validation-framework"
+                                    style="color: var(--text-muted); text-decoration: none;">Validation
+                                    Framework</a></span>
                         </div>
                         <div class="arch-feature">
                             <i class="fas fa-check"></i>
-                            <span>Error Streaming Service</span>
+                            <span><a href="docs.html#error-streaming"
+                                    style="color: var(--text-muted); text-decoration: none;">Error
+                                    Streaming Service</a></span>
                         </div>
                     </div>
                 </div>
@@ -1795,7 +1950,11 @@
     <section class="evolution" id="evolution">
         <div class="container">
             <h2 class="section-title">Project Timeline</h2>
-            <p class="section-subtitle">The evolution from fluid simulation demo to complete development framework</p>
+            <p class="section-subtitle">The evolution from fluid simulation demo to complete development framework.
+                <a href="docs.html#project-history" style="color: var(--accent-color); text-decoration: none;">
+                    Full attribution details →
+                </a>
+            </p>
 
             <div class="timeline">
                 <div class="timeline-item">
@@ -1809,7 +1968,12 @@
                             <span class="commit-hash">d626dfa</span>
                         </div>
                         <p class="timeline-desc">Git cloned matsuoka-601's exceptional WebGPU fluid simulation project,
-                            featuring professional-grade fluid physics implementation.</p>
+                            featuring professional-grade fluid physics implementation.
+                            <a href="docs.html#original-attribution"
+                                style="color: var(--accent-color); text-decoration: none; font-size: 0.9rem;">
+                                See full attribution →
+                            </a>
+                        </p>
                         <ul class="timeline-details">
                             <li>Core fluid physics implementation</li>
                             <li>WebGPU compute shader pipeline</li>
@@ -1829,7 +1993,12 @@
                             <h3>Visual Enhancement Phase</h3>
                         </div>
                         <p class="timeline-desc">Major improvements to fluid rendering and physics while preserving the
-                            original's core excellence.</p>
+                            original's core excellence.
+                            <a href="docs.html#visual-enhancements"
+                                style="color: var(--accent-color); text-decoration: none; font-size: 0.9rem;">
+                                View technical details →
+                            </a>
+                        </p>
                         <ul class="timeline-details">
                             <li>Enhanced fluid shader with subsurface scattering</li>
                             <li>Pressure-based density and turbulence</li>
@@ -1851,14 +2020,19 @@
                             <span class="commit-hash">a8d2a6f</span>
                         </div>
                         <p class="timeline-desc">Restructured the codebase into a modular development framework with
-                            professional-grade architecture.</p>
+                            professional-grade architecture.
+                            <a href="docs.html#architecture-transformation"
+                                style="color: var(--accent-color); text-decoration: none; font-size: 0.9rem;">
+                                Read architecture guide →
+                            </a>
+                        </p>
                         <ul class="timeline-details">
                             <li>Modular plugin architecture implementation</li>
                             <li>Boids simulation integration</li>
                             <li>SimulatorRegistry system</li>
                             <li>Type-safe configuration system</li>
                             <li>Comprehensive error handling</li>
-                        </ul>
+                            </li>
                     </div>
                 </div>
 
@@ -1872,7 +2046,12 @@
                             <h3>Documentation & Resources</h3>
                         </div>
                         <p class="timeline-desc">Launched comprehensive documentation and developer resources to support
-                            the framework.</p>
+                            the framework.
+                            <a href="docs.html#documentation-launch"
+                                style="color: var(--accent-color); text-decoration: none; font-size: 0.9rem;">
+                                Explore documentation →
+                            </a>
+                        </p>
                         <ul class="timeline-details">
                             <li>Technical architecture whitepaper</li>
                             <li>API reference documentation</li>
@@ -1895,9 +2074,9 @@
                         <h4>Getting Started</h4>
                         <div class="footer-links">
                             <a href="index.html" class="footer-link">Live Demo</a>
-                            <a href="docs.html" class="footer-link">Documentation</a>
-                            <a href="docs.html#api" class="footer-link">API Reference</a>
-                            <a href="docs.html#simulators" class="footer-link">Integration Guide</a>
+                            <a href="docs.html#getting-started" class="footer-link">Documentation</a>
+                            <a href="docs.html#api-reference" class="footer-link">API Reference</a>
+                            <a href="docs.html#integration-guide" class="footer-link">Integration Guide</a>
                         </div>
                     </div>
                     <div class="footer-section">
@@ -1906,22 +2085,24 @@
                             <a href="https://github.com/user/WebGPU-Ocean" class="footer-link">
                                 <i class="fab fa-github"></i> GitHub
                             </a>
-                            <a href="docs.html#contributing" class="footer-link">Contributing</a>
-                            <a href="docs.html#attribution" class="footer-link">Attribution</a>
-                            <a href="#" class="footer-link">License</a>
+                            <a href="docs.html#contributing-guidelines" class="footer-link">Contributing</a>
+                            <a href="docs.html#attribution-credits" class="footer-link">Attribution</a>
+                            <a href="docs.html#license-information" class="footer-link">License</a>
                         </div>
                     </div>
                     <div class="footer-section">
                         <h4>Resources</h4>
                         <div class="footer-links">
-                            <a href="docs.html#architecture" class="footer-link">Core Architecture</a>
-                            <a href="docs.html#deployment" class="footer-link">Deployment Guide</a>
-                            <a href="/example-new-simulator" class="footer-link">Example Project</a>
+                            <a href="docs.html#core-architecture" class="footer-link">Core Architecture</a>
+                            <a href="docs.html#deployment-setup" class="footer-link">Deployment Guide</a>
+                            <a href="docs.html#example-implementation" class="footer-link">Example Project</a>
                         </div>
                     </div>
                 </div>
                 <div class="footer-bottom">
-                    <p>© 2025 WebGPU Ocean Project. Built upon <a href="#">matsuoka-601's</a> original work.</p>
+                    <p>© 2025 WebGPU Ocean Project. Built upon <a
+                            href="docs.html#original-attribution">matsuoka-601's</a>
+                        original work.</p>
                 </div>
             </div>
         </div>
