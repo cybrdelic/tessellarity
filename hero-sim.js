@@ -88,6 +88,9 @@ export class HeroSimulation {
         this.context.configure({
             device: this.device,
             format: this.presentationFormat,
+            // Add these alpha settings
+            alphaMode: 'premultiplied',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
         });
 
         console.log(`Canvas configured: ${this.canvas.width}x${this.canvas.height}`);
