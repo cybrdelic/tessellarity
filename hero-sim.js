@@ -128,18 +128,22 @@ export class HeroSimulation {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
+        // Initialize uniforms with realistic water appearance
+        renderUniformsViews.texel_size.set([1.0 / this.canvas.width, 1.0 / this.canvas.height]);
+
+        // Set realistic ocean water color (dark blue-green)
+        waterAppearanceViews.color.set([0.05, 0.9, 0.9, 1.0]); // Natural dark blue-green water color
+        waterAppearanceViews.transparency.set([0.4]); // More transparent for depth perception
+        waterAppearanceViews.reflectivity.set([0.3]); // Moderate reflectivity like real water
+        waterAppearanceViews.waveHeight.set([1.0]); // Natural wave height
+
         this.waterAppearanceBuffer = this.device.createBuffer({
             label: 'hero water appearance buffer',
             size: waterAppearanceValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });        // Initialize uniforms with custom water appearance for landing page
-        renderUniformsViews.texel_size.set([1.0 / this.canvas.width, 1.0 / this.canvas.height]);
+        });
 
-        // Set custom water appearance for landing page        waterAppearanceViews.color.set([0.2, 0.5, 0.7, 1.0]); // Enhanced blue-green tint
-        waterAppearanceViews.transparency.set([0.75]); // Less transparent for better visibility
-        waterAppearanceViews.reflectivity.set([0.7]); // More reflective for better HDRI visibility
-        waterAppearanceViews.waveHeight.set([1.5]); // Higher waves for more dramatic effect
-
+        // Write uniform buffers to GPU
         this.device.queue.writeBuffer(this.renderUniformBuffer, 0, renderUniformsValues);
         this.device.queue.writeBuffer(this.waterAppearanceBuffer, 0, waterAppearanceValues);
 

@@ -133,60 +133,56 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         cos(viewPos.z * 15.0 + cascadeEffect * 8.0) * turbulenceIntensity * 0.01
     );
     turbulentNormal += highFreqTurbulence;
-    normal = normalize(turbulentNormal);
-
-    // Surface properties based on turbulence
-    var surfaceRoughness = clamp(velocityMagnitude * 0.5 + foamIntensity * 0.3 + turbulenceIntensity * 0.2, 0.0, 0.8);
-    var baseSpecularPower = mix(512.0, 32.0, surfaceRoughness);
-    var specularIntensity = mix(1.2, 0.3, surfaceRoughness);
+    normal = normalize(turbulentNormal);    // Surface properties based on turbulence - enhanced for more shine
+    var surfaceRoughness = clamp(velocityMagnitude * 0.4 + foamIntensity * 0.25 + turbulenceIntensity * 0.15, 0.0, 0.7);
+    var baseSpecularPower = mix(768.0, 48.0, surfaceRoughness); // Increased specular power range
+    var specularIntensity = mix(1.8, 0.4, surfaceRoughness); // Increased specular intensity
 
     // Specular calculations
     var viewDotNormal = abs(dot(normal, -rayDir));
     var fresnelSpecular = pow(1.0 - viewDotNormal, 2.0);
     var specular1: f32 = pow(max(0.0, dot(H, normal)), baseSpecularPower) * specularIntensity * fresnelSpecular;
     var specular2: f32 = pow(max(0.0, dot(H, normal)), baseSpecularPower * 0.25) * specularIntensity * 0.3;
-    var specular: f32 = (specular1 + specular2) * (1.0 - foamInfluence * 0.7);
-
-    // Enhanced subsurface scattering
-    var depthFactor = clamp(abs(viewPos.z) * 0.15, 0.0, 1.0);
-    var subsurfaceIntensity = mix(1.2, 0.4, depthFactor); // Increased intensity
+    var specular: f32 = (specular1 + specular2) * (1.0 - foamInfluence * 0.7);    // Enhanced subsurface scattering
+    var depthFactor = clamp(abs(viewPos.z) * 0.12, 0.0, 1.0); // Reduced depth influence
+    var subsurfaceIntensity = mix(1.6, 0.6, depthFactor); // Increased intensity range
     var subsurface: f32 = max(0.0, dot(-lightDir, normal)) * thickness * subsurfaceIntensity;
 
     // Move subsurfaceColor calculation AFTER baseWaterColor is defined
-    // var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);
-
-    // Enhanced realistic absorption that preserves color character
-    var baseAbsorption = 0.03; // Reduced base absorption
-    var colorInfluence = 0.3; // Increased color influence
+    // var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);    // Enhanced realistic absorption that preserves color character
+    var baseAbsorption = 0.05; // Higher base absorption for deeper color
+    var colorInfluence = 0.3; // Reduced color influence for more subtle tinting
     var absorptionCoeffs = vec3f(
         baseAbsorption + (1.0 - waterAppearance.color.r) * colorInfluence,
-        baseAbsorption + (1.0 - waterAppearance.color.g) * colorInfluence * 0.8, // Less green absorption
-        baseAbsorption + (1.0 - waterAppearance.color.b) * colorInfluence * 0.6  // Even less blue absorption
+        baseAbsorption + (1.0 - waterAppearance.color.g) * colorInfluence,
+        baseAbsorption + (1.0 - waterAppearance.color.b) * colorInfluence * 0.8  // Slightly less blue absorption
     );
 
-    // Depth-dependent absorption
-    var depthAbsorptionFactor = clamp(thickness * 0.8, 0.1, 2.0);
+    // Realistic depth-dependent absorption
+    var depthAbsorptionFactor = clamp(thickness * 1.2, 0.2, 3.0); // Increased depth range
     var transmittance: vec3f = exp(-density * depthAbsorptionFactor * absorptionCoeffs);
 
-    // Depth-based water color variation
-    var thicknessFactor = clamp(thickness * 2.0, 0.0, 1.0);
-    var waterInfluence = pow(depthFactor * thicknessFactor, 0.3);
+    // Natural depth-based water color variation
+    var thicknessFactor = clamp(thickness * 1.5, 0.0, 1.0);
+    var waterInfluence = pow(depthFactor * thicknessFactor, 0.5); // Less aggressive depth falloff
 
     var lightAngle = abs(dot(normal, lightDir));
     var viewAngle = abs(dot(normal, -rayDir));
-    var angleInfluence = mix(0.7, 1.2, lightAngle * viewAngle);
+    var angleInfluence = mix(0.6, 1.0, lightAngle * viewAngle); // Reduced angle influence range
 
-    // Depth zones
-    var shallowZone = clamp(1.0 - depthFactor * 1.5, 0.0, 1.0);
-    var mediumZone = clamp(depthFactor * 2.5 - 0.8, 0.0, 1.0) * clamp(1.8 - depthFactor * 2.5, 0.0, 1.0);
-    var deepZone = clamp(depthFactor - 0.7, 0.0, 1.0);
+    // Depth zones with realistic ocean color variation
+    var shallowZone = clamp(1.0 - depthFactor * 2.0, 0.0, 1.0);
+    var mediumZone = clamp(depthFactor * 2.5 - 0.8, 0.0, 1.0) * clamp(2.0 - depthFactor * 2.5, 0.0, 1.0);
+    var deepZone = clamp(depthFactor - 0.4, 0.0, 1.0);
 
-    var shallowAlbedo = mix(waterAppearance.color.rgb, vec3f(1.0, 1.0, 1.0), 0.2);
-    var mediumAlbedo = waterAppearance.color.rgb;
-    var deepAlbedo = waterAppearance.color.rgb * vec3f(0.8, 0.85, 0.95);
+    // Natural ocean color progression
+    var shallowAlbedo = mix(waterAppearance.color.rgb, vec3f(0.2, 0.3, 0.35), 0.3); // Darker shallow water
+    var mediumAlbedo = waterAppearance.color.rgb * vec3f(0.8, 0.9, 1.0); // Slight blue shift in medium depth
+    var deepAlbedo = waterAppearance.color.rgb * vec3f(0.6, 0.7, 0.8); // Darker in deep water
 
-    var turbidityFactor = clamp(velocityMagnitude * 0.3 + turbulenceIntensity * 0.2, 0.0, 1.0);
-    var sedimentColor = mix(waterAppearance.color.rgb, vec3f(0.9, 0.85, 0.7), turbidityFactor * 0.2);
+    // Reduced turbidity effect for clearer water
+    var turbidityFactor = clamp(velocityMagnitude * 0.15 + turbulenceIntensity * 0.1, 0.0, 1.0);
+    var sedimentColor = mix(waterAppearance.color.rgb, vec3f(0.15, 0.2, 0.25), turbidityFactor * 0.2);
 
     var complexWaterColor = shallowAlbedo * shallowZone + mediumAlbedo * mediumZone + deepAlbedo * deepZone;
     complexWaterColor = mix(complexWaterColor, sedimentColor, turbidityFactor * 0.15);
@@ -198,11 +194,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);
 
     // Fresnel calculation
-    var F0 = 0.02;
-    var adjustedF0 = F0 + surfaceRoughness * 0.6;
-    var fresnel: f32 = clamp(adjustedF0 + (1.0 - adjustedF0) * pow(1.0 - dot(normal, -rayDir), 5.0), 0., 1.0);
+    var F0 = 0.02;    var adjustedF0 = F0 + surfaceRoughness * 0.4; // Reduced roughness influence
+    var fresnel: f32 = clamp(adjustedF0 + (1.0 - adjustedF0) * pow(1.0 - dot(normal, -rayDir), 4.0), 0., 1.0); // Softer fresnel
 
-    // Reflection
+    // Enhanced Reflection with boosted intensity
     var reflectionDir: vec3f = reflect(rayDir, normal);
     var reflectionDirWorld: vec3f = (uniforms.inv_view_matrix * vec4f(reflectionDir, 0.0)).xyz;
     var reflectionColor: vec3f = textureSampleLevel(envmap_texture, texture_sampler, reflectionDirWorld, 0.).rgb;
@@ -350,31 +345,35 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var rimColor = waterAppearance.color.rgb * rimIntensity * 0.5;
 
     // Single finalColor declaration with all components
-    var finalColor = preservedSpecular + refractionComponent + rimColor;
+    var finalColor = preservedSpecular + refractionComponent + rimColor;    // Apply reflectivity and boost overall brightness
+    var reflectivityStrength = waterAppearance.reflectivity * mix(0.9, 0.5, baseTransparency);
+    finalColor = mix(finalColor, reflectionColor * 1.4, reflectivityStrength); // Boosted reflection intensity
 
-    // Apply reflectivity without washing out effects
-    var reflectivityStrength = waterAppearance.reflectivity * mix(0.8, 0.4, baseTransparency);
-    finalColor = mix(finalColor, reflectionColor, reflectivityStrength);
+    // Apply overall brightness boost
+    finalColor *= 1.4; // Global brightness multiplier
 
-    // Enhance contrast for white backgrounds
-    var contrastBoost = mix(1.0, 1.4, baseTransparency);
+    // Enhance contrast and brightness for white backgrounds
+    var contrastBoost = mix(1.2, 1.6, baseTransparency);
     finalColor = pow(finalColor, vec3f(1.0 / contrastBoost)) * contrastBoost;
 
     // Adaptive background handling for white backgrounds
     var bgLuminance = dot(bgColor, vec3f(0.299, 0.587, 0.114));
     var isWhiteBackground = step(0.9, bgLuminance);    // Calculate water opacity based on thickness and view angle
     var waterOpacity = mix(
-        baseTransparency * 0.4,  // Increased minimum opacity for better visibility
-        1.0 - baseTransparency * 0.6,  // Adjusted maximum opacity
-        clamp(thickness * (1.0 + fresnel) * 1.2, 0.0, 1.0) // Enhanced thickness influence
+        baseTransparency * 0.5,  // More base opacity
+        1.0 - baseTransparency * 0.3,  // Less maximum transparency
+        clamp(thickness * (1.0 + fresnel), 0.0, 1.0)
     );
 
-    // Enhanced fresnel effect on opacity for better edge definition
-    waterOpacity = mix(waterOpacity, 1.0, fresnel * 0.8);
+    // Natural fresnel effect
+    waterOpacity = mix(waterOpacity, 1.0, fresnel * 0.6);
 
-    // Apply additional opacity boost for white backgrounds
-    var bgBoost = isWhiteBackground * 0.2;
+    // Subtle background interaction
+    var bgBoost = isWhiteBackground * 0.15;
     waterOpacity = clamp(waterOpacity + bgBoost, 0.0, 1.0);
+
+    // Apply realistic ocean water color adjustments
+    finalColor *= 0.9; // Reduced global brightness for deeper appearance
 
     return vec4f(finalColor, waterOpacity);
 

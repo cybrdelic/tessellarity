@@ -180,20 +180,6 @@
             z-index: -1;
         }
 
-        .hero-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background:
-                radial-gradient(circle at 30% 20%, rgba(14, 165, 233, 0.05) 0%, transparent 50%),
-                radial-gradient(circle at 70% 80%, rgba(14, 165, 233, 0.03) 0%, transparent 50%),
-                linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.2) 100%);
-            z-index: -1;
-            pointer-events: none;
-        }
-
         .hero-content {
             max-width: 1400px;
             margin: 0 auto;
@@ -1991,7 +1977,8 @@
                             if (demoContent) {
                                 setTimeout(() => {
                                     demoContent.style.transition = 'opacity 2s ease';
-                                    demoContent.style.opacity = '0.1';
+                                    demoContent.style.opacity = '0';
+                                    demoContent.style.filter = 'brightness(2)';
                                     demoContent.style.pointerEvents = 'none';
                                 }, 2000); // Longer delay to see the simulation start
                             }
