@@ -157,56 +157,35 @@
             padding-top: 80px;
         }
 
-        .hero::before {
-            content: '';
+        .hero-simulation-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.4;
+            overflow: hidden;
+        }
+
+        .hero-simulation-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(1px) brightness(0.8) contrast(1.2);
+        }
+
+        .hero-overlay {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
             background:
-                radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.05) 0%, transparent 50%),
-                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23ffffff05" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-        }
-
-        .hero-particles {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            z-index: 1;
-        }
-
-        .particle {
-            position: absolute;
-            width: 2px;
-            height: 2px;
-            background: var(--accent-color);
-            border-radius: 50%;
-            opacity: 0.3;
-            animation: floatParticle 15s linear infinite;
-        }
-
-        @keyframes floatParticle {
-            0% {
-                transform: translateY(100vh) translateX(0);
-                opacity: 0;
-            }
-
-            10% {
-                opacity: 0.3;
-            }
-
-            90% {
-                opacity: 0.3;
-            }
-
-            100% {
-                transform: translateY(-10vh) translateX(100px);
-                opacity: 0;
-            }
+                radial-gradient(circle at 30% 20%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
+                linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 100%);
+            z-index: 2;
         }
 
         .hero-content {
@@ -218,7 +197,7 @@
             gap: 6rem;
             align-items: center;
             position: relative;
-            z-index: 2;
+            z-index: 3;
         }
 
         .hero-text {
@@ -347,7 +326,7 @@
             width: 100%;
             height: 400px;
             border-radius: 12px;
-            background: var(--bg-card);
+            background: rgba(0, 0, 0, 0.6);
             border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
@@ -434,7 +413,8 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.05) 0%, transparent 70%);
+            background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.1) 0%, transparent 70%);
+            z-index: 1;
         }
 
         .demo-content {
@@ -493,15 +473,7 @@
             }
         }
 
-        /* Features Section with Minimal Design */
-        .features {
-            padding: 8rem 2rem;
-            background: var(--bg-primary);
-            position: relative;
-        }
-
-        .features::before {
-            content: '';
+        .demo-showcase-canvas {
             position: absolute;
             top: 0;
             left: 0;
@@ -624,28 +596,12 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
-        .feature-points {
-            list-style: none;
-            padding: 0;
-            margin: 1.5rem 0;
-        }
-
-        .feature-points li {
-            padding: 0.5rem 0;
-            color: var(--text-muted);
-            position: relative;
-            padding-left: 1.5rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .feature-points li:last-child {
-            border-bottom: none;
-        }
-
-        .feature-points li:before {
-            content: '→';
+        /* Loading indicator for simulation */
+        .simulation-loading {
             position: absolute;
-            left: 0;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             color: var(--accent-color);
             font-weight: bold;
         }
@@ -977,11 +933,6 @@
         .arch-features {
             display: flex;
             flex-direction: column;
-            gap: 1rem;
-        }
-
-        .arch-feature {
-            display: flex;
             align-items: center;
             gap: 1rem;
             color: var(--text-muted);
@@ -1549,9 +1500,14 @@
         </div>
     </nav>
 
-    <!-- Hero Section -->
+    <!-- Hero Section with Embedded Simulation -->
     <section class="hero" id="hero">
-        <div class="hero-particles" id="heroParticles"></div>
+        <!-- Background Simulation -->
+
+
+        <!-- Overlay for better text readability -->
+        <div class="hero-overlay"></div>
+
         <div class="hero-content">
             <div class="hero-text">
                 <div class="hero-subtitle">Enhanced from matsuoka-601's Original Work</div>
@@ -1565,7 +1521,7 @@
                 <div class="hero-buttons">
                     <a href="index.html" class="btn btn-primary">
                         <i class="fas fa-play"></i>
-                        Launch Demo
+                        Launch Full Demo
                     </a>
                     <a href="docs.html#architecture" class="btn btn-secondary">
                         <i class="fas fa-book"></i>
@@ -1575,10 +1531,11 @@
             </div>
             <div class="hero-visual">
                 <div class="demo-showcase">
+                    <canvas id="demoCanvas" class="demo-showcase-canvas"></canvas>
                     <div class="demo-content">
                         <div class="demo-icon"><i class="fas fa-water"></i></div>
                         <h3>Interactive Fluid Simulation</h3>
-                        <p>Experience real-time WebGPU physics with 300,000+ particles</p>
+                        <p>Real-time WebGPU physics in your browser</p>
                     </div>
                 </div>
                 <div class="demo-stats">
@@ -2109,71 +2066,429 @@
     </footer>
 
     <!-- Scripts -->
-    <script>
-        // Loading screen
-        window.addEventListener('load', () => {
+    <script type="module" src="hero-sim.js"></script>
+    <script type="module">
+        // Initialize simulations
+        let heroSim = null;
+        let demoSim = null;
+
+        async function initializeSimulations() {
+            try {
+                console.log('Starting simulation initialization...');
+
+                // Check if required modules exist before importing
+                try {
+                    // Try to import the hero simulation module
+                    const { HeroSimulation } = await import('./hero-sim.js');
+
+                    // Initialize demo showcase simulation (right side box) - this is the main one we want to see
+                    const demoCanvas = document.getElementById('demoCanvas');
+                    if (demoCanvas) {
+                        console.log('Initializing demo MLS-MPM simulation...');
+                        demoSim = new HeroSimulation();
+                        const demoSuccess = await demoSim.init(demoCanvas);
+                        if (demoSuccess) {
+                            demoSim.start();
+                            console.log('Demo MLS-MPM simulation started successfully');
+                            // Fade out the demo content overlay once simulation is running
+                            const demoContent = demoCanvas.parentElement.querySelector('.demo-content');
+                            if (demoContent) {
+                                setTimeout(() => {
+                                    demoContent.style.transition = 'opacity 2s ease';
+                                    demoContent.style.opacity = '0.1';
+                                    demoContent.style.pointerEvents = 'none';
+                                }, 2000); // Longer delay to see the simulation start
+                            }
+                        } else {
+                            console.log('Demo simulation failed');
+                            showDemoFallback();
+                        }
+                    }
+
+                    // Initialize hero background simulation
+                    const heroCanvas = document.getElementById('heroSimulationCanvas');
+                    if (heroCanvas) {
+                        console.log('Initializing hero background MLS-MPM simulation...');
+                        heroSim = new HeroSimulation();
+                        const heroSuccess = await heroSim.init(heroCanvas);
+                        if (heroSuccess) {
+                            heroSim.start();
+                            console.log('Hero background simulation started successfully');
+                        } else {
+                            console.log('Hero background simulation failed, showing fallback');
+                            initFallbackAnimation();
+                        }
+                    }
+
+                } catch (importError) {
+                    console.warn('Failed to import simulation modules:', importError);
+                    // Check if we're missing dependencies
+                    if (importError.message.includes('camera.js') ||
+                        importError.message.includes('mls-mpm') ||
+                        importError.message.includes('common.js')) {
+                        console.log('Missing MLS-MPM dependencies, using fallback animation');
+                        showDemoFallback('Module dependencies not found');
+                        initFallbackAnimation();
+                    } else {
+                        throw importError;
+                    }
+                }
+
+                hideSimulationLoading();
+
+            } catch (error) {
+                console.error('Failed to initialize simulations:', error);
+                initFallbackAnimation();
+                showDemoFallback('WebGPU initialization failed');
+            }
+        }
+
+        function showDemoFallback(reason = 'WebGPU Unavailable') {
+            const demoShowcase = document.querySelector('.demo-showcase');
+            const demoContent = demoShowcase.querySelector('.demo-content');
+            if (demoContent) {
+                demoContent.innerHTML = `
+                    <div class="demo-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <h3>${reason}</h3>
+                    <p><a href="index.html" style="color: var(--accent-color);">Try the full demo</a></p>
+                    <p style="font-size: 0.9rem; margin-top: 1rem; color: var(--text-muted);">
+                        Requires WebGPU-enabled browser
+                    </p>
+                `;
+            }
+        }
+
+        function hideSimulationLoading() {
+            const loading = document.getElementById('simulationLoading');
+            if (loading) {
+                loading.classList.add('hidden');
+            }
+        }
+
+        function initFallbackAnimation() {
+            hideSimulationLoading();
+
+            const heroContainer = document.querySelector('.hero-simulation-container');
+            const fallbackHTML = `
+                <div class="fallback-particles"></div>
+                <div class="fallback-message">
+                    <i class="fas fa-info-circle"></i>
+                    <p>WebGPU simulation unavailable. <a href="index.html">Try the full demo</a></p>
+                </div>
+            `;
+
+            heroContainer.innerHTML = fallbackHTML;
+
+            // Add animated particles
+            const particlesContainer = heroContainer.querySelector('.fallback-particles');
+            for (let i = 0; i < 60; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 4 + 's';
+                particle.style.animationDuration = (Math.random() * 3 + 3) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Handle window resize
+        function handleResize() {
+            if (heroSim) heroSim.resize();
+            if (demoSim) demoSim.resize();
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', async () => {
             const loading = document.getElementById('loading');
-            loading.classList.add('hidden');
+            if (loading) {
+                loading.classList.add('hidden');
+            }
+
+            // Initialize simulations with a short delay
+            console.log('Page loaded, initializing MLS-MPM simulations...');
+            setTimeout(initializeSimulations, 100);
+        });
+
+        window.addEventListener('resize', handleResize);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (heroSim) heroSim.destroy();
+            if (demoSim) demoSim.destroy();
         });
 
         // Navbar scroll effect
         const navbar = document.getElementById('navbar');
         const heroSection = document.getElementById('hero');
 
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    navbar.classList.remove('scrolled');
-                } else {
-                    navbar.classList.add('scrolled');
-                }
-            },
-            {
-                root: null,
-                threshold: 0.1,
-                rootMargin: '0px',
-            }
-        );
-
-        observer.observe(heroSection);
-
-        // Particle system for hero section
-        const heroParticles = document.getElementById('heroParticles');
-        const particleCount = 100;
-        const particles = [];
-
-        for (let i = 0; i < particleCount; i++) {
-            const particle = document.createElement('div');
-            particle.className = 'particle';
-            heroParticles.appendChild(particle);
-            particles.push(particle);
-        }
-
-        function animateParticles() {
-            particles.forEach((particle) => {
-                const x = Math.random() * window.innerWidth;
-                const y = Math.random() * window.innerHeight;
-                const duration = Math.random() * 2 + 3;
-                const delay = Math.random() * 2;
-
-                particle.animate(
-                    [
-                        { transform: `translate(${x}px, ${y}px)`, opacity: 0 },
-                        { transform: `translate(${x + 100}px, ${y + 100}px)`, opacity: 1 },
-                        { transform: `translate(${x}px, ${y}px)`, opacity: 0 },
-                    ],
-                    {
-                        duration: duration * 1000,
-                        delay: delay * 1000,
-                        iterations: Infinity,
-                        easing: 'ease-in-out',
+        if (navbar && heroSection) {
+            const observer = new IntersectionObserver(
+                ([entry]) => {
+                    if (entry.isIntersecting) {
+                        navbar.classList.remove('scrolled');
+                    } else {
+                        navbar.classList.add('scrolled');
                     }
-                );
-            });
+                },
+                {
+                    root: null,
+                    threshold: 0.1,
+                    rootMargin: '0px',
+                }
+            );
+
+            observer.observe(heroSection);
+        }
+    </script>
+
+    <style>
+        /* Fallback styles for non-WebGPU browsers */
+        .fallback-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
         }
 
-        animateParticles();
-    </script>
+        .fallback-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+            z-index: 10;
+        }
+
+        .fallback-message i {
+            font-size: 2rem;
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+
+        .fallback-message a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .fallback-message a:hover {
+            text-decoration: underline;
+        }
+
+        /* Enhanced particle animation for fallback */
+        .fallback-particles .particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: floatUp 4s linear infinite;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.6;
+            }
+
+            90% {
+                opacity: 0.6;
+            }
+
+            100% {
+                transform: translateY(-10vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(14, 165, 233, 0.3);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Demo stats styling */
+        .demo-stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+        }
+
+        .demo-stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .demo-icon {
+            font-size: 3rem;
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+
+        /* Add remaining missing styles from the previous sections */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .section-title {
+            font-size: 3rem;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .section-subtitle {
+            font-size: 1.2rem;
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 4rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .features,
+        .stats,
+        .tech-stack,
+        .evolution,
+        .footer {
+            padding: 6rem 0;
+        }
+
+        .features {
+            background: var(--bg-secondary);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 3rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            color: var(--accent-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .feature-points {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-points li {
+            padding: 0.5rem 0;
+            color: var(--text-muted);
+        }
+
+        .footer {
+            background: var(--bg-darker);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-section h4 {
+            color: var(--text-color);
+            margin-bottom: 1rem;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-link:hover {
+            color: var(--accent-color);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-subtle);
+            color: var(--text-subtle);
+        }
+    </style>
 </body>
 
 </html>
