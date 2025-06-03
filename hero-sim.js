@@ -63,10 +63,12 @@ export class HeroSimulation {
             return false;
         }
 
-        // Use same pixel ratio approach as main demo but smaller for performance
-        let devicePixelRatio = 0.5; // Even smaller for hero demo
-        this.canvas.width = devicePixelRatio * this.canvas.clientWidth;
-        this.canvas.height = devicePixelRatio * this.canvas.clientHeight;
+        // Use same pixel ratio approach as main demo but smaller for performance        // Use device pixel ratio but cap it for performance
+        let devicePixelRatio = Math.min(window.devicePixelRatio, 2);
+        // Set canvas size based on its container size
+        const rect = this.canvas.parentElement.getBoundingClientRect();
+        this.canvas.width = rect.width * devicePixelRatio;
+        this.canvas.height = rect.height * devicePixelRatio;
 
         this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
