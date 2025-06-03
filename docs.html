@@ -67,6 +67,8 @@
             margin-left: 320px;
             padding: 40px;
             max-width: calc(100vw - 320px);
+            overflow-y: auto;
+            height: 100vh;
         }
 
         .sidebar-header {
@@ -294,6 +296,28 @@
             margin-bottom: 20px;
             max-height: 400px;
             overflow-y: auto;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        /* Custom scrollbar for TOC */
+        .sidebar-toc::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar-toc::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+        }
+
+        .sidebar-toc::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .sidebar-toc::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
         }
 
         .sidebar-toc h3 {
@@ -666,22 +690,112 @@
             background: linear-gradient(120deg, rgba(251, 191, 36, 0.4) 0%, rgba(251, 191, 36, 0.6) 100%);
         }
 
+        /* Temporary highlight styles for search term highlighting in content */
+        .temp-highlight {
+            animation: fadeInOutHighlight 3s ease-in-out;
+            border-radius: 3px;
+            padding: 1px 3px;
+            color: var(--text-color);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .temp-highlight-1 {
+            background: linear-gradient(120deg, rgba(14, 165, 233, 0.6) 0%, rgba(14, 165, 233, 0.8) 100%);
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+        }
+
+        .temp-highlight-2 {
+            background: linear-gradient(120deg, rgba(168, 85, 247, 0.6) 0%, rgba(168, 85, 247, 0.8) 100%);
+            box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+        }
+
+        .temp-highlight-3 {
+            background: linear-gradient(120deg, rgba(34, 197, 94, 0.6) 0%, rgba(34, 197, 94, 0.8) 100%);
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+        }
+
+        .temp-highlight-4 {
+            background: linear-gradient(120deg, rgba(251, 191, 36, 0.6) 0%, rgba(251, 191, 36, 0.8) 100%);
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+        }
+
+        @keyframes fadeInOutHighlight {
+            0% {
+                background: transparent;
+                box-shadow: none;
+                transform: scale(1);
+            }
+
+            15% {
+                transform: scale(1.05);
+            }
+
+            30% {
+                background: var(--temp-highlight-bg);
+                box-shadow: var(--temp-highlight-shadow);
+                transform: scale(1);
+            }
+
+            70% {
+                background: var(--temp-highlight-bg);
+                box-shadow: var(--temp-highlight-shadow);
+            }
+
+            100% {
+                background: transparent;
+                box-shadow: none;
+                transform: scale(1);
+            }
+        }
+
         html {
             scroll-behavior: smooth;
         }
 
         .doc-section h1[id],
         .doc-section h2[id],
-        .doc-section h3[id] {
-            scroll-margin-top: 80px;
+        .doc-section h3[id],
+        .doc-section h4[id],
+        .doc-section h5[id],
+        .doc-section h6[id] {
+            scroll-margin-top: 100px;
             position: relative;
             transition: all 0.3s ease;
         }
 
         .doc-section h1[id]:target,
         .doc-section h2[id]:target,
-        .doc-section h3[id]:target {
+        .doc-section h3[id]:target,
+        .doc-section h4[id]:target,
+        .doc-section h5[id]:target,
+        .doc-section h6[id]:target {
             animation: highlightHeading 3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Ensure smooth scrolling for all scroll containers */
+        .main-content {
+            scroll-behavior: smooth;
+        }
+
+        /* Improve TOC link styling and interaction */
+        #tocList a {
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin: 2px 0;
+            display: block;
+        }
+
+        #tocList a:hover {
+            background: rgba(14, 165, 233, 0.1);
+            transform: translateX(2px);
+        }
+
+        #tocList a.active {
+            background: rgba(14, 165, 233, 0.2);
+            color: var(--accent-color);
+            font-weight: 500;
         }
 
         @keyframes highlightHeading {
@@ -866,10 +980,10 @@
                 };
 
                 this.currentSection = 'overview';
-                this.searchIndex = new Map(); // FIXED: Use Map consistently for search index
-                this.searchDebounceTimer = null;
+                this.searchIndex = new Map(); // FIXED: Use Map consistently for search index                this.searchDebounceTimer = null;
                 this.cache = new Map();
                 this.tocCache = new Map();
+                this.currentSearchTerms = []; // Store current search terms for highlighting
 
                 this.init();
             }
@@ -986,10 +1100,19 @@
 
                 results[newIndex].classList.add('keyboard-active');
                 results[newIndex].scrollIntoView({ block: 'nearest' });
-            }
-
-            async switchSection(sectionName) {
+            } async switchSection(sectionName) {
                 if (sectionName === this.currentSection) return;
+
+                // Clean up previous scroll spy observers and listeners
+                if (this.scrollSpyObserver) {
+                    this.scrollSpyObserver.disconnect();
+                }
+                if (this.scrollListener) {
+                    const mainContent = document.querySelector('.main-content');
+                    if (mainContent) {
+                        mainContent.removeEventListener('scroll', this.scrollListener);
+                    }
+                }
 
                 // Update tab states
                 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -1005,6 +1128,14 @@
 
                 this.currentSection = sectionName;
                 await this.loadSection(sectionName);
+
+                // Ensure content is fully rendered before resolving
+                await new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        setTimeout(resolve, 50); // Small delay to ensure content is rendered
+                    });
+                });
+
                 this.hideSearchResults();
             }
 
@@ -1064,9 +1195,7 @@
                         </div>
                     `;
                 }
-            }
-
-            updateTableOfContents() {
+            } updateTableOfContents() {
                 const currentSectionElement = document.getElementById(`section-${this.currentSection}`);
                 const headings = currentSectionElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
                 const tocList = document.getElementById('tocList');
@@ -1089,7 +1218,10 @@
 
                 let tocHtml = '';
                 headings.forEach((heading, index) => {
-                    const id = heading.id || `heading-${index}`;
+                    // Generate a more reliable ID based on heading text
+                    const headingText = heading.textContent.trim();
+                    const id = heading.id || this.generateHeadingId(headingText, index);
+
                     if (!heading.id) {
                         heading.id = id;
                     }
@@ -1100,7 +1232,7 @@
                     tocHtml += `
                         <li style="margin-left: ${indent}px;">
                             <a href="#${id}" data-heading-id="${id}">
-                                ${heading.textContent}
+                                ${headingText}
                             </a>
                         </li>
                     `;
@@ -1111,63 +1243,269 @@
                 this.setupTocEventListeners();
             }
 
-            setupTocEventListeners() {
-                const tocLinks = document.querySelectorAll('#tocList a');
-                tocLinks.forEach(link => {
+            generateHeadingId(text, index) {
+                // Create a URL-friendly ID from heading text
+                const baseId = text
+                    .toLowerCase()
+                    .replace(/[^\w\s-]/g, '') // Remove special characters
+                    .replace(/\s+/g, '-') // Replace spaces with hyphens
+                    .replace(/-+/g, '-') // Replace multiple hyphens with single
+                    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+
+                return baseId || `heading-${index}`;
+            } setupTocEventListeners() {
+                const tocLinks = document.querySelectorAll('#tocList a'); tocLinks.forEach(link => {
                     link.addEventListener('click', (e) => {
                         e.preventDefault();
                         const targetId = link.getAttribute('data-heading-id');
-                        const targetElement = document.getElementById(targetId);
-
-                        if (targetElement) {
-                            targetElement.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start',
-                                inline: 'nearest'
-                            });
-
-                            // Update active state
-                            tocLinks.forEach(l => l.classList.remove('active'));
-                            link.classList.add('active');
-                        }
+                        this.scrollToHeading(targetId);
                     });
                 });
 
                 // Set up scroll spy for TOC
                 this.setupScrollSpy();
-            }
+            } scrollToHeading(headingId) {
+                // Wait for any pending content to render
+                requestAnimationFrame(() => {
+                    const targetElement = document.getElementById(headingId);
+                    console.log('Scrolling to heading:', headingId, targetElement);
 
-            setupScrollSpy() {
+                    if (targetElement) {
+                        // Get the main content container which is the scrollable area
+                        const mainContent = document.querySelector('.main-content');
+
+                        if (mainContent) {
+                            // Calculate position relative to the main content container
+                            const containerRect = mainContent.getBoundingClientRect();
+                            const targetRect = targetElement.getBoundingClientRect();
+                            const currentScrollTop = mainContent.scrollTop;
+
+                            // Calculate the target scroll position
+                            const targetScrollTop = currentScrollTop + targetRect.top - containerRect.top - 80;
+
+                            console.log('Scrolling main content to:', targetScrollTop);
+
+                            mainContent.scrollTo({
+                                top: targetScrollTop,
+                                behavior: 'smooth'
+                            });
+                        } else {
+                            // Fallback to window scrolling
+                            console.log('Fallback to window scrolling');
+                            const elementTop = targetElement.getBoundingClientRect().top + window.pageYOffset;
+                            window.scrollTo({
+                                top: elementTop - 80,
+                                behavior: 'smooth'
+                            });
+                        }                        // Add visual highlight
+                        targetElement.style.transition = 'background-color 0.3s ease';
+                        targetElement.style.backgroundColor = 'rgba(14, 165, 233, 0.1)';
+                        setTimeout(() => {
+                            targetElement.style.backgroundColor = '';
+                        }, 2000);
+
+                        // Ensure TOC item is highlighted and visible
+                        this.updateActiveTocItem(headingId);
+                    } else {
+                        console.warn(`Heading with ID "${headingId}" not found`);
+                    }
+                });
+            } setupScrollSpy() {
+                // Clean up previous observer
+                if (this.scrollSpyObserver) {
+                    this.scrollSpyObserver.disconnect();
+                }
+
                 const headings = document.querySelectorAll(`#section-${this.currentSection} h1, #section-${this.currentSection} h2, #section-${this.currentSection} h3, #section-${this.currentSection} h4, #section-${this.currentSection} h5, #section-${this.currentSection} h6`);
                 const tocLinks = document.querySelectorAll('#tocList a');
 
                 if (headings.length === 0 || tocLinks.length === 0) return;
 
-                const observer = new IntersectionObserver((entries) => {
-                    let activeHeading = null;
+                // Also listen to scroll events for more responsive TOC updates
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    // Remove previous scroll listener
+                    if (this.scrollListener) {
+                        mainContent.removeEventListener('scroll', this.scrollListener);
+                    }
+
+                    // Create new scroll listener
+                    this.scrollListener = this.throttle(() => {
+                        this.updateTocBasedOnScroll(headings);
+                    }, 100);
+
+                    mainContent.addEventListener('scroll', this.scrollListener, { passive: true });
+                }
+
+                // Set up intersection observer as backup
+                this.scrollSpyObserver = new IntersectionObserver((entries) => {
+                    let visibleHeadings = [];
 
                     entries.forEach(entry => {
                         if (entry.isIntersecting) {
-                            activeHeading = entry.target;
+                            visibleHeadings.push({
+                                element: entry.target,
+                                ratio: entry.intersectionRatio,
+                                boundingRect: entry.boundingClientRect
+                            });
                         }
                     });
 
-                    if (activeHeading) {
-                        tocLinks.forEach(link => link.classList.remove('active'));
-                        const activeLink = document.querySelector(`#tocList a[data-heading-id="${activeHeading.id}"]`);
-                        if (activeLink) {
-                            activeLink.classList.add('active');
-                        }
+                    if (visibleHeadings.length > 0) {
+                        // Find the heading that's most visible or closest to the top
+                        const bestHeading = visibleHeadings.reduce((best, current) => {
+                            // Prefer headings that are closer to the top of the viewport
+                            const currentDistance = Math.abs(current.boundingRect.top);
+                            const bestDistance = Math.abs(best.boundingRect.top);
+
+                            return currentDistance < bestDistance ? current : best;
+                        });
+
+                        this.updateActiveTocItem(bestHeading.element.id);
                     }
                 }, {
-                    rootMargin: '-80px 0px -80% 0px',
-                    threshold: 0.1
+                    root: document.querySelector('.main-content'),
+                    rootMargin: '-20px 0px -60% 0px', // More sensitive detection
+                    threshold: [0, 0.25, 0.5, 0.75, 1] // Multiple thresholds for better detection
+                }); headings.forEach(heading => this.scrollSpyObserver.observe(heading));
+            } updateTocBasedOnScroll(headings) {
+                if (!headings || headings.length === 0) return;
+
+                const mainContent = document.querySelector('.main-content');
+                if (!mainContent) return;
+
+                const scrollTop = mainContent.scrollTop;
+                const viewportHeight = mainContent.clientHeight;
+                const centerY = scrollTop + (viewportHeight * 0.3); // Focus on upper third of viewport
+
+                let activeHeading = null;
+                let minDistance = Infinity;
+
+                // Find the heading closest to the center focus point
+                headings.forEach(heading => {
+                    const rect = heading.getBoundingClientRect();
+                    const mainContentRect = mainContent.getBoundingClientRect();
+
+                    // Calculate heading position relative to the main content
+                    const headingTop = rect.top - mainContentRect.top + scrollTop;
+                    const distance = Math.abs(headingTop - centerY);
+
+                    // Prefer headings that are above or at the center point
+                    if (headingTop <= centerY + 100 && distance < minDistance) {
+                        minDistance = distance;
+                        activeHeading = heading;
+                    }
                 });
 
-                headings.forEach(heading => observer.observe(heading));
+                // If no heading is found above center, use the first heading
+                if (!activeHeading && headings.length > 0) {
+                    activeHeading = headings[0];
+                }
+
+                if (activeHeading && activeHeading.id) {
+                    console.log('Scroll spy: Updating active heading to:', activeHeading.id, activeHeading.textContent.trim());
+                    this.updateActiveTocItem(activeHeading.id);
+                }
             }
 
-            async buildSearchIndex() {
+            throttle(func, limit) {
+                let inThrottle;
+                return function () {
+                    const args = arguments;
+                    const context = this;
+                    if (!inThrottle) {
+                        func.apply(context, args);
+                        inThrottle = true;
+                        setTimeout(() => inThrottle = false, limit);
+                    }
+                }
+            } updateActiveTocItem(headingId) {
+                const tocLinks = document.querySelectorAll('#tocList a');
+                const activeLink = document.querySelector(`#tocList a[data-heading-id="${headingId}"]`);
+
+                // Remove active class from all links
+                tocLinks.forEach(link => link.classList.remove('active'));
+
+                // Add active class to current link
+                if (activeLink) {
+                    activeLink.classList.add('active');
+                    console.log('TOC: Activating item:', headingId, activeLink.textContent.trim());
+
+                    // Ensure the active TOC item is visible in the sidebar
+                    this.scrollTocItemIntoView(activeLink);
+                } else {
+                    console.log('TOC: No link found for heading:', headingId);
+                }
+            } scrollTocItemIntoView(tocItem) {
+                if (!tocItem) return;
+
+                const sidebarToc = document.getElementById('sidebarToc');
+                if (!sidebarToc) return;
+
+                console.log('TOC: Scrolling item into view:', tocItem.textContent.trim());
+
+                // Use requestAnimationFrame to ensure DOM is ready
+                requestAnimationFrame(() => {
+                    // Get the scrollable container (the sidebarToc itself)
+                    const containerRect = sidebarToc.getBoundingClientRect();
+                    const itemRect = tocItem.getBoundingClientRect();
+
+                    // Calculate if item is outside the visible area of the container
+                    const containerTop = containerRect.top;
+                    const containerBottom = containerRect.bottom;
+                    const itemTop = itemRect.top;
+                    const itemBottom = itemRect.bottom;
+
+                    // Add padding for better visibility
+                    const padding = 20;
+
+                    const isAbove = itemTop < (containerTop + padding);
+                    const isBelow = itemBottom > (containerBottom - padding);
+
+                    console.log('TOC scroll check:', {
+                        isAbove,
+                        isBelow,
+                        itemTop,
+                        itemBottom,
+                        containerTop,
+                        containerBottom,
+                        containerHeight: containerRect.height,
+                        scrollTop: sidebarToc.scrollTop,
+                        scrollHeight: sidebarToc.scrollHeight
+                    });
+
+                    if (isAbove || isBelow) {
+                        // Calculate the target scroll position
+                        const itemOffsetTop = tocItem.offsetTop;
+                        const containerHeight = sidebarToc.clientHeight;
+                        const itemHeight = tocItem.offsetHeight;
+
+                        let targetScrollTop;
+
+                        if (isAbove) {
+                            // Scroll up to show item at top with padding
+                            targetScrollTop = itemOffsetTop - padding;
+                        } else {
+                            // Scroll down to show item at bottom with padding
+                            targetScrollTop = itemOffsetTop - containerHeight + itemHeight + padding;
+                        }
+
+                        // Clamp to valid scroll range
+                        const maxScrollTop = sidebarToc.scrollHeight - containerHeight;
+                        targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+
+                        console.log('TOC: Scrolling to position:', targetScrollTop, 'from current:', sidebarToc.scrollTop);
+
+                        // Scroll to the calculated position
+                        sidebarToc.scrollTo({
+                            top: targetScrollTop,
+                            behavior: 'smooth'
+                        });
+                    } else {
+                        console.log('TOC: Item already visible, no scrolling needed');
+                    }
+                });
+            } async buildSearchIndex() {
                 console.log('Building search index...');
 
                 // FIXED: Initialize search index consistently as Map with arrays
@@ -1181,9 +1519,28 @@
                         const content = await response.text();
                         const lines = content.split('\n');
 
+                        // Also store heading information for better navigation
+                        const headings = [];
+                        lines.forEach((line, lineIndex) => {
+                            const trimmedLine = line.trim();
+
+                            // Check if this line is a heading (markdown format)
+                            const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+                            if (headingMatch) {
+                                headings.push({
+                                    level: headingMatch[1].length,
+                                    text: headingMatch[2],
+                                    lineIndex: lineIndex
+                                });
+                            }
+                        });
+
                         lines.forEach((line, lineIndex) => {
                             const trimmedLine = line.trim();
                             if (trimmedLine.length === 0) return;
+
+                            // Find the closest heading for this line
+                            const closestHeading = this.findClosestHeading(headings, lineIndex);
 
                             // Extract words and create search entries
                             const words = trimmedLine.toLowerCase().match(/\b\w+\b/g) || [];
@@ -1203,7 +1560,8 @@
                                     title: config.title,
                                     line: trimmedLine,
                                     lineIndex: lineIndex,
-                                    context: this.getContext(lines, lineIndex)
+                                    context: this.getContext(lines, lineIndex),
+                                    heading: closestHeading // Store the closest heading for better navigation
                                 });
                             });
                         });
@@ -1215,15 +1573,31 @@
                 console.log(`Search index built with ${this.searchIndex.size} terms`);
             }
 
+            findClosestHeading(headings, lineIndex) {
+                if (headings.length === 0) return null;
+
+                // Find the last heading that comes before or at this line
+                let closestHeading = null;
+                for (let i = headings.length - 1; i >= 0; i--) {
+                    if (headings[i].lineIndex <= lineIndex) {
+                        closestHeading = headings[i];
+                        break;
+                    }
+                }
+
+                return closestHeading || headings[0];
+            }
+
             getContext(lines, lineIndex, contextLines = 2) {
                 const start = Math.max(0, lineIndex - contextLines);
                 const end = Math.min(lines.length, lineIndex + contextLines + 1);
                 return lines.slice(start, end).join(' ').trim();
-            }
-
-            performSearch(query) {
+            } performSearch(query) {
                 const searchResults = document.getElementById('searchResults');
                 const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+
+                // Store current search terms for highlighting after navigation
+                this.currentSearchTerms = terms;
 
                 if (terms.length === 0) {
                     this.hideSearchResults();
@@ -1257,9 +1631,7 @@
                     .slice(0, maxResults);
 
                 this.displaySearchResults(sortedResults, terms);
-            }
-
-            displaySearchResults(results, searchTerms) {
+            } displaySearchResults(results, searchTerms) {
                 const searchResults = document.getElementById('searchResults');
 
                 if (results.length === 0) {
@@ -1268,12 +1640,21 @@
                     return;
                 }
 
-                const resultsHtml = results.map(result => {
+                const resultsHtml = results.map((result, index) => {
                     const highlightedLine = this.highlightSearchTerms(result.line, searchTerms);
-                    const highlightedContext = this.highlightSearchTerms(result.context, searchTerms);
+                    const highlightedContext = this.highlightSearchTerms(result.context, searchTerms);                    // Store result data as data attributes to avoid JSON parsing issues
+                    const headingText = result.heading ? result.heading.text : '';
+                    const headingLevel = result.heading ? result.heading.level : 0;
+                    const searchTermsJson = JSON.stringify(searchTerms);
 
                     return `
-                        <div class="search-result-item" onclick="site.navigateToResult('${result.section}', ${result.lineIndex})">
+                        <div class="search-result-item"
+                             onclick="site.navigateToResult('${result.section}', ${result.lineIndex}, '${headingText.replace(/'/g, "\\'")}', ${headingLevel}, ${searchTermsJson.replace(/"/g, '&quot;')})"
+                             data-section="${result.section}"
+                             data-line-index="${result.lineIndex}"
+                             data-heading-text="${headingText}"
+                             data-heading-level="${headingLevel}"
+                             data-search-terms="${searchTermsJson.replace(/"/g, '&quot;')}">
                             <div class="search-result-title">${highlightedLine}</div>
                             <div class="search-result-section">${result.title}</div>
                             <div class="search-result-context">${highlightedContext}</div>
@@ -1310,43 +1691,195 @@
                 if (perfIndicator) {
                     perfIndicator.textContent = `${Math.round(duration)}ms`;
                 }
-            }
-
-            async navigateToResult(sectionName, lineIndex) {
+            } async navigateToResult(sectionName, lineIndex, headingText = '', headingLevel = 0, searchTerms = []) {
                 await this.switchSection(sectionName);
                 this.hideSearchResults();
 
                 // Clear search box
                 document.getElementById('searchBox').value = '';
 
-                // Try to scroll to the relevant heading
+                // Parse search terms if they're passed as a string
+                if (typeof searchTerms === 'string') {
+                    try {
+                        searchTerms = JSON.parse(searchTerms);
+                    } catch (e) {
+                        searchTerms = [];
+                    }
+                }
+
+                // Wait for section to load and render
                 setTimeout(() => {
-                    const headings = document.querySelectorAll(`#section-${sectionName} h1, #section-${sectionName} h2, #section-${sectionName} h3`);
-                    if (headings.length > 0) {
-                        // Find the closest heading to the line
-                        const targetHeading = headings[Math.min(Math.floor(lineIndex / 10), headings.length - 1)];
-                        if (targetHeading) {
-                            targetHeading.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start'
-                            });
+                    let targetElement = null;
+
+                    // Try to find the exact heading if we have heading info
+                    if (headingText) {
+                        const headingId = this.generateHeadingId(headingText, 0);
+                        targetElement = document.getElementById(headingId);
+
+                        // If not found by generated ID, try to find by text content
+                        if (!targetElement) {
+                            const headings = document.querySelectorAll(`#section-${sectionName} h1, #section-${sectionName} h2, #section-${sectionName} h3, #section-${sectionName} h4, #section-${sectionName} h5, #section-${sectionName} h6`);
+                            for (const heading of headings) {
+                                if (heading.textContent.trim() === headingText) {
+                                    targetElement = heading;
+                                    break;
+                                }
+                            }
                         }
                     }
-                }, 100);
+
+                    // Fallback: find the closest heading by position
+                    if (!targetElement) {
+                        const allHeadings = document.querySelectorAll(`#section-${sectionName} h1, #section-${sectionName} h2, #section-${sectionName} h3, #section-${sectionName} h4, #section-${sectionName} h5, #section-${sectionName} h6`);
+                        if (allHeadings.length > 0) {
+                            // Use a more intelligent algorithm to find the closest heading
+                            const headingIndex = Math.min(
+                                Math.floor(lineIndex / 20), // Better ratio than /10
+                                allHeadings.length - 1
+                            );
+                            targetElement = allHeadings[headingIndex];
+                        }
+                    }
+
+                    // Final fallback: scroll to top of section
+                    if (!targetElement) {
+                        targetElement = document.getElementById(`section-${sectionName}`);
+                    } if (targetElement) {
+                        const elementId = targetElement.id || targetElement.getAttribute('id');
+
+                        if (elementId) {
+                            this.scrollToHeading(elementId);
+                        } else {
+                            // Direct scroll if no ID - use the same logic as scrollToHeading
+                            const mainContent = document.querySelector('.main-content');
+                            if (mainContent) {
+                                const containerRect = mainContent.getBoundingClientRect();
+                                const targetRect = targetElement.getBoundingClientRect();
+                                const currentScrollTop = mainContent.scrollTop;
+                                const targetScrollTop = currentScrollTop + targetRect.top - containerRect.top - 80;
+
+                                mainContent.scrollTo({
+                                    top: targetScrollTop,
+                                    behavior: 'smooth'
+                                });
+                            } else {
+                                targetElement.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'start'
+                                });
+                            }
+                        }                        // Highlight search terms after scrolling
+                        if (searchTerms && searchTerms.length > 0) {
+                            setTimeout(() => {
+                                this.highlightSearchTermsInContent(sectionName, searchTerms);
+                            }, 800); // Wait for scroll animation to complete
+                        }
+
+                        // Ensure TOC is updated if we have a target element with an ID
+                        if (targetElement && targetElement.id) {
+                            setTimeout(() => {
+                                this.updateActiveTocItem(targetElement.id);
+                            }, 400); // Update TOC after scroll starts
+                        }
+                    }
+                }, 300); // Increased timeout for better reliability
             }
 
             showSearchResults() {
                 const searchResults = document.getElementById('searchResults');
                 searchResults.style.display = 'block';
                 searchResults.style.animation = 'searchResultsSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
-            }
-
-            hideSearchResults() {
+            } hideSearchResults() {
                 const searchResults = document.getElementById('searchResults');
                 searchResults.style.animation = 'searchResultsSlideOut 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
                 setTimeout(() => {
                     searchResults.style.display = 'none';
                 }, 200);
+            }
+
+            highlightSearchTermsInContent(sectionName, searchTerms) {
+                const sectionElement = document.getElementById(`section-${sectionName}`);
+                if (!sectionElement || !searchTerms || searchTerms.length === 0) return;
+
+                // Remove any existing temporary highlights
+                this.removeTemporaryHighlights(sectionElement);
+
+                // Find text nodes and highlight search terms
+                const walker = document.createTreeWalker(
+                    sectionElement,
+                    NodeFilter.SHOW_TEXT,
+                    {
+                        acceptNode: function (node) {
+                            // Skip script, style, and already highlighted elements
+                            const parent = node.parentNode;
+                            if (parent.tagName === 'SCRIPT' ||
+                                parent.tagName === 'STYLE' ||
+                                parent.classList.contains('highlight') ||
+                                parent.classList.contains('temp-highlight')) {
+                                return NodeFilter.FILTER_REJECT;
+                            }
+                            return NodeFilter.FILTER_ACCEPT;
+                        }
+                    }
+                );
+
+                const textNodes = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    textNodes.push(node);
+                }
+
+                // Highlight terms in text nodes
+                textNodes.forEach(textNode => {
+                    let text = textNode.textContent;
+                    let hasMatch = false;
+
+                    // Check if any search term is in this text node
+                    searchTerms.forEach(term => {
+                        if (text.toLowerCase().includes(term.toLowerCase())) {
+                            hasMatch = true;
+                        }
+                    });
+
+                    if (hasMatch) {
+                        // Create highlighted version
+                        let highlightedHtml = text;
+                        const colors = ['temp-highlight-1', 'temp-highlight-2', 'temp-highlight-3', 'temp-highlight-4'];
+
+                        searchTerms.forEach((term, index) => {
+                            const colorClass = colors[index % colors.length];
+                            const regex = new RegExp(`(${this.escapeRegex(term)})`, 'gi');
+                            highlightedHtml = highlightedHtml.replace(regex, `<span class="temp-highlight ${colorClass}">$1</span>`);
+                        });
+
+                        // Replace text node with highlighted HTML
+                        if (highlightedHtml !== text) {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = highlightedHtml;
+
+                            // Replace the text node with the highlighted content
+                            const parent = textNode.parentNode;
+                            while (tempDiv.firstChild) {
+                                parent.insertBefore(tempDiv.firstChild, textNode);
+                            }
+                            parent.removeChild(textNode);
+                        }
+                    }
+                });
+
+                // Remove highlights after a few seconds
+                setTimeout(() => {
+                    this.removeTemporaryHighlights(sectionElement);
+                }, 3000);
+            }
+
+            removeTemporaryHighlights(container) {
+                const tempHighlights = container.querySelectorAll('.temp-highlight');
+                tempHighlights.forEach(highlight => {
+                    const parent = highlight.parentNode;
+                    parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+                    parent.normalize(); // Merge adjacent text nodes
+                });
             }
         }
 
