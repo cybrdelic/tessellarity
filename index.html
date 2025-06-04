@@ -193,6 +193,23 @@
       right: 2rem;
     }
 
+    /* Hide all panels when .panels-hidden is added to body */
+    body.panels-hidden .control-panel,
+    body.panels-hidden .instructions-panel,
+    body.panels-hidden .github-link {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-20px);
+    }
+
+    body.panels-hidden .control-panel.left {
+      transform: translateX(-100%);
+    }
+
+    body.panels-hidden .control-panel.right {
+      transform: translateX(100%);
+    }
+
     .panel-header {
       display: flex;
       justify-content: space-between;
@@ -477,6 +494,13 @@
       padding: 1rem 1.5rem;
       z-index: 50;
       box-shadow: var(--shadow-card);
+      transition: all 0.3s ease;
+    }
+
+    .instructions-panel.collapsed {
+      transform: translateY(100%);
+      opacity: 0;
+      pointer-events: none;
     }
 
     .instructions-panel h4 {
@@ -624,6 +648,10 @@
         WebGPU Ocean Simulation
       </div>
       <div class="header-actions">
+        <button id="toggle-all-panels" class="header-btn">
+          <i class="fas fa-eye"></i>
+          <span>Hide All</span>
+        </button>
         <button id="toggle-left-panel" class="header-btn">
           <i class="fas fa-sliders-h"></i>
           <span>Controls</span>
@@ -787,13 +815,17 @@
       </div>
     </div>
   </div>
-
   <!-- Instructions Panel -->
-  <div class="instructions-panel">
-    <h4>
-      <i class="fas fa-info-circle"></i>
-      Controls
-    </h4>
+  <div id="instructions-panel" class="instructions-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+      <h4 style="margin: 0;">
+        <i class="fas fa-info-circle"></i>
+        Controls
+      </h4>
+      <button class="panel-toggle" onclick="toggleInstructionsPanel()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
     <div class="instruction-item">
       <span class="kbd">Drag</span>
       <span class="instruction-text">Rotate camera view</span>
@@ -805,6 +837,22 @@
     <div class="instruction-item">
       <span class="kbd">Click</span>
       <span class="instruction-text">Create splash effect</span>
+    </div>
+    <div class="instruction-item">
+      <span class="kbd">H</span>
+      <span class="instruction-text">Toggle controls panel</span>
+    </div>
+    <div class="instruction-item">
+      <span class="kbd">S</span>
+      <span class="instruction-text">Toggle settings panel</span>
+    </div>
+    <div class="instruction-item">
+      <span class="kbd">I</span>
+      <span class="instruction-text">Toggle instructions panel</span>
+    </div>
+    <div class="instruction-item">
+      <span class="kbd">Space</span>
+      <span class="instruction-text">Hide all panels</span>
     </div>
   </div>
 
@@ -821,14 +869,22 @@
   <div id="debug-info" style="display: none;">
     <span id="error-reason"></span>
   </div>
-
   <script>
+    // Global panel visibility state
+    let allPanelsHidden = false;
+    let panelStates = {
+      left: false,
+      right: false,
+      instructions: false
+    };
+
     // Panel toggle functionality
     function togglePanel(side) {
       const panel = document.getElementById(`${side}-panel`);
       const button = document.getElementById(`toggle-${side}-panel`);
 
       panel.classList.toggle('collapsed');
+      panelStates[side] = panel.classList.contains('collapsed');
 
       // Update button text
       const isCollapsed = panel.classList.contains('collapsed');
@@ -844,9 +900,37 @@
       }
     }
 
+    // Instructions panel toggle
+    function toggleInstructionsPanel() {
+      const panel = document.getElementById('instructions-panel');
+      panel.classList.toggle('collapsed');
+      panelStates.instructions = panel.classList.contains('collapsed');
+    }
+
+    // Toggle all panels at once
+    function toggleAllPanels() {
+      const body = document.body;
+      const button = document.getElementById('toggle-all-panels');
+      const icon = button.querySelector('i');
+      const text = button.querySelector('span');
+
+      allPanelsHidden = !allPanelsHidden;
+
+      if (allPanelsHidden) {
+        body.classList.add('panels-hidden');
+        icon.className = 'fas fa-eye';
+        text.textContent = 'Show All';
+      } else {
+        body.classList.remove('panels-hidden');
+        icon.className = 'fas fa-eye-slash';
+        text.textContent = 'Hide All';
+      }
+    }
+
     // Initialize panel toggles
     document.getElementById('toggle-left-panel').addEventListener('click', () => togglePanel('left'));
     document.getElementById('toggle-right-panel').addEventListener('click', () => togglePanel('right'));
+    document.getElementById('toggle-all-panels').addEventListener('click', toggleAllPanels);
 
     // Radio button styling
     document.querySelectorAll('input[type="radio"]').forEach(radio => {
@@ -904,26 +988,53 @@
       setTimeout(() => {
         document.getElementById('loading-container').style.display = 'none';
       }, 2000);
-    });
-
-    // Mobile responsive panel handling
+    });    // Mobile responsive panel handling
     function handleMobileResize() {
       const isMobile = window.innerWidth <= 768;
-      if (isMobile) {
+      if (isMobile && !allPanelsHidden) {
+        // On mobile, hide panels by default but don't affect the global state
         document.getElementById('left-panel').classList.add('collapsed');
         document.getElementById('right-panel').classList.add('collapsed');
+        document.getElementById('instructions-panel').classList.add('collapsed');
+        panelStates.left = true;
+        panelStates.right = true;
+        panelStates.instructions = true;
+      } else if (!isMobile && !allPanelsHidden) {
+        // On desktop, restore panel states
+        if (!panelStates.left) {
+          document.getElementById('left-panel').classList.remove('collapsed');
+        }
+        if (!panelStates.right) {
+          document.getElementById('right-panel').classList.remove('collapsed');
+        }
+        if (!panelStates.instructions) {
+          document.getElementById('instructions-panel').classList.remove('collapsed');
+        }
       }
     }
 
     window.addEventListener('resize', handleMobileResize);
-    handleMobileResize();
-
-    // Keyboard shortcuts
+    handleMobileResize();    // Keyboard shortcuts
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'h' || e.key === 'H') {
-        togglePanel('left');
-      } else if (e.key === 's' || e.key === 'S') {
-        togglePanel('right');
+      // Prevent shortcuts when typing in input fields
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case 'h':
+          togglePanel('left');
+          break;
+        case 's':
+          togglePanel('right');
+          break;
+        case 'i':
+          toggleInstructionsPanel();
+          break;
+        case ' ':
+          e.preventDefault(); // Prevent page scroll
+          toggleAllPanels();
+          break;
       }
     });
   </script>
