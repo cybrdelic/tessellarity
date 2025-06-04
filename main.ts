@@ -169,17 +169,61 @@ async function main() {
 		size: waterAppearanceValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	})
-
 	console.log("buffer allocating done")
-	let mlsmpmNumParticleParams = [40000, 70000, 120000, 200000]
-	let mlsmpmInitBoxSizes = [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80]]
-	let mlsmpmInitDistances = [60, 70, 90, 100]
-	let sphNumParticleParams = [10000, 20000, 30000, 40000]
-	let sphInitBoxSizes = [[0.7, 2.0, 0.7], [1.0, 2.0, 1.0], [1.2, 2.0, 1.2], [1.4, 2.0, 1.4]]
-	let sphInitDistances = [2.6, 3.0, 3.4, 3.8]
-	let boidsNumParticleParams = [5000, 10000, 15000, 20000]
-	let boidsInitBoxSizes = [[40, 30, 40], [50, 40, 50], [60, 50, 60], [70, 60, 70]]
-	let boidsInitDistances = [80, 100, 120, 140]
+	// Centralized simulation configurations with safe particle limits
+	const maxGridCount = 64 * 64 * 64; // 262,144 - MLS-MPM grid limit
+	const simulationConfigs = {
+		'mls-mpm': {
+			name: 'MLS-MPM',
+			maxParticles: 200000, // Safe limit well below maxGridCount
+			defaultParticles: 70000,
+			minParticles: 1,
+			boxSizes: [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80], [55, 60, 90]],
+			cameraDistances: [60, 70, 90, 100, 120],
+			showWaterControls: true,
+			sliderLabel: 'Box width:',
+			particleLabel: 'Number of Particles'
+		},
+		'sph': {
+			name: 'SPH',
+			maxParticles: 50000, // Reduced from unsafe 60K limit
+			defaultParticles: 20000,
+			minParticles: 1,
+			boxSizes: [[0.7, 2.0, 0.7], [1.0, 2.0, 1.0], [1.2, 2.0, 1.2], [1.4, 2.0, 1.4], [1.6, 2.0, 1.6]],
+			cameraDistances: [2.6, 3.0, 3.4, 3.8, 4.2],
+			showWaterControls: true,
+			sliderLabel: 'Box width:',
+			particleLabel: 'Number of Particles'
+		},
+		'boids': {
+			name: 'Boids',
+			maxParticles: 25000, // Reduced from unsafe 30K limit
+			defaultParticles: 10000,
+			minParticles: 1,
+			boxSizes: [[40, 30, 40], [50, 40, 50], [60, 50, 60], [70, 60, 70], [80, 70, 80]],
+			cameraDistances: [80, 100, 120, 140, 160],
+			showWaterControls: false,
+			sliderLabel: 'Flight area:',
+			particleLabel: 'Flock Size'
+		}
+	}
+	// Legacy variables updated for new slider-based particle count system
+	const getCurrentConfig = (mode: string) => simulationConfigs[mode as keyof typeof simulationConfigs]
+
+	// Current particle count for each simulation (will be managed by sliders)
+	let currentParticleCount = {
+		'mls-mpm': simulationConfigs['mls-mpm'].defaultParticles,
+		'sph': simulationConfigs['sph'].defaultParticles,
+		'boids': simulationConfigs['boids'].defaultParticles
+	}
+
+	// Legacy arrays kept for compatibility during transition
+	let mlsmpmInitBoxSizes = simulationConfigs['mls-mpm'].boxSizes
+	let mlsmpmInitDistances = simulationConfigs['mls-mpm'].cameraDistances
+	let sphInitBoxSizes = simulationConfigs['sph'].boxSizes
+	let sphInitDistances = simulationConfigs['sph'].cameraDistances
+	let boidsInitBoxSizes = simulationConfigs['boids'].boxSizes
+	let boidsInitDistances = simulationConfigs['boids'].cameraDistances
 
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
@@ -238,33 +282,74 @@ async function main() {
 	console.log("simulator initialization done")
 
 	const camera = new Camera(canvasElement);
+	// ボタン押下の監視	// Particle count slider with debouncing
+	let particleCountChangeTimeout: number | null = null;
+	let particleCountChanged = false;
+	let newParticleCount = 70000;
 
-	// ボタン押下の監視
-	let numberButtonForm = document.getElementById('number-button') as HTMLFormElement;
-	let numberButtonPressed = false;
-	let numberButtonPressedButton = "1"
-	numberButtonForm.addEventListener('change', function (event) {
-		const target = event.target as HTMLInputElement
-		if (target?.name === 'options') {
-			numberButtonPressed = true
-			numberButtonPressedButton = target.value
-		}
-	});
+	const particleCountSlider = document.getElementById('particle-count-slider') as HTMLInputElement;
+	const particleCountValue = document.getElementById('particle-count-value') as HTMLSpanElement;
+
+	if (particleCountSlider && particleCountValue) {
+		particleCountSlider.addEventListener('input', function (event) {
+			const target = event.target as HTMLInputElement;
+			const value = parseInt(target.value);
+			particleCountValue.textContent = value.toLocaleString();
+
+			// Clear existing timeout
+			if (particleCountChangeTimeout) {
+				clearTimeout(particleCountChangeTimeout);
+			}
+
+			// Set debounced update (150ms delay)
+			particleCountChangeTimeout = setTimeout(() => {
+				particleCountChanged = true;
+				newParticleCount = value;
+			}, 150);
+		});
+	}
+
 	let simulationModeForm = document.getElementById('simulation-mode') as HTMLFormElement;
 	let simulationModePressed = false;
-	let simulationModePressedButton = "mls-mpm"
+	let simulationModePressedButton = "mls-mpm";
 	simulationModeForm.addEventListener('change', function (event) {
-		const target = event.target as HTMLInputElement
-		if (target?.name === 'options') {
+		const target = event.target as HTMLInputElement;
+		if (target?.name === 'simulation-mode') {
 			simulationModePressed = true
 			simulationModePressedButton = target.value
 		}
 	});
-	const smallValue = document.getElementById("small-value") as HTMLSpanElement;
-	const mediumValue = document.getElementById("medium-value") as HTMLSpanElement;
-	const largeValue = document.getElementById("large-value") as HTMLSpanElement;
-	const veryLargeValue = document.getElementById("very-large-value") as HTMLSpanElement;
 	const particleCountLabel = document.getElementById("particle-count-label") as HTMLElement;
+	// Helper function to update UI labels and slider limits based on current simulation mode
+	const updateUILabels = (mode: string) => {
+		const config = getCurrentConfig(mode)
+		if (!config) {
+			console.error('No config found for mode:', mode)
+			return
+		}
+
+		particleCountLabel.textContent = config.particleLabel
+
+		// Update particle count slider for new simulation mode
+		const particleSlider = document.getElementById('particle-count-slider') as HTMLInputElement;
+		const particleValue = document.getElementById('particle-count-value') as HTMLSpanElement;
+
+		if (particleSlider && particleValue) {
+			particleSlider.min = config.minParticles.toString()
+			particleSlider.max = config.maxParticles.toString()
+			particleSlider.value = config.defaultParticles.toString()
+			particleValue.textContent = config.defaultParticles.toLocaleString()
+			currentParticleCount[mode as keyof typeof currentParticleCount] = config.defaultParticles
+		}
+
+		const sliderLabel = document.getElementById('slider-label') as HTMLLabelElement;
+		sliderLabel.textContent = config.sliderLabel
+
+		const waterAppearanceControls = document.getElementById('water-appearance-controls');
+		if (waterAppearanceControls) {
+			waterAppearanceControls.style.display = config.showWaterControls ? "block" : "none";
+		}
+	}
 
 	// デバイスロストの監視
 	let errorLog = document.getElementById('error-reason') as HTMLSpanElement;
@@ -272,85 +357,89 @@ async function main() {
 	device.lost.then(info => {
 		const reason = info.reason ? `reason: ${info.reason}` : 'unknown reason';
 		errorLog.textContent = reason;
-	});
-
-	// はじめは mls-mpm
-	const initDistance = mlsmpmInitDistances[1]
-	let initBoxSize = mlsmpmInitBoxSizes[1]
+	});	// Initialize with default configuration
+	const defaultMode = 'mls-mpm'
+	const defaultSizeIndex = 1 // Medium
+	const initDistance = mlsmpmInitDistances[defaultSizeIndex]
+	let initBoxSize = mlsmpmInitBoxSizes[defaultSizeIndex]
 	let realBoxSize = [...initBoxSize];
-	mlsmpmSimulator.reset(mlsmpmNumParticleParams[1], mlsmpmInitBoxSizes[1])
+	mlsmpmSimulator.reset(currentParticleCount[defaultMode], mlsmpmInitBoxSizes[defaultSizeIndex])
 	camera.reset(canvasElement, initDistance, [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
 		mlsmpmFov, mlsmpmZoomRate)
-	smallValue.textContent = "Small (40,000 particles)"
-	mediumValue.textContent = "Medium (70,000 particles)"
-	largeValue.textContent = "Large (120,000 particles)"
-	veryLargeValue.textContent = "Very Large (200,000 particles)"
+
+	// Initialize UI with default mode
+	updateUILabels(defaultMode)
 	let sphereRenderFl = false
 	let sphFl = false
-	let boidsFl = false
+	let boidsFl = false;
 	let boxWidthRatio = 1.
 
-	console.log("simulation start")
+	console.log("simulation start");
 	async function frame() {
-		const start = performance.now(); if (simulationModePressed) {
-			const waterAppearanceControls = document.getElementById('water-appearance-controls');
-			const sliderLabel = document.getElementById('slider-label') as HTMLLabelElement;
+		const start = performance.now();
+		// Handle simulation mode changes
+		if (simulationModePressed) {
+			// Clean, configuration-driven mode switching
 			if (simulationModePressedButton == "mls-mpm") {
 				sphFl = false
 				boidsFl = false
-				particleCountLabel.textContent = "Number of Particles"
-				smallValue.textContent = "Small (40,000 particles)"
-				mediumValue.textContent = "Medium (70,000 particles)"
-				largeValue.textContent = "Large (120,000 particles)"
-				veryLargeValue.textContent = "Very Large (200,000 particles)"
-				waterAppearanceControls!.style.display = "block";
-				sliderLabel.textContent = "Box width:";
 			} else if (simulationModePressedButton == "sph") {
 				sphFl = true
 				boidsFl = false
-				particleCountLabel.textContent = "Number of Particles"
-				smallValue.textContent = "Small (10,000 particles)"
-				mediumValue.textContent = "Medium (20,000 particles)"
-				largeValue.textContent = "Large (30,000 particles)"
-				veryLargeValue.textContent = "Very Large (40,000 particles)"
-				waterAppearanceControls!.style.display = "block";
-				sliderLabel.textContent = "Box width:";
 			} else if (simulationModePressedButton == "boids") {
 				sphFl = false
 				boidsFl = true
-				particleCountLabel.textContent = "Flock Size"
-				smallValue.textContent = "Small Flock (5,000 boids)"
-				mediumValue.textContent = "Medium Flock (10,000 boids)"
-				largeValue.textContent = "Large Flock (15,000 boids)"
-				veryLargeValue.textContent = "Massive Flock (20,000 boids)"
-				waterAppearanceControls!.style.display = "none";
-				sliderLabel.textContent = "Flight area:";
 			}
+
+			// Update UI based on new mode - one function call instead of 20+ lines!
+			updateUILabels(simulationModePressedButton)
+
 			simulationModePressed = false
-			numberButtonPressed = true
+			particleCountChanged = true // Trigger particle count update for new mode
 		}
-		if (numberButtonPressed) {
-			const paramsIdx = parseInt(numberButtonPressedButton)
+
+		// Handle particle count changes with debouncing
+		if (particleCountChanged) {
+			const currentMode = boidsFl ? 'boids' : (sphFl ? 'sph' : 'mls-mpm');
+			const config = getCurrentConfig(currentMode);
+
+			// Clamp particle count to valid range for current simulation
+			let clampedCount = Math.max(config.minParticles, Math.min(config.maxParticles, newParticleCount));
+			currentParticleCount[currentMode as keyof typeof currentParticleCount] = clampedCount;
+
+			// Use default box size (index 1 = medium)
+			const defaultSizeIndex = 1;
+
 			if (boidsFl) {
-				initBoxSize = boidsInitBoxSizes[paramsIdx]
-				boidsSimulator.reset(boidsNumParticleParams[paramsIdx], initBoxSize)
-				camera.reset(canvasElement, boidsInitDistances[paramsIdx], [initBoxSize[0] / 2, initBoxSize[1] / 2, initBoxSize[2] / 2],
+				initBoxSize = boidsInitBoxSizes[defaultSizeIndex]
+				boidsSimulator.reset(clampedCount, initBoxSize)
+				camera.reset(canvasElement, boidsInitDistances[defaultSizeIndex], [initBoxSize[0] / 2, initBoxSize[1] / 2, initBoxSize[2] / 2],
 					boidsFov, boidsZoomRate)
 			} else if (sphFl) {
-				initBoxSize = sphInitBoxSizes[paramsIdx]
-				sphSimulator.reset(sphNumParticleParams[paramsIdx], initBoxSize)
-				camera.reset(canvasElement, sphInitDistances[paramsIdx], [0, -initBoxSize[1] + 0.1, 0],
+				initBoxSize = sphInitBoxSizes[defaultSizeIndex]
+				sphSimulator.reset(clampedCount, initBoxSize)
+				camera.reset(canvasElement, sphInitDistances[defaultSizeIndex], [0, -initBoxSize[1] + 0.1, 0],
 					sphFov, sphZoomRate)
 			} else {
-				initBoxSize = mlsmpmInitBoxSizes[paramsIdx]
-				mlsmpmSimulator.reset(mlsmpmNumParticleParams[paramsIdx], initBoxSize)
-				camera.reset(canvasElement, mlsmpmInitDistances[paramsIdx], [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
+				initBoxSize = mlsmpmInitBoxSizes[defaultSizeIndex]
+				mlsmpmSimulator.reset(clampedCount, initBoxSize)
+				camera.reset(canvasElement, mlsmpmInitDistances[defaultSizeIndex], [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
 					mlsmpmFov, mlsmpmZoomRate)
 			}
+
 			realBoxSize = [...initBoxSize]
 			let slider = document.getElementById("slider") as HTMLInputElement
 			slider.value = "100"
-			numberButtonPressed = false
+
+			// Update display value to show clamped count
+			if (particleCountValue) {
+				particleCountValue.textContent = clampedCount.toLocaleString();
+			}
+			if (particleCountSlider) {
+				particleCountSlider.value = clampedCount.toString();
+			}
+
+			particleCountChanged = false
 		}
 		// ボックスサイズの変更
 		const slider = document.getElementById("slider") as HTMLInputElement

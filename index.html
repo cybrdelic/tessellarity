@@ -4,176 +4,931 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebGPU-Ocean</title>
+  <title>WebGPU Ocean Simulation - Interactive Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
-    body,
-    html {
-      height: 100%;
-      width: 100%;
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    canvas {
-      width: 100%;
-      height: 100%;
-    }
-
-    #ui-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 300px;
-      margin: 20px;
-    }
-
-    #number-container {
-      position: fixed;
-      top: 0;
-      right: 0;
-      margin: 20px;
-      margin-right: 10px;
-      font-size: 15px;
-      width: 270px;
-    }
-
-    #debug-info {
-      position: fixed;
-    }
-
-    #howto-container {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 300px;
-      margin: 20px;
-      font-size: small;
-    }
-
-    #github-link {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-    }
-
-    .github-icon {
-      position: absolute;
-      bottom: 10px;
-      right: 20px;
-      font-size: 40px;
-      color: black;
+    :root {
+      --primary-color: #000000;
+      --secondary-color: #0a0a0a;
+      --accent-color: #0ea5e9;
+      --text-color: #ffffff;
+      --text-primary: #ffffff;
+      --text-secondary: #cccccc;
+      --text-muted: #888888;
+      --text-subtle: #555555;
+      --bg-primary: #000000;
+      --bg-secondary: #0a0a0a;
+      --bg-darker: #050505;
+      --bg-card: rgba(10, 10, 10, 0.95);
+      --border-color: #1a1a1a;
+      --border-subtle: #111111;
+      --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.3);
+      --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
 
     * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
       user-select: none;
     }
 
-    .appearance-controls {
-      background: rgba(255, 255, 255, 0.9);
-      padding: 15px;
-      border-radius: 8px;
-      margin-top: 20px;
+    html {
+      scroll-behavior: smooth;
     }
 
-    .appearance-controls h3 {
-      margin: 0 0 10px 0;
-      font-size: 16px;
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 400;
+      line-height: 1.6;
+      color: var(--text-color);
+      background: var(--bg-primary);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
     }
 
-    .appearance-controls div {
-      margin: 10px 0;
+    /* Smooth Transitions */
+    * {
+      transition-property: color, background-color, border-color, transform, box-shadow, opacity;
+      transition-duration: 0.3s;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .appearance-controls label {
-      display: block;
-      margin-bottom: 5px;
-      font-size: 14px;
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
     }
 
-    .appearance-controls input[type="range"] {
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-subtle);
+    }
+
+    /* Canvas Styling */
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
+      height: 100%;
+      z-index: 1;
     }
 
-    .appearance-controls input[type="color"] {
-      width: 50px;
-      height: 30px;
-      padding: 0;
+    /* Header */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 100;
+      padding: 1rem 2rem;
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .header-title i {
+      color: var(--accent-color);
+      font-size: 1.25rem;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .header-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .header-btn:hover {
+      background: var(--bg-secondary);
+      color: var(--text-color);
+      border-color: var(--accent-color);
+    }
+
+    .header-btn.primary {
+      background: var(--accent-color);
+      color: var(--text-color);
+      border-color: var(--accent-color);
+    }
+
+    .header-btn.primary:hover {
+      background: #0284c7;
+      border-color: #0284c7;
+    }
+
+    /* Control Panels */
+    .control-panel {
+      position: fixed;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      z-index: 50;
+      box-shadow: var(--shadow-card);
+      min-width: 280px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+
+    .control-panel.collapsed {
+      transform: translateX(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .control-panel.right.collapsed {
+      transform: translateX(100%);
+    }
+
+    .control-panel.left {
+      top: 100px;
+      left: 2rem;
+    }
+
+    .control-panel.right {
+      top: 100px;
+      right: 2rem;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-title i {
+      color: var(--accent-color);
+    }
+
+    .panel-toggle {
+      background: transparent;
       border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    .panel-toggle:hover {
+      background: var(--bg-secondary);
+      color: var(--text-color);
+    }
+
+    /* Form Controls */
+    .control-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .control-description {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    /* Radio Groups */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .radio-option:hover {
+      background: var(--bg-secondary);
+      border-color: var(--border-color);
+    }
+
+    .radio-option.selected {
+      background: rgba(14, 165, 233, 0.1);
+      border-color: var(--accent-color);
+    }
+
+    .radio-option input[type="radio"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--accent-color);
+    }
+
+    .radio-option-label {
+      font-size: 0.9rem;
+      color: var(--text-color);
+      font-weight: 500;
+    }
+
+    .radio-option-description {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Range Sliders */
+    .slider-container {
+      margin-bottom: 1rem;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .slider-value {
+      background: var(--bg-secondary);
+      color: var(--text-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      min-width: 3rem;
+      text-align: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border-color);
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      cursor: pointer;
+      border: 2px solid var(--bg-primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      cursor: pointer;
+      border: 2px solid var(--bg-primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Select Dropdown */
+    select {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      outline: none;
+    }
+
+    select:focus {
+      border-color: var(--accent-color);
+    }
+
+    select option {
+      background: var(--bg-secondary);
+      color: var(--text-color);
+    }
+
+    /* Color Picker */
+    input[type="color"] {
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      outline: none;
+    }
+
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 6px;
+    }
+
+    /* Checkbox */
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .checkbox-container:hover {
+      background: var(--bg-secondary);
+      border-color: var(--border-color);
+    }
+
+    .checkbox-container.checked {
+      background: rgba(14, 165, 233, 0.1);
+      border-color: var(--accent-color);
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--accent-color);
+    }
+
+    /* Loading State */
+    .loading-container {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      text-align: center;
+      background: var(--bg-card);
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-card);
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color);
+      border-top: 3px solid var(--accent-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    /* Instructions Panel */
+    .instructions-panel {
+      position: fixed;
+      bottom: 2rem;
+      left: 2rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      z-index: 50;
+      box-shadow: var(--shadow-card);
+    }
+
+    .instructions-panel h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-color);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .instructions-panel h4 i {
+      color: var(--accent-color);
+    }
+
+    .instruction-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .instruction-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .kbd {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-color);
+      min-width: 2rem;
+      text-align: center;
+    }
+
+    .instruction-text {
+      color: var(--text-muted);
+    }
+
+    /* GitHub Link */
+    .github-link {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      text-decoration: none;
+      z-index: 50;
+      box-shadow: var(--shadow-card);
+      transition: all 0.3s ease;
+    }
+
+    .github-link:hover {
+      background: var(--accent-color);
+      color: var(--text-color);
+      border-color: var(--accent-color);
+      transform: translateY(-2px);
+    }
+
+    /* Mobile Responsiveness */
+    @media (max-width: 768px) {
+      .header {
+        padding: 0.75rem 1rem;
+      }
+
+      .header-title {
+        font-size: 1.25rem;
+      }
+
+      .header-actions {
+        gap: 0.5rem;
+      }
+
+      .header-btn {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+      }
+
+      .control-panel {
+        left: 1rem;
+        right: 1rem;
+        width: calc(100% - 2rem);
+        max-width: none;
+        min-width: auto;
+      }
+
+      .control-panel.right {
+        right: 1rem;
+        left: 1rem;
+        top: 120px;
+      }
+
+      .instructions-panel {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+      }
+
+      .github-link {
+        bottom: 1rem;
+        right: 1rem;
+      }
+    }
+
+    /* Hide panels by default on mobile */
+    @media (max-width: 768px) {
+      .control-panel {
+        transform: translateY(-100%);
+        top: 80px;
+      }
+
+      .control-panel.show {
+        transform: translateY(0);
+      }
     }
   </style>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
-  <div id="ui-container">
-    <div>
-      <label>
-        <input type="checkbox" id="particle">
-        Particles
-      </label>
-    </div>
-    <div id="slider-container">
-      <label for="slider" id="slider-label">Box width:</label>
-      <input type="range" id="slider" min="0" max="100" value="100" />
-      <span id="slider-value"></span>
-    </div><!-- Add new water appearance controls -->
-    <div id="water-appearance-controls" class="appearance-controls">
-      <h3>Water Appearance</h3>
-      <div>
-        <label for="environment-select">Environment:</label>
-        <select id="environment-select">
-          <option value="-1">None (White Background)</option>
-          <option value="0" selected>Industrial Sunset</option>
-          <option value="1">Venice Sunset</option>
-          <option value="2">Forest</option>
-        </select>
+  <!-- Loading Screen -->
+  <div id="loading-container" class="loading-container">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Initializing WebGPU Ocean Simulation...</div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="header-title">
+        <i class="fas fa-water"></i>
+        WebGPU Ocean Simulation
       </div>
-      <div>
-        <label for="water-color">Water Color:</label>
+      <div class="header-actions">
+        <button id="toggle-left-panel" class="header-btn">
+          <i class="fas fa-sliders-h"></i>
+          <span>Controls</span>
+        </button>
+        <button id="toggle-right-panel" class="header-btn">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </button>
+        <a href="docs.html" class="header-btn">
+          <i class="fas fa-book"></i>
+          <span>Docs</span>
+        </a>
+        <a href="landing.html" class="header-btn primary">
+          <i class="fas fa-home"></i>
+          <span>Home</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Left Control Panel -->
+  <div id="left-panel" class="control-panel left">
+    <div class="panel-header">
+      <div class="panel-title">
+        <i class="fas fa-sliders-h"></i>
+        Simulation Controls
+      </div>
+      <button class="panel-toggle" onclick="togglePanel('left')">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Simulation Mode -->
+    <div class="control-group">
+      <label class="control-label">Simulation Mode</label>
+      <div class="control-description">Choose the physics simulation algorithm</div>
+      <div class="radio-group" id="simulation-mode">
+        <label class="radio-option selected">
+          <input type="radio" name="simulation-mode" value="mls-mpm" checked>
+          <div>
+            <div class="radio-option-label">MLS-MPM</div>
+            <div class="radio-option-description">Material Point Method for fluid dynamics</div>
+          </div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="simulation-mode" value="sph">
+          <div>
+            <div class="radio-option-label">SPH</div>
+            <div class="radio-option-description">Smoothed Particle Hydrodynamics</div>
+          </div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="simulation-mode" value="boids">
+          <div>
+            <div class="radio-option-label">Boids</div>
+            <div class="radio-option-description">Flocking behavior simulation</div>
+          </div>
+        </label>
+      </div>
+    </div> <!-- Particle Count -->
+    <div class="control-group">
+      <label class="control-label" id="particle-count-label">Number of Particles</label>
+      <div class="control-description">Higher counts provide more detail but require more processing power</div>
+      <div class="slider-container">
+        <div class="slider-label">
+          <span>Particle Count</span>
+          <span class="slider-value" id="particle-count-value">70,000</span>
+        </div>
+        <input type="range" id="particle-count-slider" min="1" max="200000" value="70000" step="100" />
+      </div>
+    </div>
+
+    <!-- Particle Visualization -->
+    <div class="control-group">
+      <label class="control-label">Visualization</label>
+      <div class="checkbox-container" id="particle-checkbox">
+        <input type="checkbox" id="particle">
+        <div>
+          <div class="radio-option-label">Show Particles</div>
+          <div class="radio-option-description">Display individual particle points</div>
+        </div>
+      </div>
+    </div> <!-- Box Width -->
+    <div class="control-group">
+      <label class="control-label">Simulation Bounds</label>
+      <div class="slider-container">
+        <div class="slider-label">
+          <span id="slider-label">Box Width</span>
+          <span class="slider-value" id="slider-value">100</span>
+        </div>
+        <input type="range" id="slider" min="0" max="100" value="100" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Control Panel -->
+  <div id="right-panel" class="control-panel right">
+    <div class="panel-header">
+      <div class="panel-title">
+        <i class="fas fa-palette"></i>
+        Appearance Settings
+      </div>
+      <button class="panel-toggle" onclick="togglePanel('right')">
+        <i class="fas fa-times"></i>
+      </button>
+    </div> <!-- Environment -->
+    <div class="control-group">
+      <label class="control-label">Environment</label>
+      <div class="control-description">Choose the background environment</div>
+      <select id="environment-select">
+        <option value="-1">None (White Background)</option>
+        <option value="0" selected>Industrial Sunset</option>
+        <option value="1">Venice Sunset</option>
+        <option value="2">Forest</option>
+      </select>
+    </div>
+
+    <!-- Water Appearance Controls -->
+    <div id="water-appearance-controls">
+      <!-- Water Color -->
+      <div class="control-group">
+        <label class="control-label">Water Color</label>
+        <div class="control-description">Adjust the base color of the water</div>
         <input type="color" id="water-color" value="#3498db" />
       </div>
-      <div>
-        <label for="transparency">Transparency:</label>
-        <input type="range" id="transparency" min="0" max="100" value="80" />
+
+      <!-- Transparency -->
+      <div class="control-group">
+        <label class="control-label">Transparency</label>
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Opacity</span>
+            <span class="slider-value" id="transparency-value">80%</span>
+          </div>
+          <input type="range" id="transparency" min="0" max="100" value="80" />
+        </div>
       </div>
-      <div>
-        <label for="reflectivity">Reflectivity:</label>
-        <input type="range" id="reflectivity" min="0" max="100" value="50" />
+
+      <!-- Reflectivity -->
+      <div class="control-group">
+        <label class="control-label">Reflectivity</label>
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Surface Reflection</span>
+            <span class="slider-value" id="reflectivity-value">50%</span>
+          </div>
+          <input type="range" id="reflectivity" min="0" max="100" value="50" />
+        </div>
       </div>
-      <div>
-        <label for="wave-height">Wave Height:</label>
-        <input type="range" id="wave-height" min="0" max="100" value="30" />
+
+      <!-- Wave Height -->
+      <div class="control-group">
+        <label class="control-label">Wave Height</label>
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Surface Detail</span>
+            <span class="slider-value" id="wave-height-value">30%</span>
+          </div>
+          <input type="range" id="wave-height" min="0" max="100" value="30" />
+        </div>
       </div>
     </div>
   </div>
-  <div id="number-container">
-    <b>Simulation Mode</b>
-    <form id="simulation-mode" style="display: flex; gap: 10px;">
-      <label><input type="radio" name="options" value="mlsmpm" checked>MLS-MPM</label><br>
-      <label><input type="radio" name="options" value="sph">SPH</label><br>
-      <label><input type="radio" name="options" value="boids">Boids</label><br>
-    </form> <b id="particle-count-label">Number of Particles</b>
-    <form id="number-button">
-      <label><input type="radio" name="options" value="0"><span id="small-value"></span></label><br>
-      <label><input type="radio" name="options" value="1" checked><span id="medium-value"></span></label><br>
-      <label><input type="radio" name="options" value="2"><span id="large-value"></span></label><br>
-      <label><input type="radio" name="options" value="3"><span id="very-large-value"></span></label><br>
-    </form>
+
+  <!-- Instructions Panel -->
+  <div class="instructions-panel">
+    <h4>
+      <i class="fas fa-info-circle"></i>
+      Controls
+    </h4>
+    <div class="instruction-item">
+      <span class="kbd">Drag</span>
+      <span class="instruction-text">Rotate camera view</span>
+    </div>
+    <div class="instruction-item">
+      <span class="kbd">Scroll</span>
+      <span class="instruction-text">Zoom in and out</span>
+    </div>
+    <div class="instruction-item">
+      <span class="kbd">Click</span>
+      <span class="instruction-text">Create splash effect</span>
+    </div>
   </div>
-  <div id="howto-container">
-    <div> <b>Drag</b> to move camera </div>
-    <div> <b>Scroll</b> to zoom in and out </div>
-  </div>
-  <div id="debug-info">
-    <span id="error-reason">loading now...(won't take longer than 10 seconds I guess)</span>
-  </div>
-  <a href="https://github.com/matsuoka-601/webgpu-ocean" class="github-icon" target="_blank" rel="noopener noreferrer">
+
+  <!-- GitHub Link -->
+  <a href="https://github.com/matsuoka-601/webgpu-ocean" class="github-link" target="_blank" rel="noopener noreferrer"
+    title="View on GitHub">
     <i class="fab fa-github"></i>
   </a>
+
+  <!-- Canvas -->
   <canvas id="fluidCanvas"></canvas>
-  <script type="module" src="main-refactored.ts"></script>
+
+  <!-- Debug Info (hidden by default) -->
+  <div id="debug-info" style="display: none;">
+    <span id="error-reason"></span>
+  </div>
+
+  <script>
+    // Panel toggle functionality
+    function togglePanel(side) {
+      const panel = document.getElementById(`${side}-panel`);
+      const button = document.getElementById(`toggle-${side}-panel`);
+
+      panel.classList.toggle('collapsed');
+
+      // Update button text
+      const isCollapsed = panel.classList.contains('collapsed');
+      const icon = button.querySelector('i');
+      const text = button.querySelector('span');
+
+      if (side === 'left') {
+        icon.className = isCollapsed ? 'fas fa-sliders-h' : 'fas fa-eye-slash';
+        text.textContent = isCollapsed ? 'Controls' : 'Hide';
+      } else {
+        icon.className = isCollapsed ? 'fas fa-cog' : 'fas fa-eye-slash';
+        text.textContent = isCollapsed ? 'Settings' : 'Hide';
+      }
+    }
+
+    // Initialize panel toggles
+    document.getElementById('toggle-left-panel').addEventListener('click', () => togglePanel('left'));
+    document.getElementById('toggle-right-panel').addEventListener('click', () => togglePanel('right'));
+
+    // Radio button styling
+    document.querySelectorAll('input[type="radio"]').forEach(radio => {
+      radio.addEventListener('change', function () {
+        const group = this.closest('.radio-group');
+        group.querySelectorAll('.radio-option').forEach(option => {
+          option.classList.remove('selected');
+        });
+        this.closest('.radio-option').classList.add('selected');
+      });
+    });
+
+    // Checkbox styling
+    document.getElementById('particle').addEventListener('change', function () {
+      const container = document.getElementById('particle-checkbox');
+      container.classList.toggle('checked', this.checked);
+    });
+
+    // Slider value updates
+    function updateSliderValue(sliderId, valueId, suffix = '') {
+      const slider = document.getElementById(sliderId);
+      const valueDisplay = document.getElementById(valueId);
+
+      slider.addEventListener('input', function () {
+        valueDisplay.textContent = this.value + suffix;
+      });
+
+      // Initialize value
+      valueDisplay.textContent = slider.value + suffix;
+    } updateSliderValue('slider', 'slider-value');
+    updateSliderValue('transparency', 'transparency-value', '%');
+    updateSliderValue('reflectivity', 'reflectivity-value', '%');
+    updateSliderValue('wave-height', 'wave-height-value', '%');
+
+    // Special handling for particle count slider with number formatting
+    function updateParticleCountSlider() {
+      const slider = document.getElementById('particle-count-slider');
+      const valueDisplay = document.getElementById('particle-count-value');
+
+      if (slider && valueDisplay) {
+        slider.addEventListener('input', function () {
+          const value = parseInt(this.value);
+          valueDisplay.textContent = value.toLocaleString();
+        });
+
+        // Initialize value
+        const initialValue = parseInt(slider.value);
+        valueDisplay.textContent = initialValue.toLocaleString();
+      }
+    }
+    updateParticleCountSlider();
+
+    // Hide loading screen when simulation starts
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('loading-container').style.display = 'none';
+      }, 2000);
+    });
+
+    // Mobile responsive panel handling
+    function handleMobileResize() {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        document.getElementById('left-panel').classList.add('collapsed');
+        document.getElementById('right-panel').classList.add('collapsed');
+      }
+    }
+
+    window.addEventListener('resize', handleMobileResize);
+    handleMobileResize();
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'h' || e.key === 'H') {
+        togglePanel('left');
+      } else if (e.key === 's' || e.key === 'S') {
+        togglePanel('right');
+      }
+    });
+  </script>
+
+  <script type="module" src="main.ts"></script>
 </body>
 
 </html>

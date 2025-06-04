@@ -30,15 +30,16 @@ export const SIMULATION_CONFIGS: Record<SimulationMode, SimulatorConfig> = {
     [SimulationMode.MLSMPM]: {
         mode: SimulationMode.MLSMPM,
         displayName: "MLS-MPM Fluid",
-        particleCounts: [40000, 70000, 120000, 200000],
+        particleCounts: [40000, 70000, 120000, 200000, 300],
         particleLabels: [
             "Small (40,000 particles)",
             "Medium (70,000 particles)",
             "Large (120,000 particles)",
-            "Very Large (200,000 particles)"
+            "Very Large (200,000 particles)",
+            "Extreme (300,000 particles)"
         ],
-        boxSizes: [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80]],
-        cameraDistances: [60, 70, 90, 100],
+        boxSizes: [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80], [55, 60, 90]],
+        cameraDistances: [60, 70, 90, 100, 120],
         renderSettings: {
             radius: 0.6,
             fov: 45 * Math.PI / 180,
@@ -50,20 +51,19 @@ export const SIMULATION_CONFIGS: Record<SimulationMode, SimulatorConfig> = {
             particleCountLabel: "Number of Particles"
         },
         particleStructSize: 64 // mlsmpmParticleStructSize
-    },
-
-    [SimulationMode.SPH]: {
+    }, [SimulationMode.SPH]: {
         mode: SimulationMode.SPH,
         displayName: "SPH Fluid",
-        particleCounts: [10000, 20000, 30000, 40000],
+        particleCounts: [10000, 20000, 30000, 40000, 60000],
         particleLabels: [
             "Small (10,000 particles)",
             "Medium (20,000 particles)",
             "Large (30,000 particles)",
-            "Very Large (40,000 particles)"
+            "Very Large (40,000 particles)",
+            "Extreme (60,000 particles)"
         ],
-        boxSizes: [[0.7, 2.0, 0.7], [1.0, 2.0, 1.0], [1.2, 2.0, 1.2], [1.4, 2.0, 1.4]],
-        cameraDistances: [2.6, 3.0, 3.4, 3.8],
+        boxSizes: [[0.7, 2.0, 0.7], [1.0, 2.0, 1.0], [1.2, 2.0, 1.2], [1.4, 2.0, 1.4], [1.6, 2.0, 1.6]],
+        cameraDistances: [2.6, 3.0, 3.4, 3.8, 4.2],
         renderSettings: {
             radius: 0.04,
             fov: 45 * Math.PI / 180,
@@ -75,20 +75,19 @@ export const SIMULATION_CONFIGS: Record<SimulationMode, SimulatorConfig> = {
             particleCountLabel: "Number of Particles"
         },
         particleStructSize: 64 // sphParticleStructSize
-    },
-
-    [SimulationMode.BOIDS]: {
+    }, [SimulationMode.BOIDS]: {
         mode: SimulationMode.BOIDS,
         displayName: "Boids Flocking",
-        particleCounts: [5000, 10000, 15000, 20000],
+        particleCounts: [5000, 10000, 15000, 20000, 30000],
         particleLabels: [
             "Small Flock (5,000 boids)",
             "Medium Flock (10,000 boids)",
             "Large Flock (15,000 boids)",
-            "Massive Flock (20,000 boids)"
+            "Massive Flock (20,000 boids)",
+            "Swarm (30,000 boids)"
         ],
-        boxSizes: [[40, 30, 40], [50, 40, 50], [60, 50, 60], [70, 60, 70]],
-        cameraDistances: [80, 100, 120, 140],
+        boxSizes: [[40, 30, 40], [50, 40, 50], [60, 50, 60], [70, 60, 70], [80, 70, 80]],
+        cameraDistances: [80, 100, 120, 140, 160],
         renderSettings: {
             radius: 0.3,
             fov: 45 * Math.PI / 180,
