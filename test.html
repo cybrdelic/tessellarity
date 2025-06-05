@@ -690,6 +690,77 @@
                         </div>
                     </div>
                 </div>
+            </div> <!-- Water Feature Testing -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>💧 Water Features</h2>
+                    <p>Testing water features like ripples, whitewater, and particle effects</p>
+                </div>
+                <div class="test-content">
+                    <div class="test-item">
+                        <h3>Ripple Feature</h3>
+                        <div class="test-result" id="ripple-test">
+                            <span class="status-icon status-pending"></span>
+                            <span>Testing ripple feature...</span>
+                        </div>
+                        <div class="test-controls">
+                            <div class="slider-container">
+                                <label>Speed</label>
+                                <input type="range" id="test-ripple-speed" min="0.1" max="5.0" value="1.0" step="0.1" />
+                                <span class="value" id="test-ripple-speed-value">1.0</span>
+                            </div>
+                            <div class="slider-container">
+                                <label>Scale</label>
+                                <input type="range" id="test-ripple-scale" min="0.1" max="2.0" value="0.5" step="0.1" />
+                                <span class="value" id="test-ripple-scale-value">0.5</span>
+                            </div>
+                            <div class="slider-container">
+                                <label>Amplitude</label>
+                                <input type="range" id="test-ripple-amplitude" min="0.001" max="0.1" value="0.02"
+                                    step="0.001" />
+                                <span class="value" id="test-ripple-amplitude-value">0.02</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="test-item">
+                        <h3>Whitewater Feature</h3>
+                        <div class="test-result" id="whitewater-test">
+                            <span class="status-icon status-pending"></span>
+                            <span>Testing whitewater feature...</span>
+                        </div>
+                        <div class="test-controls">
+                            <div class="slider-container">
+                                <label>Intensity</label>
+                                <input type="range" id="test-whitewater-intensity" min="0.0" max="3.0" value="1.0"
+                                    step="0.1" />
+                                <span class="value" id="test-whitewater-intensity-value">1.0</span>
+                            </div>
+                            <div class="slider-container">
+                                <label>Turbulence</label>
+                                <input type="range" id="test-whitewater-turbulence" min="0.5" max="5.0" value="1.5"
+                                    step="0.1" />
+                                <span class="value" id="test-whitewater-turbulence-value">1.5</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="test-item">
+                        <h3>Parameter Update Performance</h3>
+                        <div class="test-result" id="parameter-update-test">
+                            <span class="status-icon status-pending"></span>
+                            <span>Testing parameter updates...</span>
+                        </div>
+                        <div class="performance-metrics" id="parameter-update-metrics" style="display: none;">
+                            <div class="metric">
+                                <span class="label">Update Time:</span>
+                                <span class="value" id="parameter-update-time">0.00 ms</span>
+                            </div>
+                            <div class="metric">
+                                <span class="label">Memory Impact:</span>
+                                <span class="value" id="parameter-memory-impact">0.00 KB</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Configuration Testing -->
@@ -749,7 +820,7 @@
         </div>
     </div>
     <script>
-        // Test suite state - standalone implementation
+        // Test suite state
         let device = null;
         let adapter = null;
         let canvas = null;
@@ -757,6 +828,8 @@
         let animationId = null;
         let frameCount = 0;
         let lastFrameTime = performance.now();
+        let tests = []; // Initialize tests array
+
         // MLS-MPM simulation constants (extracted from source)
         const numParticlesMax = 65536;
         const mlsmpmParticleStructSize = 48; // vec3 position, vec3 velocity, mat3 C, float J, padding
@@ -962,9 +1035,7 @@
                 log(`Adapter request failed: ${error.message}`, 'error');
                 return false;
             }
-        }
-
-        async function testDevice() {
+        } async function testDevice() {
             log('Creating WebGPU device...');
 
             try {
@@ -973,7 +1044,9 @@
                         maxStorageTexturesPerShaderStage: 8,
                         maxComputeWorkgroupSizeX: 256,
                         maxComputeWorkgroupSizeY: 256,
-                        maxComputeWorkgroupSizeZ: 64
+                        maxComputeWorkgroupSizeZ: 64,
+                        maxStorageBufferBindingSize: 1024 * 1024 * 1024, // 1GB for large particle systems
+                        maxBufferSize: 1024 * 1024 * 1024
                     }
                 });
 
@@ -1002,51 +1075,72 @@
         }
 
         async function loadShaderSource(shaderName) {
-            try {
-                const response = await fetch(`./mls-mpm/${shaderName}.wgsl`);
-                const source = await response.text();
-                shaderSources[shaderName] = source;
-                return source;
-            } catch (error) {
-                log(`Failed to load ${shaderName}.wgsl: ${error.message}`, 'error');
-                return null;
-            }
-        } async function testShaderCompilation() {
-            log('Testing shader compilation...');
+            const paths = [
+                `./mls-mpm/${shaderName}.wgsl`,           // Try relative to current directory
+                `../mls-mpm/${shaderName}.wgsl`,          // Try one level up
+                `/mls-mpm/${shaderName}.wgsl`             // Try from root
+            ];
 
-            const shaders = ['clearGrid', 'p2g_1', 'p2g_2', 'updateGrid', 'g2p', 'copyPosition'];
-            let allSuccess = true;
-
-            // Map shader names to their HTML element IDs
-            function getShaderElementId(shaderName) {
-                const mapping = {
-                    'clearGrid': 'clear-grid-shader',
-                    'p2g_1': 'p2g1-shader',
-                    'p2g_2': 'p2g2-shader',
-                    'updateGrid': 'update-grid-shader',
-                    'g2p': 'g2p-shader',
-                    'copyPosition': 'copy-position-shader'
-                };
-                return mapping[shaderName] || `${shaderName.toLowerCase()}-shader`;
-            }
-
-            for (const shaderName of shaders) {
+            for (const path of paths) {
                 try {
-                    const source = await loadShaderSource(shaderName);
-                    if (!source) {
-                        updateTestResult(getShaderElementId(shaderName), false, `Failed to load ${shaderName}.wgsl`);
-                        allSuccess = false;
+                    const response = await fetch(path);
+                    if (!response.ok) {
                         continue;
                     }
-
-                    const shaderModule = device.createShaderModule({ code: source });
-                    updateTestResult(getShaderElementId(shaderName), true, `${shaderName}.wgsl compiled successfully`);
-                    log(`Shader ${shaderName} compiled successfully`, 'success');
+                    const source = await response.text();
+                    log(`Successfully loaded shader ${shaderName} from ${path}`, 'success');
+                    shaderSources[shaderName] = source;
+                    return source;
                 } catch (error) {
-                    updateTestResult(getShaderElementId(shaderName), false, `Compilation failed: ${error.message}`);
-                    log(`Shader ${shaderName} compilation failed: ${error.message}`, 'error');
-                    allSuccess = false;
+                    log(`Failed to load ${shaderName} from ${path}: ${error.message}`, 'info');
                 }
+            }
+
+            log(`Failed to load shader ${shaderName} from any path`, 'error');
+            return null;
+        } async function validateShaderErrors(shader, label) {
+            try {
+                const module = device.createShaderModule({
+                    code: shader,
+                    label: label
+                });
+
+                // Request compilation info to check for errors
+                const compilationInfo = await module.getCompilationInfo();
+                if (compilationInfo.messages.some(m => m.type === 'error')) {
+                    const errors = compilationInfo.messages
+                        .filter(m => m.type === 'error')
+                        .map(m => m.message)
+                        .join('\n');
+                    log(`Shader validation failed for ${label}:\n${errors}`, 'error');
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                log(`Shader validation failed for ${label}: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Modify testShaderCompilation to use the new validation
+        async function testShaderCompilation() {
+            log('Testing shader compilation...');
+            let allSuccess = true;
+
+            for (const [name, source] of Object.entries(shaderSources)) {
+                if (!source) {
+                    log(`Missing shader source: ${name}`, 'error');
+                    allSuccess = false;
+                    continue;
+                }
+
+                const valid = await validateShaderErrors(source, name);
+                updateTestResult(
+                    getShaderElementId(name),
+                    valid,
+                    valid ? `${name}.wgsl compiled successfully` : `${name}.wgsl compilation failed`
+                );
+                allSuccess = allSuccess && valid;
             }
 
             return allSuccess;
@@ -1139,7 +1233,12 @@
             log('Testing compute pipeline creation...');
 
             try {
-                // Load and compile all shaders for pipeline creation
+                // First ensure tests array is accessible
+                if (!window.tests) {
+                    window.tests = [];
+                }
+
+                // Load and compile shaders for pipeline creation
                 const shaderModules = {};
                 const shaderNames = ['clearGrid', 'p2g_1', 'p2g_2', 'updateGrid', 'g2p', 'copyPosition'];
 
@@ -1150,7 +1249,22 @@
                     }
                 }
 
-                // Create test pipelines
+                // Create water feature test bundle
+                const waterFeatureTests = {
+                    name: 'Water Features',
+                    fn: async () => {
+                        const rippleResult = await testRippleFeature();
+                        const whitewaterResult = await testWhitewaterFeature();
+                        const parameterResult = await testParameterUpdates();
+                        return rippleResult && whitewaterResult && parameterResult;
+                    }
+                };
+
+                // Add to test suite
+                window.tests.push(waterFeatureTests);
+                log('Added water feature tests to test suite', 'info');
+
+                // Create and validate pipelines as before
                 const testPipelines = [];
 
                 const clearGridPipeline = device.createComputePipeline({
@@ -1170,8 +1284,8 @@
                 });
                 testPipelines.push('p2g_1');
 
-                updateTestResult('pipeline-creation', true, `${testPipelines.length} pipelines created successfully`);
-                log('Compute pipelines created successfully', 'success');
+                updateTestResult('pipeline-creation', true, 'Pipeline configuration successful');
+                log('Pipeline configuration completed successfully', 'success');
 
                 // Test bind group creation
                 const testBuffers = {
@@ -1198,25 +1312,26 @@
 
                 updateTestResult('bind-groups', true, 'Bind groups validated successfully');
 
-                const bindGroupDetails = document.getElementById('bind-group-details');
-                bindGroupDetails.style.display = 'block';
-                bindGroupDetails.innerHTML = `<pre>Bind Group Layout:
-- Binding 0: Storage Buffer (Cell data)
-- Binding 1: Storage Buffer (Particle data)
-- Binding 2: Uniform Buffer (Constants)
+                const bindGroupDetails = document.getElementById('bind-group-details'); bindGroupDetails.style.display = 'block';
+                bindGroupDetails.innerHTML = `<pre>Bind Group Layout:`;
+
+                bindGroupDetails.innerHTML += `
+                - Binding 0: Storage Buffer(Cell data)
+                    - Binding 1: Storage Buffer(Particle data)
+                        - Binding 2: Uniform Buffer(Constants)
 
 Pipeline Constants:
-- fixed_point_multiplier: 1e7
-- stiffness: 3.0
-- rest_density: 4.0
-- dynamic_viscosity: 0.1
-- dt: 0.20</pre>`;
+                - fixed_point_multiplier: 1e7
+                    - stiffness: 3.0
+                        - rest_density: 4.0
+                            - dynamic_viscosity: 0.1
+                                - dt: 0.20</pre > `;
 
                 log('Bind groups validated successfully', 'success');
                 return true;
             } catch (error) {
-                updateTestResult('pipeline-creation', false, `Pipeline creation failed: ${error.message}`);
-                log(`Pipeline creation failed: ${error.message}`, 'error');
+                updateTestResult('pipeline-creation', false, `Pipeline configuration failed: ${error.message}`);
+                log(`Pipeline configuration failed: ${error.message}`, 'error');
                 return false;
             }
         }
@@ -1252,21 +1367,22 @@ Pipeline Constants:
                 const matrixDisplay = document.getElementById('matrix-display');
                 matrixDisplay.style.display = 'grid';
                 matrixDisplay.innerHTML = testMatrix.map(val =>
-                    `<div class="matrix-cell">${val.toFixed(1)}</div>`
+                    `< div class="matrix-cell" > ${val.toFixed(1)}</div > `
                 ).join('');
 
                 // Test box size configuration
                 const testBoxSize = [35, 25, 55];
-                updateTestResult('box-config', true, `Box size: ${testBoxSize.join(' x ')}`); log('Configuration tests completed successfully', 'success');
+                updateTestResult('box-config', true, `Box size: ${testBoxSize.join(' x ')} `); log('Configuration tests completed successfully', 'success');
                 return true;
             } catch (error) {
-                log(`Configuration test failed: ${error.message}`, 'error');
+                log(`Configuration test failed: ${error.message} `, 'error');
                 return false;
             }
         }
 
         async function initializeSimulation() {
-            log('Initializing basic WebGPU rendering test...');
+            log('Initializing WebGPU water simulation...');
+            updateSimulationControls(false);
 
             try {
                 canvas = document.getElementById('simulation-canvas');
@@ -1279,91 +1395,201 @@ Pipeline Constants:
                     alphaMode: 'premultiplied'
                 });
 
-                // Create test buffers to validate buffer creation
+                // Create simulation buffers
                 const particleBuffer = device.createBuffer({
-                    label: 'test particle buffer',
-                    size: mlsmpmParticleStructSize * 1000, // Smaller test size
+                    label: 'particle buffer',
+                    size: mlsmpmParticleStructSize * numParticlesMax,
                     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
                 });
 
-                const uniformBuffer = device.createBuffer({
-                    label: 'test uniform buffer',
-                    size: 64, // Basic uniform data
+                const gridBuffer = device.createBuffer({
+                    label: 'grid buffer',
+                    size: cellStructSize * gridSize[0] * gridSize[1] * gridSize[2],
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+
+                // Create water feature buffers with proper parameters
+                const rippleBuffer = device.createBuffer({
+                    label: 'ripple parameters',
+                    size: 16, // vec4<f32>: speed, scale, amplitude, time
                     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
                 });
 
-                // Create simple render pipeline for testing
-                const vertexShaderCode = `
-                    @vertex
-                    fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> @builtin(position) vec4<f32> {
-                        var pos = array<vec2<f32>, 3>(
-                            vec2<f32>( 0.0,  0.5),
-                            vec2<f32>(-0.5, -0.5),
-                            vec2<f32>( 0.5, -0.5)
-                        );
-                        return vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+                const whitewaterBuffer = device.createBuffer({
+                    label: 'whitewater parameters',
+                    size: 16, // vec4<f32>: intensity, turbulence, persistence, seed
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+
+                // Create bind group layout for water features
+                const waterBindGroupLayout = device.createBindGroupLayout({
+                    entries: [
+                        {
+                            binding: 0,
+                            visibility: GPUShaderStage.COMPUTE,
+                            buffer: { type: 'storage' }  // Position buffer
+                        },
+                        {
+                            binding: 1,
+                            visibility: GPUShaderStage.COMPUTE,
+                            buffer: { type: 'storage' }  // Grid buffer
+                        },
+                        {
+                            binding: 2,
+                            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX,
+                            buffer: { type: 'uniform' }  // Ripple parameters
+                        },
+                        {
+                            binding: 3,
+                            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX,
+                            buffer: { type: 'uniform' }  // Whitewater parameters
+                        }
+                    ]
+                });
+
+                // Create shaders and pipelines
+                const shaderModules = {};
+                for (const [name, source] of Object.entries(shaderSources)) {
+                    if (source) {
+                        shaderModules[name] = device.createShaderModule({ code: source });
                     }
-                `;
+                }
 
-                const fragmentShaderCode = `
-                    @fragment
-                    fn fs_main() -> @location(0) vec4<f32> {
-                        return vec4<f32>(0.2, 0.6, 1.0, 1.0);
-                    }
-                `;
-
-                const vertexShader = device.createShaderModule({
-                    label: 'test vertex shader',
-                    code: vertexShaderCode
+                // Create bind group for water features
+                const waterBindGroup = device.createBindGroup({
+                    layout: waterBindGroupLayout,
+                    entries: [
+                        { binding: 0, resource: { buffer: particleBuffer } },
+                        { binding: 1, resource: { buffer: gridBuffer } },
+                        { binding: 2, resource: { buffer: rippleBuffer } },
+                        { binding: 3, resource: { buffer: whitewaterBuffer } }
+                    ]
                 });
 
-                const fragmentShader = device.createShaderModule({
-                    label: 'test fragment shader',
-                    code: fragmentShaderCode
-                });
-
-                const testRenderPipeline = device.createRenderPipeline({
-                    label: 'test render pipeline',
-                    layout: 'auto',
-                    vertex: {
-                        module: vertexShader,
-                        entryPoint: 'vs_main',
-                    },
-                    fragment: {
-                        module: fragmentShader,
-                        entryPoint: 'fs_main',
-                        targets: [{
-                            format: presentationFormat,
-                        }],
-                    },
-                    primitive: {
-                        topology: 'triangle-list',
-                    },
-                });
-
-                // Store test objects for rendering
+                // Store objects for rendering
                 window.testObjects = {
                     context,
+                    device,
                     particleBuffer,
-                    uniformBuffer,
-                    renderPipeline: testRenderPipeline,
-                    presentationFormat
+                    gridBuffer,
+                    rippleBuffer,
+                    whitewaterBuffer,
+                    waterBindGroup, clearGridPipeline: await device.createComputePipelineAsync({
+                        layout: 'auto',
+                        compute: {
+                            module: shaderModules.clearGrid,
+                            entryPoint: 'main',
+                            constants: {}
+                        }
+                    }),
+                    p2gPipeline: await device.createComputePipelineAsync({
+                        layout: 'auto',
+                        compute: {
+                            module: shaderModules.p2g_1,
+                            entryPoint: 'main',
+                            constants: {
+                                fixed_point_multiplier: 1e7,
+                            }
+                        }
+                    }),
+                    updateGridPipeline: await device.createComputePipelineAsync({
+                        layout: 'auto',
+                        compute: {
+                            module: shaderModules.updateGrid,
+                            entryPoint: 'main',
+                            constants: {
+                                fixed_point_multiplier: 1e7,
+                                dt: 0.016 // For stable 60fps
+                            }
+                        }
+                    }),
+                    g2pPipeline: await device.createComputePipelineAsync({
+                        layout: 'auto',
+                        compute: {
+                            module: shaderModules.g2p,
+                            entryPoint: 'main',
+                            constants: {
+                                fixed_point_multiplier: 1e7,
+                                dt: 0.016
+                            }
+                        }
+                    }),
+                    copyPositionPipeline: await device.createComputePipelineAsync({
+                        layout: 'auto',
+                        compute: {
+                            module: shaderModules.copyPosition,
+                            entryPoint: 'main',
+                            constants: {}
+                        }
+                    })
                 };
 
-                // Enable controls
-                document.getElementById('start-sim').disabled = false;
-                document.getElementById('reset-sim').disabled = false;
-                document.getElementById('step-sim').disabled = false;
+                // Initialize water feature parameters
+                const rippleParams = new Float32Array([0.5, 1.0, 0.05, 0.0]); // speed, scale, amplitude, time
+                const whitewaterParams = new Float32Array([1.0, 1.5, 0.95, Math.random()]); // intensity, turbulence, persistence, seed
+                device.queue.writeBuffer(rippleBuffer, 0, rippleParams);
+                device.queue.writeBuffer(whitewaterBuffer, 0, whitewaterParams);
 
-                log('Basic WebGPU test setup completed successfully', 'success');
-                document.getElementById('canvas-info').textContent = 'Status: Ready for testing';
+                // Validate pipelines before allowing simulation to start
+                const pipelinesValid = await validatePipelines();
+                if (!pipelinesValid) {
+                    throw new Error('Pipeline validation failed');
+                }
 
+                log('Water simulation initialized successfully', 'success');
+                document.getElementById('canvas-info').textContent = 'Status: Ready to simulate';
+                updateSimulationControls(true);
                 return true;
             } catch (error) {
-                log(`WebGPU test setup failed: ${error.message}`, 'error');
+                log(`Simulation initialization failed: ${error.message}`, 'error');
+                updateSimulationControls(false);
                 return false;
             }
-        }        // Animation loop for testing
+        }
+
+        function updateSimulationControls(state = { isRunning: false, hasErrors: false }) {
+            const startButton = document.getElementById('start-simulation');
+            const stopButton = document.getElementById('stop-simulation');
+            const resetButton = document.getElementById('reset-simulation');
+
+            if (!startButton || !stopButton || !resetButton) {
+                return;
+            }
+
+            // Update button states based on simulation state
+            startButton.disabled = state.isRunning || state.hasErrors;
+            stopButton.disabled = !state.isRunning;
+            resetButton.disabled = state.isRunning;
+
+            // Update button styles
+            [startButton, stopButton, resetButton].forEach(button => {
+                button.classList.toggle('disabled', button.disabled);
+            });
+        }
+
+        // Add simulation state tracking
+        let simulationState = {
+            isRunning: false,
+            hasErrors: false
+        };
+
+        function startSimulation() {
+            simulationState.isRunning = true;
+            updateSimulationControls(simulationState);
+        }
+
+        function stopSimulation() {
+            simulationState.isRunning = false;
+            updateSimulationControls(simulationState);
+        }
+
+        function resetSimulation() {
+            simulationState.isRunning = false;
+            simulationState.hasErrors = false;
+            updateSimulationControls(simulationState);
+        }
+
+        // Animation loop for testing
         function animate() {
             const now = performance.now();
             performanceMetrics.frameTime = now - lastFrameTime;
@@ -1371,41 +1597,98 @@ Pipeline Constants:
 
             if (!isSimulationRunning) return;
 
-            // Simple test rendering
+            // Water simulation pass
             const commandEncoder = device.createCommandEncoder();
-            const textureView = window.testObjects.context.getCurrentTexture().createView();
 
+            const computeStart = performance.now();
+
+            // Clear grid pass
+            const clearGridPass = commandEncoder.beginComputePass();
+            clearGridPass.setPipeline(window.testObjects.clearGridPipeline);
+            clearGridPass.setBindGroup(0, window.testObjects.waterBindGroup);
+            clearGridPass.dispatchWorkgroups(Math.ceil(gridSize[0] * gridSize[1] * gridSize[2] / 64));
+            clearGridPass.end();
+
+            // Particle to grid pass (P2G)
+            const p2gPass = commandEncoder.beginComputePass();
+            p2gPass.setPipeline(window.testObjects.p2gPipeline);
+            p2gPass.setBindGroup(0, window.testObjects.waterBindGroup);
+            p2gPass.dispatchWorkgroups(Math.ceil(numParticlesMax / 64));
+            p2gPass.end();
+
+            // Update grid pass
+            const updateGridPass = commandEncoder.beginComputePass();
+            updateGridPass.setPipeline(window.testObjects.updateGridPipeline);
+            updateGridPass.setBindGroup(0, window.testObjects.waterBindGroup);
+            updateGridPass.dispatchWorkgroups(Math.ceil(gridSize[0] * gridSize[1] * gridSize[2] / 64));
+            updateGridPass.end();
+
+            // Grid to particle pass (G2P)
+            const g2pPass = commandEncoder.beginComputePass();
+            g2pPass.setPipeline(window.testObjects.g2pPipeline);
+            g2pPass.setBindGroup(0, window.testObjects.waterBindGroup);
+            g2pPass.dispatchWorkgroups(Math.ceil(numParticlesMax / 64));
+            g2pPass.end();
+
+            // Copy positions for rendering
+            const copyPass = commandEncoder.beginComputePass();
+            copyPass.setPipeline(window.testObjects.copyPositionPipeline);
+            copyPass.setBindGroup(0, window.testObjects.waterBindGroup);
+            copyPass.dispatchWorkgroups(Math.ceil(numParticlesMax / 64));
+            copyPass.end();
+
+            // Update water feature parameters
+            const rippleParams = new Float32Array([0.5, 1.0, 0.05, now / 1000]); // Animate time parameter
+            device.queue.writeBuffer(window.testObjects.rippleBuffer, 0, rippleParams);
+
+            // Render pass
+            const textureView = window.testObjects.context.getCurrentTexture().createView();
             const renderPass = commandEncoder.beginRenderPass({
                 colorAttachments: [{
                     view: textureView,
-                    clearValue: { r: 0.1, g: 0.1, b: 0.2, a: 1.0 },
+                    clearValue: { r: 0.0, g: 0.1, b: 0.2, a: 1.0 },
                     loadOp: 'clear',
                     storeOp: 'store',
                 }],
             });
 
-            // Render test triangle
-            renderPass.setPipeline(window.testObjects.renderPipeline);
-            renderPass.draw(3); // Draw triangle
             renderPass.end();
 
             // Submit commands
             device.queue.submit([commandEncoder.finish()]);
 
-            // Update stats
+            // Update performance metrics
+            performanceMetrics.computeTime = performance.now() - computeStart;
+            performanceMetrics.particleCount = numParticlesMax;
+            performanceMetrics.gridCount = gridSize[0] * gridSize[1] * gridSize[2];
+            performanceMetrics.memoryUsage = (
+                (window.testObjects.particleBuffer.size +
+                    window.testObjects.gridBuffer.size +
+                    window.testObjects.rippleBuffer.size +
+                    window.testObjects.whitewaterBuffer.size) / (1024 * 1024)
+            ).toFixed(2); // MB
+
             updateStats();
 
-            // Update canvas info
+            // Update canvas info with enhanced statistics
             frameCount++;
-            document.getElementById('canvas-info').textContent =
-                `Frame: ${frameCount} | Test Mode | FPS: ${Math.round(1000 / performanceMetrics.frameTime)}`;
+            document.getElementById('canvas-info').innerHTML =
+                `Frame: ${frameCount} | ` +
+                `Active Particles: ${performanceMetrics.particleCount.toLocaleString()} | ` +
+                `Grid Cells: ${performanceMetrics.gridCount.toLocaleString()} | ` +
+                `Compute: ${performanceMetrics.computeTime.toFixed(2)}ms | ` +
+                `Memory: ${performanceMetrics.memoryUsage}MB | ` +
+                `FPS: ${Math.round(1000 / performanceMetrics.frameTime)}`;
 
-            // Update performance metrics display
-            document.getElementById('workgroups').textContent = '1';
-            document.getElementById('dispatches').textContent = '1';
+            document.getElementById('workgroups').textContent = (
+                Math.ceil(numParticlesMax / 64) +
+                Math.ceil(gridSize[0] * gridSize[1] * gridSize[2] / 64)
+            ).toString();
+            document.getElementById('dispatches').textContent = '6'; // Clear, P2G, Update, G2P, Copy, Render
 
             animationId = requestAnimationFrame(animate);
-        } function startSimulation() {
+        }
+        function startSimulation() {
             if (!isSimulationRunning && window.testObjects) {
                 isSimulationRunning = true;
                 document.getElementById('start-sim').disabled = true;
@@ -1461,13 +1744,12 @@ Pipeline Constants:
         }        // Main test execution
         async function runAllTests() {
             log('Starting comprehensive WebGPU MLS-MPM test suite...', 'info');
-            console.log('DEBUG: runAllTests called');
-
-            const tests = [
+            console.log('DEBUG: runAllTests called'); const tests = [
                 { name: 'WebGPU Support', fn: testWebGPUSupport },
                 { name: 'GPU Adapter', fn: testAdapter },
                 { name: 'Device Creation', fn: testDevice },
                 { name: 'Shader Compilation', fn: testShaderCompilation },
+                { name: 'Shader Binding Validation', fn: testShaderBindings },
                 { name: 'Buffer Management', fn: testBuffers },
                 { name: 'Pipeline Configuration', fn: testPipelines },
                 { name: 'Configuration Tests', fn: testConfiguration },
@@ -1478,10 +1760,10 @@ Pipeline Constants:
 
             for (const test of tests) {
                 log(`Running test: ${test.name}...`);
-                console.log(`DEBUG: Running test: ${test.name}`);
+                console.log(`DEBUG: Running test: ${test.name} `);
                 try {
                     const result = await test.fn();
-                    console.log(`DEBUG: Test ${test.name} result:`, result);
+                    console.log(`DEBUG: Test ${test.name} result: `, result);
                     if (result) {
                         passedTests++;
                         log(`✓ ${test.name} passed`, 'success');
@@ -1489,8 +1771,8 @@ Pipeline Constants:
                         log(`✗ ${test.name} failed`, 'error');
                     }
                 } catch (error) {
-                    console.error(`DEBUG: Test ${test.name} threw error:`, error);
-                    log(`✗ ${test.name} failed with error: ${error.message}`, 'error');
+                    console.error(`DEBUG: Test ${test.name} threw error: `, error);
+                    log(`✗ ${test.name} failed with error: ${error.message} `, 'error');
                 }
             }
 
@@ -1521,6 +1803,286 @@ Pipeline Constants:
                 });
             }, 1000);
         });
+
+        // Create bind group layout for water features
+        const waterBindGroupLayout = device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: 'storage' }  // Position buffer
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: 'storage' }  // Grid buffer
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX,
+                    buffer: { type: 'uniform' }  // Ripple parameters
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX,
+                    buffer: { type: 'uniform' }  // Whitewater parameters
+                }
+            ]
+        });
+
+        async function testShaderBindings() {
+            log('Testing shader binding configurations...');
+
+            try {
+                // Test all bindings
+                const testShader = `
+                    struct RippleParams {
+                        speed: f32,
+                        scale: f32,
+                        amplitude: f32,
+                        time: f32,
+                    }
+
+                    struct WhitewaterParams {
+                        intensity: f32,
+                        threshold: f32,
+                        decay: f32,
+                        padding: f32,
+                    }
+
+                    @group(0) @binding(0) var<storage, read_write> positions: array<vec4<f32>>;
+                    @group(0) @binding(1) var<storage, read_write> velocities: array<vec4<f32>>;
+                    @group(0) @binding(2) var<uniform> rippleParams: RippleParams;
+                    @group(0) @binding(3) var<uniform> whitewaterParams: WhitewaterParams;
+
+                    @compute @workgroup_size(64)
+                    fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                        let pos = positions[global_id.x];
+                        let vel = velocities[global_id.x];
+                        let rParams = rippleParams;
+                        let wParams = whitewaterParams;
+                    }
+                `;
+
+                // Validate shader compilation
+                const module = await validateShaderModule(testShader, 'binding test shader');
+                if (!module) {
+                    return false;
+                }
+
+                // Validate bindings match layout
+                const expectedBindings = [0, 1, 2, 3];
+                if (!validateBindings(testShader, expectedBindings)) {
+                    return false;
+                }
+
+                // Create pipeline with bind group layout
+                if (!await validatePipeline(module, waterBindGroupLayout, 'binding test pipeline')) {
+                    return false;
+                }
+
+                log('✓ Shader binding validation passed', 'success');
+                return true;
+            } catch (error) {
+                log(`Shader binding validation failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function validateShaderModule(shader, label) {
+            try {
+                // Check for main function with proper regex
+                const mainFunctionMatch = shader.match(/(?:@compute|@vertex|@fragment)\s+@workgroup_size\(\s*\d+(?:\s*,\s*\d+)?(?:\s*,\s*\d+)?\s*\)\s*fn\s+main\s*\(/);
+                if (!mainFunctionMatch) {
+                    log(`No valid 'main' entry point found in shader ${label}. Entry point must be declared with proper decorators and workgroup_size for compute shaders.`, 'error');
+                    return null;
+                }
+
+                // Check shader entry point type (@compute/@vertex/@fragment)
+                const entryPointType = shader.match(/@(compute|vertex|fragment)/);
+                if (!entryPointType) {
+                    log(`No valid entry point type (@compute/@vertex/@fragment) found in shader ${label}`, 'error');
+                    return null;
+                }
+
+                // For compute shaders, ensure @workgroup_size is present and valid
+                if (entryPointType[1] === 'compute') {
+                    const workgroupMatch = shader.match(/@workgroup_size\(\s*\d+(?:\s*,\s*\d+)?(?:\s*,\s*\d+)?\s*\)/);
+                    if (!workgroupMatch) {
+                        log(`Compute shader ${label} missing required @workgroup_size decorator`, 'error');
+                        return null;
+                    }
+
+                    // Parse workgroup size values to ensure they're within limits
+                    const workgroupSizeMatch = workgroupMatch[0].match(/\d+/g);
+                    const [x, y = 1, z = 1] = workgroupSizeMatch.map(Number);
+                    const workgroupInvocations = x * y * z;
+
+                    if (x > device.limits.maxComputeWorkgroupSizeX ||
+                        y > device.limits.maxComputeWorkgroupSizeY ||
+                        z > device.limits.maxComputeWorkgroupSizeZ ||
+                        workgroupInvocations > device.limits.maxComputeInvocationsPerWorkgroup) {
+                        log(`Compute shader ${label} @workgroup_size exceeds device limits`, 'error');
+                        return null;
+                    }
+                }
+
+                const module = device.createShaderModule({
+                    code: shader,
+                    label: label
+                });
+
+                // Check compilation errors
+                const info = await module.getCompilationInfo();
+                const errors = info.messages.filter(m => m.type === 'error');
+
+                if (errors.length > 0) {
+                    const errorMessages = errors.map(e => `${e.lineNum}:${e.linePos} - ${e.message}`).join('\n');
+                    log(`Shader compilation failed for ${label}:\n${errorMessages}`, 'error');
+                    return null;
+                }
+
+                log(`Shader module ${label} validated successfully`, 'success');
+                return module;
+            } catch (error) {
+                log(`Failed to create shader module for ${label}: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function validatePipeline(module, bindGroupLayout, label) {
+            if (!module) {
+                log(`Cannot create pipeline for ${label}: Invalid shader module`, 'error');
+                return false;
+            }
+
+            try {
+                // Create a test pipeline to validate the module and entry point
+                const testBindGroupLayout = device.createBindGroupLayout({
+                    entries: []  // Empty layout for testing entry point
+                });
+
+                const testPipeline = await device.createComputePipelineAsync({
+                    layout: device.createPipelineLayout({
+                        bindGroupLayouts: [testBindGroupLayout]
+                    }),
+                    compute: {
+                        module,
+                        entryPoint: 'main'
+                    }
+                }).catch(error => {
+                    log(`Pipeline entry point validation failed for ${label}: ${error.message}`, 'error');
+                    return null;
+                });
+
+                if (!testPipeline) {
+                    return false;
+                }
+
+                // Now create the actual pipeline with the proper layout
+                const pipeline = device.createComputePipeline({
+                    layout: device.createPipelineLayout({
+                        bindGroupLayouts: [bindGroupLayout]
+                    }),
+                    compute: {
+                        module,
+                        entryPoint: 'main',
+                        constants: {}
+                    }
+                });
+
+                // Validate pipeline was created
+                if (!pipeline) {
+                    log(`Pipeline creation failed for ${label}: Invalid pipeline configuration`, 'error');
+                    return false;
+                }
+
+                // Test bind group layout compatibility
+                try {
+                    const layout = pipeline.getBindGroupLayout(0);
+                    if (!layout) {
+                        log(`Invalid bind group layout for ${label}`, 'error');
+                        return false;
+                    }
+                } catch (error) {
+                    log(`Bind group layout validation failed for ${label}: ${error.message}`, 'error');
+                    return false;
+                }
+
+                log(`✓ Pipeline validation passed for ${label}`, 'success');
+                return true;
+            } catch (error) {
+                log(`Pipeline creation failed for ${label}: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function validatePipelines() {
+            log('Validating simulation pipelines...');
+
+            try {
+                const pipelineConfigs = [
+                    {
+                        name: 'Clear Grid',
+                        module: window.testObjects.clearGridPipeline,
+                        requiredEntry: 'main',
+                        workgroupSize: 64
+                    },
+                    {
+                        name: 'P2G',
+                        module: window.testObjects.p2gPipeline,
+                        requiredEntry: 'main',
+                        workgroupSize: 64,
+                        constants: { fixed_point_multiplier: 1e7 }
+                    },
+                    {
+                        name: 'Update Grid',
+                        module: window.testObjects.updateGridPipeline,
+                        requiredEntry: 'main',
+                        workgroupSize: 64,
+                        constants: { fixed_point_multiplier: 1e7, dt: 0.016 }
+                    },
+                    {
+                        name: 'G2P',
+                        module: window.testObjects.g2pPipeline,
+                        requiredEntry: 'main',
+                        workgroupSize: 64,
+                        constants: { fixed_point_multiplier: 1e7, dt: 0.016 }
+                    },
+                    {
+                        name: 'Copy Position',
+                        module: window.testObjects.copyPositionPipeline,
+                        requiredEntry: 'main',
+                        workgroupSize: 64
+                    }
+                ];
+
+                for (const config of pipelineConfigs) {
+                    if (!config.module) {
+                        log(`Missing pipeline module for ${config.name}`, 'error');
+                        return false;
+                    }
+
+                    // Test bind group layout compatibility
+                    try {
+                        const layout = config.module.getBindGroupLayout(0);
+                        if (!layout) {
+                            log(`Invalid bind group layout for ${config.name} pipeline`, 'error');
+                            return false;
+                        }
+                    } catch (error) {
+                        log(`Bind group layout validation failed for ${config.name}: ${error.message}`, 'error');
+                        return false;
+                    }
+                }
+
+                log('✓ All pipelines validated successfully', 'success');
+                return true;
+            } catch (error) {
+                log(`Pipeline validation failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
     </script>
 </body>
 
