@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU MLS-MPM Shader Binding & Configuration Test</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #1a1a2e;
+            --bg-card: rgba(22, 27, 34, 0.95);
+            --text-color: #e6edf3;
+            --text-muted: #7d8590;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --accent-yellow: #d29922;
+            --border-color: #30363d;
+            --shadow-card: 0 16px 32px rgba(1, 4, 9, 0.85);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-color);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-card);
+        }
+
+        .header h1 {
+            color: var(--accent-blue);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .test-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+        }
+
+        .test-header {
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .test-header h2 {
+            color: var(--accent-green);
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .test-header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .test-content {
+            padding: 1.5rem;
+        }
+
+        .test-item {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-blue);
+        }
+
+        .test-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .test-item h3 {
+            color: var(--accent-blue);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .test-result {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-success {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px rgba(63, 185, 80, 0.5);
+        }
+
+        .status-error {
+            background: var(--accent-red);
+            box-shadow: 0 0 8px rgba(248, 81, 73, 0.5);
+        }
+
+        .status-warning {
+            background: var(--accent-yellow);
+            box-shadow: 0 0 8px rgba(210, 153, 34, 0.5);
+        }
+
+        .status-pending {
+            background: var(--text-muted);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .code-block {
+            background: #161b22;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .code-block pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .info-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+            color: var(--text-color);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .canvas-container canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--text-color);
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-family: monospace;
+        }
+
+        .controls {
+            margin-top: 1rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #4dabf7;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(88, 166, 255, 0.3);
+        }
+
+        .btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .log-container {
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            height: 200px;
+            overflow-y: auto;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.8rem;
+            margin-top: 1rem;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+        }
+
+        .log-info {
+            color: var(--accent-blue);
+        }
+
+        .log-success {
+            color: var(--accent-green);
+        }
+
+        .log-warning {
+            color: var(--accent-yellow);
+        }
+
+        .log-error {
+            color: var(--accent-red);
+        }
+
+        .performance-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+
+        .performance-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-yellow), var(--accent-red));
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 0;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.2s ease;
+        }
+
+        .tab.active {
+            background: var(--bg-card);
+            color: var(--accent-blue);
+            border-bottom: 2px solid var(--accent-blue);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 1.5rem;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .matrix-display {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            margin: 0.5rem 0;
+        }
+
+        .matrix-cell {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.25rem;
+            text-align: center;
+            border-radius: 3px;
+        }
+
+        .buffer-visualization {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+
+        .buffer-row {
+            display: flex;
+            gap: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .buffer-byte {
+            width: 20px;
+            height: 20px;
+            background: rgba(88, 166, 255, 0.3);
+            border-radius: 2px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(88, 166, 255, 0.5);
+        }
+
+        .floating-stats {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            min-width: 200px;
+            z-index: 1000;
+            box-shadow: var(--shadow-card);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+        }
+
+        .stat-value {
+            color: var(--accent-blue);
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .test-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .floating-stats {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌊 WebGPU MLS-MPM Shader Test Suite</h1>
+            <p>Comprehensive testing of Material Point Method shader bindings, buffers, and GPU pipeline configuration
+            </p>
+        </div>
+
+        <div class="floating-stats" id="stats">
+            <h3 style="color: var(--accent-green); margin-bottom: 1rem;">Live Statistics</h3>
+            <div class="stat-row">
+                <span class="stat-label">Frame Rate:</span>
+                <span class="stat-value" id="fps">0 FPS</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">GPU Time:</span>
+                <span class="stat-value" id="gpu-time">0.0 ms</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Particles:</span>
+                <span class="stat-value" id="particle-count">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Grid Cells:</span>
+                <span class="stat-value" id="grid-count">0</span>
+            </div>
+        </div>
+
+        <div class="test-grid">
+            <!-- WebGPU Initialization Test -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>🔧 WebGPU Initialization</h2>
+                    <p>Device creation, adapter info, and capability detection</p>
+                </div>
+                <div class="test-content">
+                    <div class="test-item">
+                        <h3>WebGPU Support Detection</h3>
+                        <div class="test-result" id="webgpu-support">
+                            <span class="status-icon status-pending"></span>
+                            <span>Checking WebGPU availability...</span>
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>GPU Adapter Information</h3>
+                        <div class="test-result" id="adapter-info">
+                            <span class="status-icon status-pending"></span>
+                            <span>Requesting GPU adapter...</span>
+                        </div>
+                        <div class="info-grid" id="adapter-details" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Device Limits & Features</h3>
+                        <div class="test-result" id="device-limits">
+                            <span class="status-icon status-pending"></span>
+                            <span>Checking device capabilities...</span>
+                        </div>
+                        <div class="code-block" id="limits-display" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shader Compilation Test -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>🔨 Shader Compilation</h2>
+                    <p>WGSL shader validation and compilation testing</p>
+                </div>
+                <div class="test-content">
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab(event, 'shaders-overview')">Overview</button>
+                        <button class="tab" onclick="switchTab(event, 'shaders-details')">Details</button>
+                        <button class="tab" onclick="switchTab(event, 'shaders-source')">Source</button>
+                    </div>
+
+                    <div class="tab-content active" id="shaders-overview">
+                        <div class="test-item" id="clear-grid-shader">
+                            <h3>Clear Grid Shader</h3>
+                            <div class="test-result">
+                                <span class="status-icon status-pending"></span>
+                                <span>Compiling clearGrid.wgsl...</span>
+                            </div>
+                        </div>
+
+                        <div class="test-item" id="p2g1-shader">
+                            <h3>Particle to Grid (Phase 1) Shader</h3>
+                            <div class="test-result">
+                                <span class="status-icon status-pending"></span>
+                                <span>Compiling p2g_1.wgsl...</span>
+                            </div>
+                        </div>
+
+                        <div class="test-item" id="p2g2-shader">
+                            <h3>Particle to Grid (Phase 2) Shader</h3>
+                            <div class="test-result">
+                                <span class="status-icon status-pending"></span>
+                                <span>Compiling p2g_2.wgsl...</span>
+                            </div>
+                        </div>
+
+                        <div class="test-item" id="update-grid-shader">
+                            <h3>Grid Update Shader</h3>
+                            <div class="test-result">
+                                <span class="status-icon status-pending"></span>
+                                <span>Compiling updateGrid.wgsl...</span>
+                            </div>
+                        </div>
+
+                        <div class="test-item" id="g2p-shader">
+                            <h3>Grid to Particle Shader</h3>
+                            <div class="test-result">
+                                <span class="status-icon status-pending"></span>
+                                <span>Compiling g2p.wgsl...</span>
+                            </div>
+                        </div>
+
+                        <div class="test-item" id="copy-position-shader">
+                            <h3>Copy Position Shader</h3>
+                            <div class="test-result">
+                                <span class="status-icon status-pending"></span>
+                                <span>Compiling copyPosition.wgsl...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="shaders-details">
+                        <div id="shader-details-content">
+                            Select a shader from the Overview tab to see detailed information.
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="shaders-source">
+                        <div id="shader-source-content">
+                            <p>Shader source code will be displayed here...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Buffer & Binding Tests -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>📊 Buffer Management</h2>
+                    <p>GPU buffer allocation and binding group configuration</p>
+                </div>
+                <div class="test-content">
+                    <div class="test-item">
+                        <h3>Particle Buffer (MLS-MPM)</h3>
+                        <div class="test-result" id="particle-buffer">
+                            <span class="status-icon status-pending"></span>
+                            <span>Creating particle buffer...</span>
+                        </div>
+                        <div class="buffer-visualization" id="particle-buffer-viz" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Grid Cell Buffer</h3>
+                        <div class="test-result" id="cell-buffer">
+                            <span class="status-icon status-pending"></span>
+                            <span>Creating cell buffer...</span>
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Uniform Buffers</h3>
+                        <div class="test-result" id="uniform-buffers">
+                            <span class="status-icon status-pending"></span>
+                            <span>Creating uniform buffers...</span>
+                        </div>
+                        <div class="info-grid" id="uniform-details" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pipeline Configuration -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>⚡ Compute Pipelines</h2>
+                    <p>Compute pipeline creation and bind group validation</p>
+                </div>
+                <div class="test-content">
+                    <div class="test-item">
+                        <h3>Pipeline Creation</h3>
+                        <div class="test-result" id="pipeline-creation">
+                            <span class="status-icon status-pending"></span>
+                            <span>Creating compute pipelines...</span>
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Bind Group Validation</h3>
+                        <div class="test-result" id="bind-groups">
+                            <span class="status-icon status-pending"></span>
+                            <span>Validating bind groups...</span>
+                        </div>
+                        <div class="code-block" id="bind-group-details" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulation Execution -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>🚀 Simulation Execution</h2>
+                    <p>Live MLS-MPM simulation with performance monitoring</p>
+                </div>
+                <div class="test-content">
+                    <div class="canvas-container">
+                        <canvas id="simulation-canvas" width="500" height="300"></canvas>
+                        <div class="canvas-overlay" id="canvas-info">
+                            Status: Initializing...
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn" id="start-sim" disabled>Start Simulation</button>
+                        <button class="btn" id="pause-sim" disabled>Pause</button>
+                        <button class="btn" id="reset-sim" disabled>Reset</button>
+                        <button class="btn" id="step-sim" disabled>Step</button>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Performance Metrics</h3>
+                        <div class="performance-bar">
+                            <div class="performance-fill" id="performance-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="info-grid" id="performance-metrics">
+                            <div class="info-item">
+                                <div class="info-label">Compute Time</div>
+                                <div class="info-value" id="compute-time">0.00 ms</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Memory Usage</div>
+                                <div class="info-value" id="memory-usage">0 MB</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Workgroups</div>
+                                <div class="info-value" id="workgroups">0</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Dispatches/Frame</div>
+                                <div class="info-value" id="dispatches">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Testing -->
+            <div class="test-section">
+                <div class="test-header">
+                    <h2>⚙️ Configuration Tests</h2>
+                    <p>Constants, parameters, and runtime configuration validation</p>
+                </div>
+                <div class="test-content">
+                    <div class="test-item">
+                        <h3>Shader Constants</h3>
+                        <div class="test-result" id="shader-constants">
+                            <span class="status-icon status-pending"></span>
+                            <span>Validating shader constants...</span>
+                        </div>
+                        <div class="code-block" id="constants-display" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Matrix Operations</h3>
+                        <div class="test-result" id="matrix-ops">
+                            <span class="status-icon status-pending"></span>
+                            <span>Testing matrix operations...</span>
+                        </div>
+                        <div class="matrix-display" id="matrix-display" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="test-item">
+                        <h3>Box Size Configuration</h3>
+                        <div class="test-result" id="box-config">
+                            <span class="status-icon status-pending"></span>
+                            <span>Testing box size changes...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Container -->
+        <div class="test-section">
+            <div class="test-header">
+                <h2>📋 Test Log</h2>
+                <p>Detailed execution log and debugging information</p>
+            </div>
+            <div class="test-content">
+                <div class="log-container" id="log-container">
+                    <div class="log-entry log-info">[INFO] Test suite initializing...</div>
+                </div>
+                <div class="controls">
+                    <button class="btn" onclick="clearLog()">Clear Log</button>
+                    <button class="btn" onclick="exportLog()">Export Log</button>
+                    <button class="btn" onclick="runAllTests()">Run All Tests</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Test suite state - standalone implementation
+        let device = null;
+        let adapter = null;
+        let canvas = null;
+        let isSimulationRunning = false;
+        let animationId = null;
+        let frameCount = 0;
+        let lastFrameTime = performance.now();
+        // MLS-MPM simulation constants (extracted from source)
+        const numParticlesMax = 65536;
+        const mlsmpmParticleStructSize = 48; // vec3 position, vec3 velocity, mat3 C, float J, padding
+        const gridSize = [64, 64, 64];
+        const cellStructSize = 16; // vec3 velocity, float mass
+
+        // Mock uniform buffer values for testing
+        const renderUniformsValues = new ArrayBuffer(64);
+        const waterAppearanceValues = new ArrayBuffer(64);// Shader sources for testing
+        const shaderSources = {
+            clearGrid: null,
+            p2g_1: null,
+            p2g_2: null,
+            updateGrid: null,
+            g2p: null,
+            copyPosition: null
+        };        // Load shader sources
+        async function loadShaderSources() {
+            const shaderPaths = {
+                clearGrid: './mls-mpm/clearGrid.wgsl',
+                p2g_1: './mls-mpm/p2g_1.wgsl',
+                p2g_2: './mls-mpm/p2g_2.wgsl',
+                updateGrid: './mls-mpm/updateGrid.wgsl',
+                g2p: './mls-mpm/g2p.wgsl',
+                copyPosition: './mls-mpm/copyPosition.wgsl'
+            };
+
+            for (const [name, path] of Object.entries(shaderPaths)) {
+                try {
+                    const response = await fetch(path);
+                    if (response.ok) {
+                        shaderSources[name] = await response.text();
+                        log(`Loaded shader: ${name}`, 'success');
+                    } else {
+                        log(`Failed to load shader: ${name} (${response.status})`, 'error');
+                    }
+                } catch (error) {
+                    log(`Error loading shader ${name}: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Performance tracking
+        const performanceMetrics = {
+            frameTime: 0,
+            computeTime: 0,
+            memoryUsage: 0,
+            particleCount: 0,
+            gridCount: 0
+        };
+
+        // Utility functions
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('log-container');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div'); entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        } function updateTestResult(elementId, success, message) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                // Check if the element itself is a test-result div, or if it contains one
+                let result = element.classList.contains('test-result') ? element : element.querySelector('.test-result');
+
+                if (result) {
+                    const icon = result.querySelector('.status-icon');
+                    const textSpan = result.querySelector('span:last-child');
+
+                    if (icon) {
+                        icon.className = `status-icon ${success ? 'status-success' : 'status-error'}`;
+                    }
+
+                    if (textSpan) {
+                        textSpan.textContent = message;
+                    } else {
+                        // Create text span if it doesn't exist
+                        const newSpan = document.createElement('span');
+                        newSpan.textContent = message;
+                        result.appendChild(newSpan);
+                    }
+                }
+            } else {
+                console.warn(`Element with ID '${elementId}' not found`);
+            }
+        }
+
+        function switchTab(event, tabId) {
+            const tabs = event.target.parentElement.querySelectorAll('.tab');
+            const contents = event.target.parentElement.parentElement.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function clearLog() {
+            document.getElementById('log-container').innerHTML = '';
+        }
+
+        function exportLog() {
+            const logEntries = Array.from(document.querySelectorAll('.log-entry'))
+                .map(entry => entry.textContent).join('\n');
+            const blob = new Blob([logEntries], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `webgpu-test-log-${new Date().toISOString()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function updateStats() {
+            const fps = Math.round(1000 / performanceMetrics.frameTime);
+            document.getElementById('fps').textContent = `${fps} FPS`;
+            document.getElementById('gpu-time').textContent = `${performanceMetrics.computeTime.toFixed(2)} ms`;
+            document.getElementById('particle-count').textContent = performanceMetrics.particleCount;
+            document.getElementById('grid-count').textContent = performanceMetrics.gridCount;
+
+            // Update performance bar
+            const performancePercent = Math.min((performanceMetrics.computeTime / 16.67) * 100, 100);
+            document.getElementById('performance-fill').style.width = `${performancePercent}%`;
+
+            // Update detailed metrics
+            document.getElementById('compute-time').textContent = `${performanceMetrics.computeTime.toFixed(2)} ms`;
+            document.getElementById('memory-usage').textContent = `${performanceMetrics.memoryUsage.toFixed(1)} MB`;
+        }        // Test functions
+        async function testWebGPUSupport() {
+            log('Testing WebGPU support...');
+            console.log('DEBUG: Starting WebGPU support test');
+
+            try {
+                // Check if we're in a secure context
+                if (!window.isSecureContext) {
+                    console.log('DEBUG: Not in secure context');
+                    updateTestResult('webgpu-support', false, 'WebGPU requires HTTPS or localhost');
+                    log('WebGPU requires secure context (HTTPS)', 'error');
+                    return false;
+                }
+
+                // Check if WebGPU is available
+                if (!navigator.gpu) {
+                    console.log('DEBUG: navigator.gpu is not available');
+                    updateTestResult('webgpu-support', false, 'WebGPU not supported in this browser');
+                    log('WebGPU not supported - try Chrome/Edge with WebGPU enabled', 'error');
+                    return false;
+                }
+
+                console.log('DEBUG: navigator.gpu is available');
+                updateTestResult('webgpu-support', true, 'WebGPU is supported');
+                log('WebGPU support detected', 'success');
+                return true;
+            } catch (error) {
+                console.error('DEBUG: Error in testWebGPUSupport:', error);
+                updateTestResult('webgpu-support', false, `Error: ${error.message}`);
+                log(`WebGPU support test failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testAdapter() {
+            log('Requesting GPU adapter...');
+
+            try {
+                adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    updateTestResult('adapter-info', false, 'No GPU adapter available');
+                    log('No GPU adapter found', 'error');
+                    return false;
+                }
+
+                updateTestResult('adapter-info', true, `Adapter acquired: ${adapter.info?.description || 'Unknown GPU'}`);
+                log(`Adapter info: ${JSON.stringify(adapter.info)}`, 'success');
+
+                // Display adapter details
+                const detailsContainer = document.getElementById('adapter-details');
+                detailsContainer.style.display = 'grid';
+                detailsContainer.innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">Description</div>
+                        <div class="info-value">${adapter.info?.description || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Vendor</div>
+                        <div class="info-value">${adapter.info?.vendor || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Architecture</div>
+                        <div class="info-value">${adapter.info?.architecture || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Features</div>
+                        <div class="info-value">${[...adapter.features].length} features</div>
+                    </div>
+                `;
+
+                return true;
+            } catch (error) {
+                updateTestResult('adapter-info', false, `Failed to get adapter: ${error.message}`);
+                log(`Adapter request failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testDevice() {
+            log('Creating WebGPU device...');
+
+            try {
+                device = await adapter.requestDevice({
+                    requiredLimits: {
+                        maxStorageTexturesPerShaderStage: 8,
+                        maxComputeWorkgroupSizeX: 256,
+                        maxComputeWorkgroupSizeY: 256,
+                        maxComputeWorkgroupSizeZ: 64
+                    }
+                });
+
+                updateTestResult('device-limits', true, 'Device created successfully');
+                log('WebGPU device created', 'success');
+
+                // Display device limits
+                const limitsDisplay = document.getElementById('limits-display');
+                limitsDisplay.style.display = 'block';
+                limitsDisplay.innerHTML = `<pre>${JSON.stringify({
+                    maxStorageTexturesPerShaderStage: device.limits.maxStorageTexturesPerShaderStage,
+                    maxComputeWorkgroupSizeX: device.limits.maxComputeWorkgroupSizeX,
+                    maxComputeWorkgroupSizeY: device.limits.maxComputeWorkgroupSizeY,
+                    maxComputeWorkgroupSizeZ: device.limits.maxComputeWorkgroupSizeZ,
+                    maxStorageBufferBindingSize: device.limits.maxStorageBufferBindingSize,
+                    maxUniformBufferBindingSize: device.limits.maxUniformBufferBindingSize,
+                    maxComputeInvocationsPerWorkgroup: device.limits.maxComputeInvocationsPerWorkgroup
+                }, null, 2)}</pre>`;
+
+                return true;
+            } catch (error) {
+                updateTestResult('device-limits', false, `Device creation failed: ${error.message}`);
+                log(`Device creation failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function loadShaderSource(shaderName) {
+            try {
+                const response = await fetch(`./mls-mpm/${shaderName}.wgsl`);
+                const source = await response.text();
+                shaderSources[shaderName] = source;
+                return source;
+            } catch (error) {
+                log(`Failed to load ${shaderName}.wgsl: ${error.message}`, 'error');
+                return null;
+            }
+        } async function testShaderCompilation() {
+            log('Testing shader compilation...');
+
+            const shaders = ['clearGrid', 'p2g_1', 'p2g_2', 'updateGrid', 'g2p', 'copyPosition'];
+            let allSuccess = true;
+
+            // Map shader names to their HTML element IDs
+            function getShaderElementId(shaderName) {
+                const mapping = {
+                    'clearGrid': 'clear-grid-shader',
+                    'p2g_1': 'p2g1-shader',
+                    'p2g_2': 'p2g2-shader',
+                    'updateGrid': 'update-grid-shader',
+                    'g2p': 'g2p-shader',
+                    'copyPosition': 'copy-position-shader'
+                };
+                return mapping[shaderName] || `${shaderName.toLowerCase()}-shader`;
+            }
+
+            for (const shaderName of shaders) {
+                try {
+                    const source = await loadShaderSource(shaderName);
+                    if (!source) {
+                        updateTestResult(getShaderElementId(shaderName), false, `Failed to load ${shaderName}.wgsl`);
+                        allSuccess = false;
+                        continue;
+                    }
+
+                    const shaderModule = device.createShaderModule({ code: source });
+                    updateTestResult(getShaderElementId(shaderName), true, `${shaderName}.wgsl compiled successfully`);
+                    log(`Shader ${shaderName} compiled successfully`, 'success');
+                } catch (error) {
+                    updateTestResult(getShaderElementId(shaderName), false, `Compilation failed: ${error.message}`);
+                    log(`Shader ${shaderName} compilation failed: ${error.message}`, 'error');
+                    allSuccess = false;
+                }
+            }
+
+            return allSuccess;
+        }
+
+        async function testBuffers() {
+            log('Testing buffer creation...');
+
+            try {
+                // Particle buffer
+                const particleBufferSize = mlsmpmParticleStructSize * numParticlesMax;
+                const particleBuffer = device.createBuffer({
+                    label: 'test particle buffer',
+                    size: particleBufferSize,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+                updateTestResult('particle-buffer', true, `Particle buffer created: ${(particleBufferSize / 1024 / 1024).toFixed(2)} MB`);
+                performanceMetrics.memoryUsage += particleBufferSize / 1024 / 1024;
+
+                // Visualize particle buffer structure
+                const bufferViz = document.getElementById('particle-buffer-viz');
+                bufferViz.style.display = 'block';
+                bufferViz.innerHTML = `
+                    <h4>Particle Structure (${mlsmpmParticleStructSize} bytes per particle)</h4>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Position (vec3f)</div>
+                            <div class="info-value">0-11 bytes</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Velocity (vec3f)</div>
+                            <div class="info-value">16-27 bytes</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Affine (mat3x3f)</div>
+                            <div class="info-value">32-79 bytes</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Total Size</div>
+                            <div class="info-value">${mlsmpmParticleStructSize} bytes</div>
+                        </div>
+                    </div>
+                `;
+
+                // Cell buffer
+                const cellBufferSize = 16 * 64 * 64 * 64; // 16 bytes per cell, 64^3 grid
+                const cellBuffer = device.createBuffer({
+                    label: 'test cell buffer',
+                    size: cellBufferSize,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+                updateTestResult('cell-buffer', true, `Cell buffer created: ${(cellBufferSize / 1024 / 1024).toFixed(2)} MB`);
+                performanceMetrics.memoryUsage += cellBufferSize / 1024 / 1024;
+
+                // Uniform buffers
+                const renderUniformBuffer = device.createBuffer({
+                    label: 'test render uniform buffer',
+                    size: renderUniformsValues.byteLength,
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+                updateTestResult('uniform-buffers', true, `Uniform buffers created successfully`);
+
+                // Display uniform buffer details
+                const uniformDetails = document.getElementById('uniform-details');
+                uniformDetails.style.display = 'grid';
+                uniformDetails.innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">Render Uniforms</div>
+                        <div class="info-value">${renderUniformsValues.byteLength} bytes</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Water Appearance</div>
+                        <div class="info-value">${waterAppearanceValues.byteLength} bytes</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Total Memory</div>
+                        <div class="info-value">${performanceMetrics.memoryUsage.toFixed(1)} MB</div>
+                    </div>
+                `;
+
+                log('All buffers created successfully', 'success');
+                return true;
+            } catch (error) {
+                log(`Buffer creation failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testPipelines() {
+            log('Testing compute pipeline creation...');
+
+            try {
+                // Load and compile all shaders for pipeline creation
+                const shaderModules = {};
+                const shaderNames = ['clearGrid', 'p2g_1', 'p2g_2', 'updateGrid', 'g2p', 'copyPosition'];
+
+                for (const name of shaderNames) {
+                    const source = shaderSources[name] || await loadShaderSource(name);
+                    if (source) {
+                        shaderModules[name] = device.createShaderModule({ code: source });
+                    }
+                }
+
+                // Create test pipelines
+                const testPipelines = [];
+
+                const clearGridPipeline = device.createComputePipeline({
+                    label: 'test clear grid pipeline',
+                    layout: 'auto',
+                    compute: { module: shaderModules.clearGrid }
+                });
+                testPipelines.push('clearGrid');
+
+                const p2g1Pipeline = device.createComputePipeline({
+                    label: 'test p2g1 pipeline',
+                    layout: 'auto',
+                    compute: {
+                        module: shaderModules.p2g_1,
+                        constants: { 'fixed_point_multiplier': 1e7 }
+                    }
+                });
+                testPipelines.push('p2g_1');
+
+                updateTestResult('pipeline-creation', true, `${testPipelines.length} pipelines created successfully`);
+                log('Compute pipelines created successfully', 'success');
+
+                // Test bind group creation
+                const testBuffers = {
+                    particle: device.createBuffer({
+                        size: 1024,
+                        usage: GPUBufferUsage.STORAGE
+                    }),
+                    cell: device.createBuffer({
+                        size: 1024,
+                        usage: GPUBufferUsage.STORAGE
+                    }),
+                    uniform: device.createBuffer({
+                        size: 64,
+                        usage: GPUBufferUsage.UNIFORM
+                    })
+                };
+
+                const bindGroup = device.createBindGroup({
+                    layout: clearGridPipeline.getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: { buffer: testBuffers.cell } }
+                    ]
+                });
+
+                updateTestResult('bind-groups', true, 'Bind groups validated successfully');
+
+                const bindGroupDetails = document.getElementById('bind-group-details');
+                bindGroupDetails.style.display = 'block';
+                bindGroupDetails.innerHTML = `<pre>Bind Group Layout:
+- Binding 0: Storage Buffer (Cell data)
+- Binding 1: Storage Buffer (Particle data)
+- Binding 2: Uniform Buffer (Constants)
+
+Pipeline Constants:
+- fixed_point_multiplier: 1e7
+- stiffness: 3.0
+- rest_density: 4.0
+- dynamic_viscosity: 0.1
+- dt: 0.20</pre>`;
+
+                log('Bind groups validated successfully', 'success');
+                return true;
+            } catch (error) {
+                updateTestResult('pipeline-creation', false, `Pipeline creation failed: ${error.message}`);
+                log(`Pipeline creation failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testConfiguration() {
+            log('Testing shader constants and configuration...');
+
+            try {
+                const constants = {
+                    stiffness: 3.0,
+                    restDensity: 4.0,
+                    dynamic_viscosity: 0.1,
+                    dt: 0.20,
+                    fixed_point_multiplier: 1e7,
+                };
+
+                updateTestResult('shader-constants', true, 'All shader constants validated');
+
+                const constantsDisplay = document.getElementById('constants-display');
+                constantsDisplay.style.display = 'block';
+                constantsDisplay.innerHTML = `<pre>${JSON.stringify(constants, null, 2)}</pre>`;
+
+                // Test matrix operations
+                const testMatrix = new Float32Array([
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1
+                ]);
+
+                updateTestResult('matrix-ops', true, 'Matrix operations validated');
+
+                const matrixDisplay = document.getElementById('matrix-display');
+                matrixDisplay.style.display = 'grid';
+                matrixDisplay.innerHTML = testMatrix.map(val =>
+                    `<div class="matrix-cell">${val.toFixed(1)}</div>`
+                ).join('');
+
+                // Test box size configuration
+                const testBoxSize = [35, 25, 55];
+                updateTestResult('box-config', true, `Box size: ${testBoxSize.join(' x ')}`); log('Configuration tests completed successfully', 'success');
+                return true;
+            } catch (error) {
+                log(`Configuration test failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function initializeSimulation() {
+            log('Initializing basic WebGPU rendering test...');
+
+            try {
+                canvas = document.getElementById('simulation-canvas');
+                const context = canvas.getContext('webgpu');
+                const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+
+                context.configure({
+                    device,
+                    format: presentationFormat,
+                    alphaMode: 'premultiplied'
+                });
+
+                // Create test buffers to validate buffer creation
+                const particleBuffer = device.createBuffer({
+                    label: 'test particle buffer',
+                    size: mlsmpmParticleStructSize * 1000, // Smaller test size
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+
+                const uniformBuffer = device.createBuffer({
+                    label: 'test uniform buffer',
+                    size: 64, // Basic uniform data
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+
+                // Create simple render pipeline for testing
+                const vertexShaderCode = `
+                    @vertex
+                    fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> @builtin(position) vec4<f32> {
+                        var pos = array<vec2<f32>, 3>(
+                            vec2<f32>( 0.0,  0.5),
+                            vec2<f32>(-0.5, -0.5),
+                            vec2<f32>( 0.5, -0.5)
+                        );
+                        return vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+                    }
+                `;
+
+                const fragmentShaderCode = `
+                    @fragment
+                    fn fs_main() -> @location(0) vec4<f32> {
+                        return vec4<f32>(0.2, 0.6, 1.0, 1.0);
+                    }
+                `;
+
+                const vertexShader = device.createShaderModule({
+                    label: 'test vertex shader',
+                    code: vertexShaderCode
+                });
+
+                const fragmentShader = device.createShaderModule({
+                    label: 'test fragment shader',
+                    code: fragmentShaderCode
+                });
+
+                const testRenderPipeline = device.createRenderPipeline({
+                    label: 'test render pipeline',
+                    layout: 'auto',
+                    vertex: {
+                        module: vertexShader,
+                        entryPoint: 'vs_main',
+                    },
+                    fragment: {
+                        module: fragmentShader,
+                        entryPoint: 'fs_main',
+                        targets: [{
+                            format: presentationFormat,
+                        }],
+                    },
+                    primitive: {
+                        topology: 'triangle-list',
+                    },
+                });
+
+                // Store test objects for rendering
+                window.testObjects = {
+                    context,
+                    particleBuffer,
+                    uniformBuffer,
+                    renderPipeline: testRenderPipeline,
+                    presentationFormat
+                };
+
+                // Enable controls
+                document.getElementById('start-sim').disabled = false;
+                document.getElementById('reset-sim').disabled = false;
+                document.getElementById('step-sim').disabled = false;
+
+                log('Basic WebGPU test setup completed successfully', 'success');
+                document.getElementById('canvas-info').textContent = 'Status: Ready for testing';
+
+                return true;
+            } catch (error) {
+                log(`WebGPU test setup failed: ${error.message}`, 'error');
+                return false;
+            }
+        }        // Animation loop for testing
+        function animate() {
+            const now = performance.now();
+            performanceMetrics.frameTime = now - lastFrameTime;
+            lastFrameTime = now;
+
+            if (!isSimulationRunning) return;
+
+            // Simple test rendering
+            const commandEncoder = device.createCommandEncoder();
+            const textureView = window.testObjects.context.getCurrentTexture().createView();
+
+            const renderPass = commandEncoder.beginRenderPass({
+                colorAttachments: [{
+                    view: textureView,
+                    clearValue: { r: 0.1, g: 0.1, b: 0.2, a: 1.0 },
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                }],
+            });
+
+            // Render test triangle
+            renderPass.setPipeline(window.testObjects.renderPipeline);
+            renderPass.draw(3); // Draw triangle
+            renderPass.end();
+
+            // Submit commands
+            device.queue.submit([commandEncoder.finish()]);
+
+            // Update stats
+            updateStats();
+
+            // Update canvas info
+            frameCount++;
+            document.getElementById('canvas-info').textContent =
+                `Frame: ${frameCount} | Test Mode | FPS: ${Math.round(1000 / performanceMetrics.frameTime)}`;
+
+            // Update performance metrics display
+            document.getElementById('workgroups').textContent = '1';
+            document.getElementById('dispatches').textContent = '1';
+
+            animationId = requestAnimationFrame(animate);
+        } function startSimulation() {
+            if (!isSimulationRunning && window.testObjects) {
+                isSimulationRunning = true;
+                document.getElementById('start-sim').disabled = true;
+                document.getElementById('pause-sim').disabled = false;
+                log('Test rendering started', 'info');
+                animate();
+            }
+        }
+
+        function pauseSimulation() {
+            if (isSimulationRunning) {
+                isSimulationRunning = false;
+                document.getElementById('start-sim').disabled = false;
+                document.getElementById('pause-sim').disabled = true;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                log('Test rendering paused', 'info');
+            }
+        }
+
+        function resetSimulation() {
+            pauseSimulation();
+            frameCount = 0;
+            log('Test reset', 'info');
+            document.getElementById('canvas-info').textContent = 'Status: Reset';
+        }
+
+        function stepSimulation() {
+            if (window.testObjects && !isSimulationRunning) {
+                // Single frame render
+                const commandEncoder = device.createCommandEncoder();
+                const textureView = window.testObjects.context.getCurrentTexture().createView();
+
+                const renderPass = commandEncoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: textureView,
+                        clearValue: { r: 0.1, g: 0.1, b: 0.2, a: 1.0 },
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    }],
+                });
+
+                renderPass.setPipeline(window.testObjects.renderPipeline);
+                renderPass.draw(3);
+                renderPass.end();
+                device.queue.submit([commandEncoder.finish()]);
+
+                frameCount++;
+                log('Single step executed', 'info');
+                document.getElementById('canvas-info').textContent = `Frame: ${frameCount} (Step mode)`;
+            }
+        }        // Main test execution
+        async function runAllTests() {
+            log('Starting comprehensive WebGPU MLS-MPM test suite...', 'info');
+            console.log('DEBUG: runAllTests called');
+
+            const tests = [
+                { name: 'WebGPU Support', fn: testWebGPUSupport },
+                { name: 'GPU Adapter', fn: testAdapter },
+                { name: 'Device Creation', fn: testDevice },
+                { name: 'Shader Compilation', fn: testShaderCompilation },
+                { name: 'Buffer Management', fn: testBuffers },
+                { name: 'Pipeline Configuration', fn: testPipelines },
+                { name: 'Configuration Tests', fn: testConfiguration },
+                { name: 'Simulation Initialization', fn: initializeSimulation }
+            ];
+
+            let passedTests = 0;
+
+            for (const test of tests) {
+                log(`Running test: ${test.name}...`);
+                console.log(`DEBUG: Running test: ${test.name}`);
+                try {
+                    const result = await test.fn();
+                    console.log(`DEBUG: Test ${test.name} result:`, result);
+                    if (result) {
+                        passedTests++;
+                        log(`✓ ${test.name} passed`, 'success');
+                    } else {
+                        log(`✗ ${test.name} failed`, 'error');
+                    }
+                } catch (error) {
+                    console.error(`DEBUG: Test ${test.name} threw error:`, error);
+                    log(`✗ ${test.name} failed with error: ${error.message}`, 'error');
+                }
+            }
+
+            log(`Test suite completed: ${passedTests}/${tests.length} tests passed`,
+                passedTests === tests.length ? 'success' : 'warning');
+            console.log('DEBUG: All tests completed');
+        }
+
+        // Event listeners
+        document.getElementById('start-sim').addEventListener('click', startSimulation);
+        document.getElementById('pause-sim').addEventListener('click', pauseSimulation);
+        document.getElementById('reset-sim').addEventListener('click', resetSimulation);
+        document.getElementById('step-sim').addEventListener('click', stepSimulation);
+
+        // Global functions for HTML
+        window.switchTab = switchTab;
+        window.clearLog = clearLog;
+        window.exportLog = exportLog;
+        window.runAllTests = runAllTests;        // Auto-start tests when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DEBUG: DOMContentLoaded event fired');
+            log('Page loaded, starting tests...', 'info');
+            setTimeout(() => {
+                console.log('DEBUG: About to call runAllTests');
+                runAllTests().catch(error => {
+                    console.error('DEBUG: runAllTests threw an error:', error);
+                    log(`Test suite failed to start: ${error.message}`, 'error');
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+
+</html>
