@@ -30,11 +30,10 @@
       --text-secondary: rgba(255, 255, 255, 0.8);
       --text-muted: rgba(255, 255, 255, 0.5);
       --text-disabled: rgba(255, 255, 255, 0.3);
-
       /* Gradients */
       --gradient-primary: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
       --gradient-secondary: linear-gradient(135deg, var(--tertiary-accent), var(--primary-accent));
-      --gradient-bg: radial-gradient(ellipse at top, rgba(0, 212, 255, 0.1) 0%, transparent 70%);
+      --gradient-bg: transparent;
 
       /* Shadows */
       --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -74,7 +73,6 @@
       line-height: 1.6;
       color: var(--text-primary);
       background: var(--primary-bg);
-      background-image: var(--gradient-bg);
       height: 100vh;
       overflow: hidden;
       position: relative;
@@ -88,9 +86,8 @@
       right: 0;
       bottom: 0;
       background:
-        radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(124, 58, 237, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 40% 40%, rgba(6, 255, 165, 0.05) 0%, transparent 50%);
+        radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.02) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
       pointer-events: none;
       z-index: 0;
     }
@@ -315,7 +312,9 @@
       background: var(--gradient-primary);
       opacity: 0.8;
       clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 100%, 4px 100%);
-    }    .panel-title {
+    }
+
+    .panel-title {
       font-size: 1rem;
       font-weight: 800;
       color: var(--text-primary);
