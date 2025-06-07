@@ -10,69 +10,115 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
     :root {
-      --primary-color: #000000;
-      --secondary-color: #0a0a0a;
-      --accent-color: #0ea5e9;
-      --text-color: #ffffff;
+      /* Cyber Vitruvian Color Palette */
+      --primary-bg: #0a0a0f;
+      --secondary-bg: rgba(15, 15, 25, 0.8);
+      --glass-bg: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      --glass-backdrop: blur(20px);
+
+      /* Accent Colors */
+      --primary-accent: #00d4ff;
+      --secondary-accent: #7c3aed;
+      --tertiary-accent: #06ffa5;
+      --danger-accent: #ff006e;
+      --warning-accent: #ffbe0b;
+
+      /* Text Colors */
       --text-primary: #ffffff;
-      --text-secondary: #cccccc;
-      --text-muted: #888888;
-      --text-subtle: #555555;
-      --bg-primary: #000000;
-      --bg-secondary: #0a0a0a;
-      --bg-darker: #050505;
-      --bg-card: rgba(10, 10, 10, 0.95);
-      --border-color: #1a1a1a;
-      --border-subtle: #111111;
-      --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.3);
-      --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+      --text-secondary: rgba(255, 255, 255, 0.8);
+      --text-muted: rgba(255, 255, 255, 0.5);
+      --text-disabled: rgba(255, 255, 255, 0.3);
+
+      /* Gradients */
+      --gradient-primary: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
+      --gradient-secondary: linear-gradient(135deg, var(--tertiary-accent), var(--primary-accent));
+      --gradient-bg: radial-gradient(ellipse at top, rgba(0, 212, 255, 0.1) 0%, transparent 70%);
+
+      /* Shadows */
+      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
+      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
+      --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.3);
+      /* Border Radius - Angular & Sharp */
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 10px;
+      --radius-sharp: 2px;
+      /* Spacing - More Compact */
+      --space-xs: 0.25rem;
+      --space-sm: 0.5rem;
+      --space-md: 0.75rem;
+      --space-lg: 1rem;
+      --space-xl: 1.25rem;
+      --space-2xl: 1.5rem;
     }
 
     * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
-      user-select: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     html {
-      scroll-behavior: smooth;
+      height: 100%;
+      overflow: hidden;
     }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
       font-weight: 400;
       line-height: 1.6;
-      color: var(--text-color);
-      background: var(--bg-primary);
-      overflow: hidden;
+      color: var(--text-primary);
+      background: var(--primary-bg);
+      background-image: var(--gradient-bg);
       height: 100vh;
-      width: 100vw;
+      overflow: hidden;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background:
+        radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(124, 58, 237, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(6, 255, 165, 0.05) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
     }
 
     /* Smooth Transitions */
     * {
-      transition-property: color, background-color, border-color, transform, box-shadow, opacity;
-      transition-duration: 0.3s;
-      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
+      height: 6px;
     }
 
     ::-webkit-scrollbar-track {
-      background: var(--bg-secondary);
+      background: transparent;
     }
 
     ::-webkit-scrollbar-thumb {
-      background: var(--border-color);
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 3px;
+      transition: background 0.3s ease;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--text-subtle);
+      background: rgba(255, 255, 255, 0.4);
     }
 
     /* Canvas Styling */
@@ -85,17 +131,21 @@
       z-index: 1;
     }
 
-    /* Header */
+    /* Header - More Angular */
     .header {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(15px);
-      border-bottom: 1px solid var(--border-color);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-backdrop);
+      border-bottom: 2px solid var(--glass-border);
       z-index: 100;
-      padding: 1rem 2rem;
+      padding: var(--space-md) var(--space-lg);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px));
     }
 
     .header-content {
@@ -104,73 +154,108 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      width: 100%;
     }
 
     .header-title {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: var(--text-color);
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text-primary);
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: var(--space-sm);
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .header-title i {
-      color: var(--accent-color);
+      color: var(--primary-accent);
       font-size: 1.25rem;
+      filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
     }
 
     .header-actions {
       display: flex;
-      gap: 1rem;
+      gap: var(--space-sm);
       align-items: center;
     }
 
     .header-btn {
-      background: transparent;
-      border: 1px solid var(--border-color);
-      color: var(--text-muted);
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-secondary);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-sharp);
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
+      font-weight: 600;
       text-decoration: none;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      transition: all 0.3s ease;
+      gap: var(--space-xs);
+      backdrop-filter: var(--glass-backdrop);
+      position: relative;
+      overflow: hidden;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+    }
+
+    .header-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .header-btn:hover::before {
+      left: 100%;
     }
 
     .header-btn:hover {
-      background: var(--bg-secondary);
-      color: var(--text-color);
-      border-color: var(--accent-color);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      border-color: var(--primary-accent);
+      box-shadow: var(--shadow-glow);
+      transform: translateY(-1px);
     }
 
     .header-btn.primary {
-      background: var(--accent-color);
-      color: var(--text-color);
-      border-color: var(--accent-color);
+      background: var(--gradient-primary);
+      color: var(--text-primary);
+      border-color: var(--primary-accent);
+      box-shadow: var(--shadow-md);
     }
 
     .header-btn.primary:hover {
-      background: #0284c7;
-      border-color: #0284c7;
+      box-shadow: var(--shadow-glow);
+      transform: translateY(-2px);
     }
 
-    /* Control Panels */
+    /* Control Panels - More Compact & Angular */
     .control-panel {
       position: fixed;
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1.5rem;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-backdrop);
+      border: 2px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
       z-index: 50;
-      box-shadow: var(--shadow-card);
+      box-shadow: var(--glass-shadow);
       min-width: 280px;
-      max-height: calc(100vh - 120px);
+      max-width: 320px;
+      max-height: calc(100vh - 80px);
       overflow-y: auto;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
     }
 
     .control-panel.collapsed {
@@ -184,13 +269,13 @@
     }
 
     .control-panel.left {
-      top: 100px;
-      left: 2rem;
+      top: 80px;
+      left: var(--space-lg);
     }
 
     .control-panel.right {
-      top: 100px;
-      right: 2rem;
+      top: 80px;
+      right: var(--space-lg);
     }
 
     /* Hide all panels when .panels-hidden is added to body */
@@ -214,42 +299,71 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border-color);
+      margin-bottom: var(--space-lg);
+      padding-bottom: var(--space-sm);
+      border-bottom: 2px solid var(--glass-border);
+      position: relative;
     }
 
-    .panel-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: var(--text-color);
+    .panel-header::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 40%;
+      height: 2px;
+      background: var(--gradient-primary);
+      opacity: 0.8;
+      clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 100%, 4px 100%);
+    }    .panel-title {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--text-primary);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-sm);
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
 
     .panel-title i {
-      color: var(--accent-color);
+      color: var(--primary-accent);
+      filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5));
     }
 
     .panel-toggle {
-      background: transparent;
-      border: none;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
       color: var(--text-muted);
       cursor: pointer;
-      padding: 0.25rem;
-      border-radius: 4px;
+      padding: var(--space-xs);
+      border-radius: var(--radius-sm);
       font-size: 1rem;
+      backdrop-filter: var(--glass-backdrop);
+      transition: all 0.3s ease;
     }
 
     .panel-toggle:hover {
-      background: var(--bg-secondary);
-      color: var(--text-color);
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
     }
 
     /* Form Controls */
     .control-group {
-      margin-bottom: 1.5rem;
+      margin-bottom: var(--space-xl);
+      padding: var(--space-lg);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-md);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    .control-group:hover {
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.1);
     }
 
     .control-group:last-child {
@@ -258,188 +372,265 @@
 
     .control-label {
       display: block;
-      font-size: 0.9rem;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-sm);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .control-description {
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 1rem;
-      line-height: 1.5;
+      margin-bottom: var(--space-md);
+      line-height: 1.6;
+      font-style: italic;
     }
 
     /* Radio Groups */
     .radio-group {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: var(--space-sm);
     }
 
     .radio-option {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .radio-option::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .radio-option:hover::before {
+      left: 100%;
     }
 
     .radio-option:hover {
-      background: var(--bg-secondary);
-      border-color: var(--border-color);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--primary-accent);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
     }
 
     .radio-option.selected {
-      background: rgba(14, 165, 233, 0.1);
-      border-color: var(--accent-color);
+      background: rgba(0, 212, 255, 0.1);
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 16px rgba(0, 212, 255, 0.3);
     }
 
     .radio-option input[type="radio"] {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       margin: 0;
-      accent-color: var(--accent-color);
+      accent-color: var(--primary-accent);
+      position: relative;
     }
 
     .radio-option-label {
-      font-size: 0.9rem;
-      color: var(--text-color);
-      font-weight: 500;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      font-weight: 600;
     }
 
     .radio-option-description {
-      font-size: 0.75rem;
+      font-size: 0.8rem;
       color: var(--text-muted);
       margin-top: 0.25rem;
+      line-height: 1.4;
     }
 
     /* Range Sliders */
     .slider-container {
-      margin-bottom: 1rem;
+      margin-bottom: var(--space-md);
     }
 
     .slider-label {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.5rem;
+      margin-bottom: var(--space-sm);
     }
 
     .slider-value {
-      background: var(--bg-secondary);
-      color: var(--text-color);
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: 500;
-      min-width: 3rem;
+      background: var(--glass-bg);
+      color: var(--text-primary);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+      min-width: 3.5rem;
       text-align: center;
+      border: 1px solid var(--glass-border);
+      backdrop-filter: var(--glass-backdrop);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     input[type="range"] {
       width: 100%;
-      height: 4px;
-      border-radius: 2px;
-      background: var(--border-color);
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, var(--primary-accent), rgba(255, 255, 255, 0.1));
       outline: none;
       -webkit-appearance: none;
       appearance: none;
+      cursor: pointer;
+      position: relative;
     }
 
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 16px;
-      height: 16px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      background: var(--accent-color);
+      background: var(--gradient-primary);
       cursor: pointer;
-      border: 2px solid var(--bg-primary);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow:
+        0 4px 12px rgba(0, 212, 255, 0.4),
+        0 0 0 4px rgba(0, 212, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow:
+        0 6px 16px rgba(0, 212, 255, 0.6),
+        0 0 0 6px rgba(0, 212, 255, 0.2);
     }
 
     input[type="range"]::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      background: var(--accent-color);
+      background: var(--gradient-primary);
       cursor: pointer;
-      border: 2px solid var(--bg-primary);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow:
+        0 4px 12px rgba(0, 212, 255, 0.4),
+        0 0 0 4px rgba(0, 212, 255, 0.1);
     }
 
     /* Select Dropdown */
     select {
       width: 100%;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      color: var(--text-color);
-      padding: 0.75rem;
-      border-radius: 8px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
       font-size: 0.9rem;
+      font-weight: 500;
       cursor: pointer;
       outline: none;
+      backdrop-filter: var(--glass-backdrop);
+      transition: all 0.3s ease;
     }
 
     select:focus {
-      border-color: var(--accent-color);
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
     }
 
     select option {
-      background: var(--bg-secondary);
-      color: var(--text-color);
+      background: var(--secondary-bg);
+      color: var(--text-primary);
+      padding: var(--space-sm);
     }
 
     /* Color Picker */
     input[type="color"] {
       width: 100%;
-      height: 40px;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
+      height: 48px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
       background: transparent;
       cursor: pointer;
       outline: none;
+      transition: all 0.3s ease;
+    }
+
+    input[type="color"]:hover {
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
     }
 
     input[type="color"]::-webkit-color-swatch {
       border: none;
-      border-radius: 6px;
+      border-radius: calc(var(--radius-md) - 2px);
     }
 
     /* Checkbox */
     .checkbox-container {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: rgba(255, 255, 255, 0.02);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .checkbox-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .checkbox-container:hover::before {
+      left: 100%;
     }
 
     .checkbox-container:hover {
-      background: var(--bg-secondary);
-      border-color: var(--border-color);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--primary-accent);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
     }
 
     .checkbox-container.checked {
-      background: rgba(14, 165, 233, 0.1);
-      border-color: var(--accent-color);
+      background: rgba(0, 212, 255, 0.1);
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 16px rgba(0, 212, 255, 0.3);
     }
 
     input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       margin: 0;
-      accent-color: var(--accent-color);
+      accent-color: var(--primary-accent);
     }
 
     /* Loading State */
@@ -450,21 +641,38 @@
       transform: translate(-50%, -50%);
       z-index: 1000;
       text-align: center;
-      background: var(--bg-card);
-      padding: 2rem;
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      box-shadow: var(--shadow-card);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-backdrop);
+      padding: var(--space-2xl);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      min-width: 300px;
     }
 
     .loading-spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border-color);
-      border-top: 3px solid var(--accent-color);
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid var(--primary-accent);
       border-radius: 50%;
       animation: spin 1s linear infinite;
-      margin: 0 auto 1rem;
+      margin: 0 auto var(--space-lg);
+      position: relative;
+    }
+
+    .loading-spinner::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(124, 58, 237, 0.3);
+      border-top: 2px solid var(--secondary-accent);
+      border-radius: 50%;
+      animation: spin 1.5s linear infinite reverse;
     }
 
     @keyframes spin {
@@ -479,22 +687,28 @@
 
     .loading-text {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: 1rem;
+      font-weight: 500;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     /* Instructions Panel */
     .instructions-panel {
       position: fixed;
-      bottom: 2rem;
-      left: 2rem;
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1rem 1.5rem;
+      bottom: var(--space-xl);
+      left: var(--space-xl);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-backdrop);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg) var(--space-xl);
       z-index: 50;
-      box-shadow: var(--shadow-card);
-      transition: all 0.3s ease;
+      box-shadow: var(--glass-shadow);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      max-width: 350px;
     }
 
     .instructions-panel.collapsed {
@@ -504,25 +718,36 @@
     }
 
     .instructions-panel h4 {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--text-color);
-      margin-bottom: 0.75rem;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: var(--space-md);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-sm);
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .instructions-panel h4 i {
-      color: var(--accent-color);
+      color: var(--primary-accent);
+      filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5));
     }
 
     .instruction-item {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.5rem;
-      font-size: 0.85rem;
+      gap: var(--space-md);
+      margin-bottom: var(--space-sm);
+      font-size: 0.9rem;
+      padding: var(--space-xs) 0;
+      transition: all 0.3s ease;
+    }
+
+    .instruction-item:hover {
+      transform: translateX(4px);
     }
 
     .instruction-item:last-child {
@@ -530,32 +755,56 @@
     }
 
     .kbd {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      padding: 0.25rem 0.5rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-color);
-      min-width: 2rem;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-sm);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      min-width: 2.5rem;
       text-align: center;
+      backdrop-filter: var(--glass-backdrop);
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+      position: relative;
+    }
+
+    .kbd::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: -1px;
+      right: -1px;
+      bottom: -1px;
+      background: var(--gradient-primary);
+      border-radius: var(--radius-sm);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: -1;
+    }
+
+    .instruction-item:hover .kbd::before {
+      opacity: 0.2;
     }
 
     .instruction-text {
-      color: var(--text-muted);
+      color: var(--text-secondary);
+      font-weight: 500;
     }
 
     /* GitHub Link */
     .github-link {
       position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: var(--bg-card);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--border-color);
+      bottom: var(--space-xl);
+      right: var(--space-xl);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-backdrop);
+      border: 1px solid var(--glass-border);
       border-radius: 50%;
-      width: 56px;
-      height: 56px;
+      width: 64px;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -563,21 +812,47 @@
       font-size: 1.5rem;
       text-decoration: none;
       z-index: 50;
-      box-shadow: var(--shadow-card);
+      box-shadow: var(--glass-shadow);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .github-link::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--gradient-primary);
+      opacity: 0;
       transition: all 0.3s ease;
+      border-radius: 50%;
+    }
+
+    .github-link:hover::before {
+      opacity: 1;
     }
 
     .github-link:hover {
-      background: var(--accent-color);
-      color: var(--text-color);
-      border-color: var(--accent-color);
-      transform: translateY(-2px);
+      color: var(--text-primary);
+      border-color: var(--primary-accent);
+      transform: translateY(-4px) scale(1.05);
+      box-shadow:
+        var(--shadow-glow),
+        0 12px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .github-link i {
+      position: relative;
+      z-index: 1;
     }
 
     /* Mobile Responsiveness */
     @media (max-width: 768px) {
       .header {
-        padding: 0.75rem 1rem;
+        padding: var(--space-md) var(--space-md);
       }
 
       .header-title {
@@ -585,37 +860,51 @@
       }
 
       .header-actions {
-        gap: 0.5rem;
+        gap: var(--space-xs);
       }
 
       .header-btn {
-        padding: 0.5rem;
+        padding: var(--space-xs) var(--space-sm);
         font-size: 0.8rem;
       }
 
+      .header-btn span {
+        display: none;
+      }
+
       .control-panel {
-        left: 1rem;
-        right: 1rem;
+        left: var(--space-md);
+        right: var(--space-md);
         width: calc(100% - 2rem);
         max-width: none;
         min-width: auto;
+        padding: var(--space-lg);
       }
 
       .control-panel.right {
-        right: 1rem;
-        left: 1rem;
-        top: 120px;
+        right: var(--space-md);
+        left: var(--space-md);
+        top: 140px;
       }
 
       .instructions-panel {
-        left: 1rem;
-        right: 1rem;
-        bottom: 1rem;
+        left: var(--space-md);
+        right: var(--space-md);
+        bottom: var(--space-md);
+        max-width: none;
       }
 
       .github-link {
-        bottom: 1rem;
-        right: 1rem;
+        bottom: var(--space-md);
+        right: var(--space-md);
+        width: 56px;
+        height: 56px;
+        font-size: 1.25rem;
+      }
+
+      .control-group {
+        padding: var(--space-md);
+        margin-bottom: var(--space-lg);
       }
     }
 
@@ -623,21 +912,75 @@
     @media (max-width: 768px) {
       .control-panel {
         transform: translateY(-100%);
-        top: 80px;
+        top: 100px;
       }
 
       .control-panel.show {
         transform: translateY(0);
       }
     }
+
+    /* Enhanced Mobile Touch Targets */
+    @media (max-width: 768px) {
+
+      .panel-toggle,
+      .header-btn,
+      .radio-option,
+      .checkbox-container {
+        min-height: 44px;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        width: 24px;
+        height: 24px;
+      }
+
+      .kbd {
+        min-width: 36px;
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    }
+
+    /* Dark Mode Specific Enhancements */
+    @media (prefers-color-scheme: dark) {
+      .glass-bg {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .glass-border {
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+    }
+
+    /* Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* High Contrast Mode */
+    @media (prefers-contrast: high) {
+      :root {
+        --glass-border: rgba(255, 255, 255, 0.3);
+        --text-muted: rgba(255, 255, 255, 0.8);
+      }
+    }
   </style>
 </head>
 
-<body>
-  <!-- Loading Screen -->
+<body> <!-- Loading Screen -->
   <div id="loading-container" class="loading-container">
     <div class="loading-spinner"></div>
     <div class="loading-text">Initializing WebGPU Ocean Simulation...</div>
+    <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); opacity: 0.7;">
+      Preparing shaders and buffers...
+    </div>
   </div>
 
   <!-- Header -->
@@ -671,7 +1014,6 @@
       </div>
     </div>
   </header>
-
   <!-- Left Control Panel -->
   <div id="left-panel" class="control-panel left">
     <div class="panel-header">
@@ -686,86 +1028,119 @@
 
     <!-- Simulation Mode -->
     <div class="control-group">
-      <label class="control-label">Simulation Mode</label>
-      <div class="control-description">Choose the physics simulation algorithm</div>
+      <label class="control-label">
+        <i class="fas fa-cogs" style="margin-right: 0.5rem; color: var(--primary-accent);"></i>
+        Simulation Mode
+      </label>
+      <div class="control-description">Choose the physics simulation algorithm for particle behavior</div>
       <div class="radio-group" id="simulation-mode">
         <label class="radio-option selected">
           <input type="radio" name="simulation-mode" value="mls-mpm" checked>
           <div>
             <div class="radio-option-label">MLS-MPM</div>
-            <div class="radio-option-description">Material Point Method for fluid dynamics</div>
+            <div class="radio-option-description">Material Point Method for advanced fluid dynamics</div>
           </div>
         </label>
         <label class="radio-option">
           <input type="radio" name="simulation-mode" value="sph">
           <div>
             <div class="radio-option-label">SPH</div>
-            <div class="radio-option-description">Smoothed Particle Hydrodynamics</div>
+            <div class="radio-option-description">Smoothed Particle Hydrodynamics simulation</div>
           </div>
         </label>
         <label class="radio-option">
           <input type="radio" name="simulation-mode" value="boids">
           <div>
             <div class="radio-option-label">Boids</div>
-            <div class="radio-option-description">Flocking behavior simulation</div>
+            <div class="radio-option-description">Emergent flocking behavior patterns</div>
           </div>
         </label>
       </div>
-    </div> <!-- Particle Count -->
+    </div>
+
+    <!-- Particle Count -->
     <div class="control-group">
-      <label class="control-label" id="particle-count-label">Number of Particles</label>
+      <label class="control-label" id="particle-count-label">
+        <i class="fas fa-hashtag" style="margin-right: 0.5rem; color: var(--tertiary-accent);"></i>
+        Particle Density
+      </label>
       <div class="control-description">Higher counts provide more detail but require more processing power</div>
       <div class="slider-container">
         <div class="slider-label">
           <span>Particle Count</span>
           <span class="slider-value" id="particle-count-value">70,000</span>
         </div>
-        <input type="range" id="particle-count-slider" min="1" max="200000" value="70000" step="100" />
+        <input type="range" id="particle-count-slider" min="1" max="200000" value="70000" step="1000" />
+        <div
+          style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+          <span>1K</span>
+          <span>100K</span>
+          <span>200K</span>
+        </div>
       </div>
     </div>
 
     <!-- Particle Visualization -->
     <div class="control-group">
-      <label class="control-label">Visualization</label>
+      <label class="control-label">
+        <i class="fas fa-eye" style="margin-right: 0.5rem; color: var(--secondary-accent);"></i>
+        Visualization
+      </label>
       <div class="checkbox-container" id="particle-checkbox">
         <input type="checkbox" id="particle">
         <div>
-          <div class="radio-option-label">Show Particles</div>
-          <div class="radio-option-description">Display individual particle points</div>
+          <div class="radio-option-label">Show Individual Particles</div>
+          <div class="radio-option-description">Display particle points for detailed analysis</div>
         </div>
       </div>
-    </div> <!-- Box Width -->
+    </div>
+
+    <!-- Box Width -->
     <div class="control-group">
-      <label class="control-label">Simulation Bounds</label>
+      <label class="control-label">
+        <i class="fas fa-expand-arrows-alt" style="margin-right: 0.5rem; color: var(--warning-accent);"></i>
+        Simulation Bounds
+      </label>
+      <div class="control-description">Adjust the physical boundaries of the simulation space</div>
       <div class="slider-container">
         <div class="slider-label">
-          <span id="slider-label">Box Width</span>
+          <span id="slider-label">Boundary Size</span>
           <span class="slider-value" id="slider-value">100</span>
         </div>
         <input type="range" id="slider" min="0" max="100" value="100" />
+        <div
+          style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+          <span>Minimal</span>
+          <span>Medium</span>
+          <span>Maximum</span>
+        </div>
       </div>
     </div>
   </div>
-
   <!-- Right Control Panel -->
   <div id="right-panel" class="control-panel right">
     <div class="panel-header">
       <div class="panel-title">
         <i class="fas fa-palette"></i>
-        Appearance Settings
+        Visual Settings
       </div>
       <button class="panel-toggle" onclick="togglePanel('right')">
         <i class="fas fa-times"></i>
       </button>
-    </div> <!-- Environment -->
+    </div>
+
+    <!-- Environment -->
     <div class="control-group">
-      <label class="control-label">Environment</label>
-      <div class="control-description">Choose the background environment</div>
+      <label class="control-label">
+        <i class="fas fa-globe" style="margin-right: 0.5rem; color: var(--primary-accent);"></i>
+        Environment
+      </label>
+      <div class="control-description">Choose the background environment and lighting</div>
       <select id="environment-select">
-        <option value="-1">None (White Background)</option>
+        <option value="-1">None (Minimal Background)</option>
         <option value="0" selected>Industrial Sunset</option>
         <option value="1">Venice Sunset</option>
-        <option value="2">Forest</option>
+        <option value="2">Forest Ambiance</option>
       </select>
     </div>
 
@@ -773,86 +1148,115 @@
     <div id="water-appearance-controls">
       <!-- Water Color -->
       <div class="control-group">
-        <label class="control-label">Water Color</label>
-        <div class="control-description">Adjust the base color of the water</div>
-        <input type="color" id="water-color" value="#3498db" />
+        <label class="control-label">
+          <i class="fas fa-tint" style="margin-right: 0.5rem; color: var(--tertiary-accent);"></i>
+          Water Properties
+        </label>
+        <div class="control-description">Adjust the fundamental appearance of water</div>
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center;">
+          <span style="font-size: 0.9rem; color: var(--text-secondary);">Base Color</span>
+          <input type="color" id="water-color" value="#3498db" style="width: 60px; height: 40px;" />
+        </div>
       </div>
 
-      <!-- Transparency -->
+      <!-- Material Properties -->
       <div class="control-group">
-        <label class="control-label">Transparency</label>
+        <label class="control-label">
+          <i class="fas fa-adjust" style="margin-right: 0.5rem; color: var(--secondary-accent);"></i>
+          Material Properties
+        </label>
+        <div class="control-description">Fine-tune the physical appearance of the water surface</div>
+
+        <!-- Transparency -->
         <div class="slider-container">
           <div class="slider-label">
             <span>Opacity</span>
             <span class="slider-value" id="transparency-value">80%</span>
           </div>
           <input type="range" id="transparency" min="0" max="100" value="80" />
+          <div
+            style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+            <span>Transparent</span>
+            <span>Opaque</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Reflectivity -->
-      <div class="control-group">
-        <label class="control-label">Reflectivity</label>
+        <!-- Reflectivity -->
         <div class="slider-container">
           <div class="slider-label">
             <span>Surface Reflection</span>
             <span class="slider-value" id="reflectivity-value">50%</span>
           </div>
           <input type="range" id="reflectivity" min="0" max="100" value="50" />
+          <div
+            style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+            <span>Matte</span>
+            <span>Mirror</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Wave Height -->
-      <div class="control-group">
-        <label class="control-label">Wave Height</label>
+        <!-- Wave Height -->
         <div class="slider-container">
           <div class="slider-label">
             <span>Surface Detail</span>
             <span class="slider-value" id="wave-height-value">30%</span>
           </div>
           <input type="range" id="wave-height" min="0" max="100" value="30" />
+          <div
+            style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+            <span>Smooth</span>
+            <span>Turbulent</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  <!-- Instructions Panel -->
+  </div> <!-- Instructions Panel -->
   <div id="instructions-panel" class="instructions-panel">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
       <h4 style="margin: 0;">
-        <i class="fas fa-info-circle"></i>
-        Controls
+        <i class="fas fa-keyboard"></i>
+        Interactive Controls
       </h4>
       <button class="panel-toggle" onclick="toggleInstructionsPanel()">
         <i class="fas fa-times"></i>
       </button>
     </div>
-    <div class="instruction-item">
-      <span class="kbd">Drag</span>
-      <span class="instruction-text">Rotate camera view</span>
+
+    <div style="display: grid; gap: var(--space-xs);">
+      <div class="instruction-item">
+        <span class="kbd">Drag</span>
+        <span class="instruction-text">Rotate camera view around the scene</span>
+      </div>
+      <div class="instruction-item">
+        <span class="kbd">Scroll</span>
+        <span class="instruction-text">Zoom in and out for closer inspection</span>
+      </div>
+      <div class="instruction-item">
+        <span class="kbd">Click</span>
+        <span class="instruction-text">Create dynamic splash interactions</span>
+      </div>
+      <div style="margin: var(--space-sm) 0; height: 1px; background: var(--glass-border);"></div>
+      <div class="instruction-item">
+        <span class="kbd">H</span>
+        <span class="instruction-text">Toggle simulation controls panel</span>
+      </div>
+      <div class="instruction-item">
+        <span class="kbd">S</span>
+        <span class="instruction-text">Toggle visual settings panel</span>
+      </div>
+      <div class="instruction-item">
+        <span class="kbd">I</span>
+        <span class="instruction-text">Toggle this instructions panel</span>
+      </div>
+      <div class="instruction-item">
+        <span class="kbd">Space</span>
+        <span class="instruction-text">Hide all interface panels</span>
+      </div>
     </div>
-    <div class="instruction-item">
-      <span class="kbd">Scroll</span>
-      <span class="instruction-text">Zoom in and out</span>
-    </div>
-    <div class="instruction-item">
-      <span class="kbd">Click</span>
-      <span class="instruction-text">Create splash effect</span>
-    </div>
-    <div class="instruction-item">
-      <span class="kbd">H</span>
-      <span class="instruction-text">Toggle controls panel</span>
-    </div>
-    <div class="instruction-item">
-      <span class="kbd">S</span>
-      <span class="instruction-text">Toggle settings panel</span>
-    </div>
-    <div class="instruction-item">
-      <span class="kbd">I</span>
-      <span class="instruction-text">Toggle instructions panel</span>
-    </div>
-    <div class="instruction-item">
-      <span class="kbd">Space</span>
-      <span class="instruction-text">Hide all panels</span>
+
+    <div
+      style="margin-top: var(--space-md); padding-top: var(--space-sm); border-top: 1px solid var(--glass-border); font-size: 0.75rem; color: var(--text-muted); text-align: center;">
+      Press any key combination to interact
     </div>
   </div>
 
@@ -878,7 +1282,7 @@
       instructions: false
     };
 
-    // Panel toggle functionality
+    // Enhanced panel toggle functionality with smooth animations
     function togglePanel(side) {
       const panel = document.getElementById(`${side}-panel`);
       const button = document.getElementById(`toggle-${side}-panel`);
@@ -886,28 +1290,44 @@
       panel.classList.toggle('collapsed');
       panelStates[side] = panel.classList.contains('collapsed');
 
-      // Update button text
+      // Update button text with enhanced feedback
       const isCollapsed = panel.classList.contains('collapsed');
       const icon = button.querySelector('i');
       const text = button.querySelector('span');
 
       if (side === 'left') {
         icon.className = isCollapsed ? 'fas fa-sliders-h' : 'fas fa-eye-slash';
-        text.textContent = isCollapsed ? 'Controls' : 'Hide';
+        if (text) text.textContent = isCollapsed ? 'Controls' : 'Hide';
       } else {
-        icon.className = isCollapsed ? 'fas fa-cog' : 'fas fa-eye-slash';
-        text.textContent = isCollapsed ? 'Settings' : 'Hide';
+        icon.className = isCollapsed ? 'fas fa-palette' : 'fas fa-eye-slash';
+        if (text) text.textContent = isCollapsed ? 'Settings' : 'Hide';
       }
+
+      // Add subtle haptic feedback effect
+      button.style.transform = 'scale(0.95)';
+      setTimeout(() => {
+        button.style.transform = '';
+      }, 150);
     }
 
-    // Instructions panel toggle
+    // Enhanced instructions panel toggle
     function toggleInstructionsPanel() {
       const panel = document.getElementById('instructions-panel');
       panel.classList.toggle('collapsed');
       panelStates.instructions = panel.classList.contains('collapsed');
+
+      // Add smooth transition effect
+      if (!panel.classList.contains('collapsed')) {
+        panel.style.transform = 'translateY(100%)';
+        panel.style.opacity = '0';
+        requestAnimationFrame(() => {
+          panel.style.transform = '';
+          panel.style.opacity = '';
+        });
+      }
     }
 
-    // Toggle all panels at once
+    // Enhanced toggle all panels with staggered animation
     function toggleAllPanels() {
       const body = document.body;
       const button = document.getElementById('toggle-all-panels');
@@ -917,55 +1337,123 @@
       allPanelsHidden = !allPanelsHidden;
 
       if (allPanelsHidden) {
+        // Staggered hide animation
+        const panels = [
+          document.getElementById('left-panel'),
+          document.getElementById('right-panel'),
+          document.getElementById('instructions-panel')
+        ];
+
+        panels.forEach((panel, index) => {
+          setTimeout(() => {
+            if (panel) {
+              panel.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            }
+          }, index * 100);
+        });
+
         body.classList.add('panels-hidden');
         icon.className = 'fas fa-eye';
-        text.textContent = 'Show All';
+        if (text) text.textContent = 'Show All';
       } else {
         body.classList.remove('panels-hidden');
         icon.className = 'fas fa-eye-slash';
-        text.textContent = 'Hide All';
+        if (text) text.textContent = 'Hide All';
       }
+
+      // Button feedback
+      button.style.transform = 'scale(0.95)';
+      setTimeout(() => {
+        button.style.transform = '';
+      }, 150);
     }
 
-    // Initialize panel toggles
+    // Initialize panel toggles with enhanced event handling
     document.getElementById('toggle-left-panel').addEventListener('click', () => togglePanel('left'));
     document.getElementById('toggle-right-panel').addEventListener('click', () => togglePanel('right'));
     document.getElementById('toggle-all-panels').addEventListener('click', toggleAllPanels);
 
-    // Radio button styling
+    // Enhanced radio button styling with smooth transitions
     document.querySelectorAll('input[type="radio"]').forEach(radio => {
       radio.addEventListener('change', function () {
         const group = this.closest('.radio-group');
+
+        // Smooth transition out
         group.querySelectorAll('.radio-option').forEach(option => {
+          option.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
           option.classList.remove('selected');
         });
-        this.closest('.radio-option').classList.add('selected');
+
+        // Smooth transition in
+        setTimeout(() => {
+          this.closest('.radio-option').classList.add('selected');
+        }, 50);
       });
     });
 
-    // Checkbox styling
+    // Enhanced checkbox styling with ripple effect
     document.getElementById('particle').addEventListener('change', function () {
       const container = document.getElementById('particle-checkbox');
       container.classList.toggle('checked', this.checked);
+
+      // Add ripple effect
+      const ripple = document.createElement('div');
+      ripple.style.cssText = `
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(0, 212, 255, 0.3);
+        transform: scale(0);
+        animation: ripple 0.6s linear;
+        pointer-events: none;
+      `;
+
+      const rect = container.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (rect.width / 2 - size / 2) + 'px';
+      ripple.style.top = (rect.height / 2 - size / 2) + 'px';
+
+      container.style.position = 'relative';
+      container.appendChild(ripple);
+
+      setTimeout(() => {
+        ripple.remove();
+      }, 600);
     });
 
-    // Slider value updates
+    // Enhanced slider value updates with smooth animations
     function updateSliderValue(sliderId, valueId, suffix = '') {
       const slider = document.getElementById(sliderId);
       const valueDisplay = document.getElementById(valueId);
 
+      if (!slider || !valueDisplay) return;
+
       slider.addEventListener('input', function () {
-        valueDisplay.textContent = this.value + suffix;
+        // Smooth value transition
+        valueDisplay.style.transform = 'scale(1.1)';
+        setTimeout(() => {
+          valueDisplay.textContent = this.value + suffix;
+          valueDisplay.style.transform = '';
+        }, 100);
+
+        // Update slider track color based on value
+        const percentage = ((this.value - this.min) / (this.max - this.min)) * 100;
+        this.style.background = `linear-gradient(to right, var(--primary-accent) 0%, var(--primary-accent) ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
       });
 
-      // Initialize value
+      // Initialize value and styling
       valueDisplay.textContent = slider.value + suffix;
-    } updateSliderValue('slider', 'slider-value');
+      const percentage = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
+      slider.style.background = `linear-gradient(to right, var(--primary-accent) 0%, var(--primary-accent) ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+    }
+
+    // Apply enhanced slider updates
+    updateSliderValue('slider', 'slider-value');
     updateSliderValue('transparency', 'transparency-value', '%');
     updateSliderValue('reflectivity', 'reflectivity-value', '%');
     updateSliderValue('wave-height', 'wave-height-value', '%');
 
-    // Special handling for particle count slider with number formatting
+    // Enhanced particle count slider with number formatting and performance indicators
     function updateParticleCountSlider() {
       const slider = document.getElementById('particle-count-slider');
       const valueDisplay = document.getElementById('particle-count-value');
@@ -973,70 +1461,172 @@
       if (slider && valueDisplay) {
         slider.addEventListener('input', function () {
           const value = parseInt(this.value);
-          valueDisplay.textContent = value.toLocaleString();
+
+          // Smooth value transition
+          valueDisplay.style.transform = 'scale(1.1)';
+          setTimeout(() => {
+            valueDisplay.textContent = value.toLocaleString();
+            valueDisplay.style.transform = '';
+          }, 100);
+
+          // Performance indicator colors
+          let performanceColor = 'var(--tertiary-accent)';
+          if (value > 150000) performanceColor = 'var(--danger-accent)';
+          else if (value > 100000) performanceColor = 'var(--warning-accent)';
+
+          valueDisplay.style.color = performanceColor;
+
+          // Update slider track
+          const percentage = ((value - this.min) / (this.max - this.min)) * 100;
+          this.style.background = `linear-gradient(to right, ${performanceColor} 0%, ${performanceColor} ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
         });
 
-        // Initialize value
+        // Initialize
         const initialValue = parseInt(slider.value);
         valueDisplay.textContent = initialValue.toLocaleString();
+        const percentage = ((initialValue - slider.min) / (slider.max - slider.min)) * 100;
+        slider.style.background = `linear-gradient(to right, var(--tertiary-accent) 0%, var(--tertiary-accent) ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
       }
     }
     updateParticleCountSlider();
 
-    // Hide loading screen when simulation starts
+    // Enhanced loading screen with progress simulation
     window.addEventListener('load', () => {
-      setTimeout(() => {
-        document.getElementById('loading-container').style.display = 'none';
-      }, 2000);
-    });    // Mobile responsive panel handling
+      const loadingContainer = document.getElementById('loading-container');
+      const loadingText = loadingContainer.querySelector('.loading-text');
+
+      const loadingSteps = [
+        'Initializing WebGPU Ocean Simulation...',
+        'Compiling shaders and buffers...',
+        'Setting up particle systems...',
+        'Preparing rendering pipeline...',
+        'Loading complete!'
+      ];
+
+      let stepIndex = 0;
+      const stepInterval = setInterval(() => {
+        if (stepIndex < loadingSteps.length - 1) {
+          loadingText.textContent = loadingSteps[stepIndex];
+          stepIndex++;
+        } else {
+          clearInterval(stepInterval);
+          setTimeout(() => {
+            loadingContainer.style.opacity = '0';
+            loadingContainer.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            setTimeout(() => {
+              loadingContainer.style.display = 'none';
+            }, 400);
+          }, 800);
+        }
+      }, 600);
+    });
+
+    // Enhanced mobile responsive panel handling
     function handleMobileResize() {
       const isMobile = window.innerWidth <= 768;
+      const panels = ['left', 'right', 'instructions'];
+
       if (isMobile && !allPanelsHidden) {
-        // On mobile, hide panels by default but don't affect the global state
-        document.getElementById('left-panel').classList.add('collapsed');
-        document.getElementById('right-panel').classList.add('collapsed');
-        document.getElementById('instructions-panel').classList.add('collapsed');
-        panelStates.left = true;
-        panelStates.right = true;
-        panelStates.instructions = true;
+        panels.forEach(panelId => {
+          const panel = document.getElementById(`${panelId}-panel`);
+          if (panel) {
+            panel.classList.add('collapsed');
+            panelStates[panelId] = true;
+          }
+        });
       } else if (!isMobile && !allPanelsHidden) {
-        // On desktop, restore panel states
-        if (!panelStates.left) {
-          document.getElementById('left-panel').classList.remove('collapsed');
-        }
-        if (!panelStates.right) {
-          document.getElementById('right-panel').classList.remove('collapsed');
-        }
-        if (!panelStates.instructions) {
-          document.getElementById('instructions-panel').classList.remove('collapsed');
-        }
+        panels.forEach(panelId => {
+          if (!panelStates[panelId]) {
+            const panel = document.getElementById(`${panelId}-panel`);
+            if (panel) panel.classList.remove('collapsed');
+          }
+        });
       }
     }
 
     window.addEventListener('resize', handleMobileResize);
-    handleMobileResize();    // Keyboard shortcuts
+    handleMobileResize();
+
+    // Enhanced keyboard shortcuts with visual feedback
     document.addEventListener('keydown', function (e) {
       // Prevent shortcuts when typing in input fields
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
         return;
       }
 
+      // Visual feedback for key presses
+      const showKeyFeedback = (key) => {
+        const feedback = document.createElement('div');
+        feedback.textContent = key;
+        feedback.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: var(--glass-bg);
+          border: 1px solid var(--glass-border);
+          border-radius: var(--radius-md);
+          padding: var(--space-md) var(--space-lg);
+          color: var(--text-primary);
+          font-weight: 700;
+          font-size: 1.2rem;
+          backdrop-filter: var(--glass-backdrop);
+          z-index: 9999;
+          pointer-events: none;
+          animation: keyFeedback 0.8s ease-out forwards;
+        `;
+
+        document.body.appendChild(feedback);
+        setTimeout(() => feedback.remove(), 800);
+      };
+
       switch (e.key.toLowerCase()) {
         case 'h':
+          showKeyFeedback('H');
           togglePanel('left');
           break;
         case 's':
+          showKeyFeedback('S');
           togglePanel('right');
           break;
         case 'i':
+          showKeyFeedback('I');
           toggleInstructionsPanel();
           break;
         case ' ':
-          e.preventDefault(); // Prevent page scroll
+          e.preventDefault();
+          showKeyFeedback('Space');
           toggleAllPanels();
           break;
       }
     });
+
+    // Add CSS animation for key feedback
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes keyFeedback {
+        0% {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.8);
+        }
+        50% {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1.1);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+
+      @keyframes ripple {
+        to {
+          transform: scale(4);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
   </script>
 
   <script type="module" src="main.ts"></script>
