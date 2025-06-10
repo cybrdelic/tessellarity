@@ -17,3 +17,12 @@ export const waterAppearanceViews = {
   reflectivity: new Float32Array(waterAppearanceValues, 20, 1),
   waveHeight: new Float32Array(waterAppearanceValues, 24, 1),
 };
+
+// Debug mode buffer for debug visualization system
+export const debugModeValues = new ArrayBuffer(16);
+export const debugModeViews = {
+  mode: new Uint32Array(debugModeValues, 0, 1),      // Debug visualization mode
+  layer: new Uint32Array(debugModeValues, 4, 1),     // Sub-layer selection
+  intensity: new Float32Array(debugModeValues, 8, 1), // Visualization intensity
+  padding: new Float32Array(debugModeValues, 12, 1),  // Alignment padding
+};

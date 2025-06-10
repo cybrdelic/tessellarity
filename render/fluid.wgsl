@@ -4,6 +4,7 @@
 @group(0) @binding(3) var thickness_texture: texture_2d<f32>;
 @group(0) @binding(4) var envmap_texture: texture_cube<f32>;
 @group(0) @binding(5) var<uniform> waterAppearance: WaterAppearance;
+@group(0) @binding(6) var<uniform> debug: DebugUniforms;
 
 struct RenderUniforms {
     texel_size: vec2f,
@@ -19,6 +20,13 @@ struct WaterAppearance {
     transparency: f32,
     reflectivity: f32,
     waveHeight: f32,
+    padding: f32,
+}
+
+struct DebugUniforms {
+    mode: u32,
+    layer: u32,
+    intensity: f32,
     padding: f32,
 }
 
@@ -85,10 +93,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     rayDir = normalize(viewPos);
     var lightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
-    var H: vec3f = normalize(lightDir - rayDir);
-
-    // Calculate velocity magnitude and physics variables ONCE
-    var velocityMagnitude = length(ddx + ddy);
+    var H: vec3f = normalize(lightDir - rayDir);    // Calculate velocity magnitude and physics variables ONCE
+    // Use separate X and Z velocity components for better variation
+    var velocityX = length(vec3f(ddx.x, 0.0, 0.0));
+    var velocityZ = length(vec3f(0.0, 0.0, ddy.z));
+    var velocityMagnitude = sqrt(velocityX * velocityX + velocityZ * velocityZ + length(ddx.y) * length(ddy.y));
     var pressureDensity = 1.0 + thickness * 3.0;
     var depthPressure = abs(viewPos.z) * 0.2;
     var compressionFactor = pow(pressureDensity + depthPressure, 0.8);
@@ -371,9 +380,64 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // Subtle background interaction
     var bgBoost = isWhiteBackground * 0.15;
     waterOpacity = clamp(waterOpacity + bgBoost, 0.0, 1.0);
-
-    // Apply realistic ocean water color adjustments
     finalColor *= 0.9; // Reduced global brightness for deeper appearance
+
+    // DEBUG MODE VISUALIZATION SYSTEM
+    if debug.mode != 0u {
+        switch (debug.mode) {            case 1u: { // DEPTH
+                // Use view space depth for better visualization
+                let viewDepth = abs(viewPos.z);
+                let normalizedDepth = viewDepth * debug.intensity * 0.1;
+                return vec4f(vec3f(normalizedDepth), 1.0);
+            }            case 2u: { // THICKNESS
+                // Combine thickness with density for more variation
+                let thicknessWithDensity = thickness * density * debug.intensity * 0.2;
+                return vec4f(vec3f(thicknessWithDensity), 1.0);
+            }
+            case 3u: { // NORMALS
+                if debug.layer == 0u {
+                    // Raw normals (world space)
+                    return vec4f(0.5 * normal + 0.5, 1.0);
+                } else {
+                    // Normal components separated
+                    return vec4f(vec3f(abs(normal.x)), 1.0); // X component only
+                }
+            }            case 4u: { // ABSORPTION
+                // Use actual transmittance calculation with density variation
+                let actualAbsorption = 1.0 - length(transmittance) * debug.intensity;
+                return vec4f(vec3f(actualAbsorption), 1.0);
+            }case 5u: { // VELOCITY/FLOW
+                // Use actual velocity from position derivatives (more accurate)
+                let velocityX = length(ddx) * sign(ddx.x);
+                let velocityZ = length(ddy) * sign(ddy.z); 
+                let actualVelocity = sqrt(velocityX * velocityX + velocityZ * velocityZ) * debug.intensity;
+                return vec4f(vec3f(actualVelocity), 1.0);
+            }
+            case 6u: { // PRESSURE (derived from compression)
+                // Use actual density variation instead of uniform thickness
+                let pressureFromDensity = density * debug.intensity * 0.1;
+                return vec4f(vec3f(pressureFromDensity), 1.0);
+            }
+            case 7u: { // CURVATURE
+                // Use actual surface curvature from cross product magnitude
+                let actualCurvature = length(cross(ddx, ddy)) / (length(ddx) * length(ddy) + 0.001);
+                return vec4f(vec3f(actualCurvature * debug.intensity), 1.0);
+            }
+            case 8u: { // FRESNEL
+                return vec4f(vec3f(fresnel), 1.0);
+            }            case 9u: { // CAUSTICS
+                // Use actual caustics from light convergence calculation
+                return vec4f(vec3f(causticsIntensity * debug.intensity), 1.0);
+            }
+            case 10u: { // REFRACTION
+                let refractionStrength = length(rayDir) * debug.intensity;
+                return vec4f(vec3f(refractionStrength), 1.0);
+            }
+            default: {
+                return vec4f(1.0, 0.0, 1.0, 1.0); // Error color (magenta)
+            }
+        }
+    }
 
     return vec4f(finalColor, waterOpacity);
 

@@ -17,23 +17,40 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
+            /* Tesla Ultra-Black Minimalism */
             --primary-color: #000000;
-            --secondary-color: #0a0a0a;
-            --accent-color: #0ea5e9;
-            --text-color: #ffffff;
-            --text-primary: #ffffff;
-            --text-secondary: #cccccc;
-            --text-muted: #888888;
-            --text-subtle: #555555;
+            --secondary-color: #000000;
+            --accent-color: #007AFF;
+            --accent-secondary: #5856D6;
+            --text-color: #FFFFFF;
+            --text-primary: #FFFFFF;
+            --text-secondary: rgba(255, 255, 255, 0.95);
+            --text-muted: rgba(255, 255, 255, 0.8);
+            --text-subtle: rgba(255, 255, 255, 0.6);
             --bg-primary: #000000;
-            --bg-secondary: #0a0a0a;
-            --bg-darker: #050505;
-            --bg-card: #000000;
+            --bg-secondary: #000000;
+            --bg-darker: #000000;
+            --bg-card: transparent;
             --bg-sidebar: #000000;
-            --border-color: #1a1a1a;
-            --border-subtle: #111111;
+            --border-color: rgba(255, 255, 255, 0.3);
+            --border-subtle: rgba(255, 255, 255, 0.15);
             --shadow-subtle: none;
             --shadow-card: none;
+            --shadow-premium: none;
+            /* Super Dark Glassmorphism */
+            --glass-bg: rgba(0, 0, 0, 0.6);
+            --glass-bg-light: rgba(0, 0, 0, 0.4);
+            --glass-bg-dark: rgba(0, 0, 0, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-border-light: rgba(255, 255, 255, 0.1);
+            --glass-backdrop: blur(40px);
+            --glass-backdrop-strong: blur(60px);
+
+            /* Premium Dark Materials */
+            --material-glass: rgba(0, 0, 0, 0.7);
+            --material-glass-accent: rgba(0, 122, 255, 0.15);
+            --material-metal: rgba(255, 255, 255, 0.08);
+            --material-carbon: rgba(0, 0, 0, 0.5);
         }
 
         * {
@@ -47,56 +64,62 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Inter', sans-serif;
             font-weight: 400;
-            line-height: 1.6;
+            line-height: 1.5;
             color: var(--text-color);
             background: var(--bg-primary);
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        /* Smooth Transitions */
+        /* Smooth Transitions - Apple-style easing */
         * {
-            transition-property: color, background-color, border-color, transform, box-shadow, opacity;
-            transition-duration: 0.3s;
-            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-property: color, background-color, border-color, transform, box-shadow, opacity, filter;
+            transition-duration: 0.4s;
+            transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
-        /* Custom Scrollbar */
+        /* Premium Scrollbar */
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 4px;
         }
 
         ::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
+            background: transparent;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-subtle);
+            background: rgba(255, 255, 255, 0.3);
         }
 
-        /* Navigation Bar */
+        /* Navigation Bar - Enhanced Dark Glassmorphism */
         .navbar {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(15px);
-            border-bottom: 1px solid var(--border-color);
+            background: var(--glass-bg-dark);
+            backdrop-filter: var(--glass-backdrop-strong);
+            -webkit-backdrop-filter: var(--glass-backdrop-strong);
+            border-bottom: 1px solid var(--glass-border);
             z-index: 100;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 1rem 2rem;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .navbar.scrolled {
-            background: var(--bg-primary);
-            box-shadow: none;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(30px);
+            box-shadow: var(--shadow-card);
+            border-bottom: 1px solid var(--border-subtle);
         }
 
         .nav-content {
@@ -109,38 +132,44 @@
 
         .nav-logo {
             font-size: 1.5rem;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--text-color);
             text-decoration: none;
+            letter-spacing: -0.02em;
         }
 
         .nav-links {
             display: flex;
-            gap: 2rem;
+            gap: 2.5rem;
             align-items: center;
         }
 
         .nav-link {
             color: var(--text-muted);
             text-decoration: none;
-            font-weight: 400;
-            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 0.95rem;
+            letter-spacing: -0.01em;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             position: relative;
+            padding: 0.5rem 0;
         }
 
         .nav-link:hover {
             color: var(--text-color);
+            transform: translateY(-1px);
         }
 
         .nav-link::after {
             content: '';
             position: absolute;
-            bottom: -4px;
+            bottom: 0;
             left: 0;
             width: 0;
             height: 2px;
             background: var(--accent-color);
-            transition: width 0.3s ease;
+            transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            border-radius: 1px;
         }
 
         .nav-link:hover::after {
@@ -243,17 +272,19 @@
         .btn {
             padding: 1.2rem 2.5rem;
             border: none;
-            border-radius: 4px;
+            border-radius: 2px;
             font-size: 1.1rem;
-            font-weight: 400;
+            font-weight: 500;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 0.8rem;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             cursor: pointer;
             position: relative;
             overflow: hidden;
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
         }
 
         .btn::before {
@@ -317,17 +348,21 @@
         .demo-showcase {
             width: 100%;
             height: 400px;
-            border-radius: 12px;
+            border-radius: 2px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.3rem;
             position: relative;
             overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
             perspective: 1000px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg-light);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
         }
 
         .demo-stats {
@@ -342,19 +377,26 @@
             flex-direction: column;
             align-items: center;
             padding: 1.5rem 2rem;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border);
+            border-radius: 0;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             min-width: 160px;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .demo-stat:hover {
             transform: translateY(-4px);
             border-color: var(--accent-color);
-            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.1);
+            background: var(--material-glass-accent);
+            box-shadow:
+                0 12px 40px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(0, 122, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .demo-stat .stat-value {
@@ -473,19 +515,26 @@
         }
 
         .feature-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border);
+            border-radius: 0;
             padding: 2rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             position: relative;
             overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .feature-card:hover {
             transform: translateY(-4px);
             border-color: var(--accent-color);
-            box-shadow: 0 8px 32px rgba(14, 165, 233, 0.1);
+            background: var(--material-glass-accent);
+            box-shadow:
+                0 12px 40px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(0, 122, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .feature-card.wide {
@@ -510,9 +559,12 @@
             gap: 1.5rem;
             margin: 1.5rem 0;
             padding: 1rem;
-            background: var(--bg-darker);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
+            background: var(--glass-bg-dark);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-radius: 0;
+            border: 1px solid var(--glass-border-light);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .spec-item {
@@ -592,17 +644,25 @@
             align-items: center;
             gap: 0.75rem;
             padding: 1rem;
-            background: var(--bg-darker);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            background: var(--glass-bg-light);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border-light);
+            border-radius: 0;
             transition: all 0.3s ease;
             color: var(--text-muted);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .resource-item:hover {
             border-color: var(--accent-color);
             color: var(--text-color);
+            background: var(--material-glass-accent);
             transform: translateY(-2px);
+            box-shadow:
+                0 8px 24px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(0, 122, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .resource-item i {
@@ -662,15 +722,24 @@
         }
 
         .performance-card {
-            background: var(--bg-darker);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border);
+            border-radius: 0;
             padding: 2rem;
             transition: transform 0.3s ease;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .performance-card:hover {
             transform: translateY(-4px);
+            background: var(--material-glass-accent);
+            border-color: var(--accent-color);
+            box-shadow:
+                0 12px 40px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(0, 122, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .main-metric {
@@ -705,10 +774,13 @@
         }
 
         .performance-metrics {
-            background: var(--bg-darker);
-            border: 1px solid var(--border-color);
+            background: var(--glass-bg-dark);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border);
             border-radius: 8px;
             padding: 2rem;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .metric-row {
@@ -836,17 +908,24 @@
         }
 
         .arch-card {
-            background: var(--bg-darker);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border);
+            border-radius: 0;
             padding: 2rem;
             transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .arch-card:hover {
             transform: translateY(-4px);
             border-color: var(--accent-color);
-            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.1);
+            background: var(--material-glass-accent);
+            box-shadow:
+                0 12px 40px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(0, 122, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .arch-icon {
@@ -1419,6 +1498,17 @@
                 </div>
             </div>
             <div class="hero-visual">
+                <div class="demo-showcase">
+                    <canvas id="demoCanvas" class="demo-showcase-canvas"></canvas>
+                    <div class="demo-content">
+                        <div class="demo-icon"><i class="fas fa-water"></i></div>
+                        <h3>Real-Time Fluid Simulation</h3>
+                        <p>WebGPU-powered MLS-MPM fluid dynamics</p>
+                        <p style="font-size: 0.9rem; margin-top: 1rem; color: var(--text-muted);">
+                            Initializing simulation...
+                        </p>
+                    </div>
+                </div>
                 <div class="demo-stats">
                     <div class="demo-stat">
                         <span class="stat-value">60 FPS</span>
@@ -1650,7 +1740,7 @@
             </div>
         </div>
     </section> <!-- Core Architecture -->
-    <section class="tech-stack" id="architecture">
+    <section class="architecture" id="architecture">
         <div class="container">
             <h2 class="section-title">Core Architecture</h2>
             <p class="section-subtitle">A flexible and extensible system designed for performance and scalability.

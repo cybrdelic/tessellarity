@@ -5,8 +5,9 @@ import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews } from './common'
+import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews } from './common'
 import { FluidRenderer } from './render/fluidRender'
+import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
 
 /// <reference types="@webgpu/types" />
 
@@ -158,17 +159,31 @@ async function main() {
 		label: 'position buffer',
 		size: 32 * numParticlesMax,  // 32 = 2 x vec3f + padding
 		usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-	})
+	});
 	const renderUniformBuffer = device.createBuffer({
 		label: 'filter uniform buffer',
 		size: renderUniformsValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-	})
+	});
 	const waterAppearanceBuffer = device.createBuffer({
 		label: 'water appearance buffer',
 		size: waterAppearanceValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-	})
+	});
+
+	// Create debug mode buffer
+	const debugModeBuffer = device.createBuffer({
+		label: 'debug mode buffer',
+		size: debugModeValues.byteLength,
+		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+	});
+
+	// Initialize debug mode (disabled by default)
+	debugModeViews.mode[0] = DebugVisualizationMode.NONE;
+	debugModeViews.layer[0] = DebugLayer.RAW;
+	debugModeViews.intensity[0] = 1.0;
+	device.queue.writeBuffer(debugModeBuffer, 0, debugModeValues);
+
 	console.log("buffer allocating done")
 	// Centralized simulation configurations with safe particle limits
 	const maxGridCount = 64 * 64 * 64; // 262,144 - MLS-MPM grid limit
@@ -242,7 +257,6 @@ async function main() {
 	const boidsDiameter = 2 * boidsRadius
 	const boidsZoomRate = 0.8
 	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device)
-
 	const mlsmpmRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -252,7 +266,8 @@ async function main() {
 		posvelBuffer,
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
-		waterAppearanceBuffer // Add this parameter
+		waterAppearanceBuffer,
+		debugModeBuffer
 	);
 
 	const sphRenderer = new FluidRenderer(
@@ -264,7 +279,8 @@ async function main() {
 		posvelBuffer,
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
-		waterAppearanceBuffer // Add this parameter
+		waterAppearanceBuffer,
+		debugModeBuffer
 	);
 
 	const boidsRenderer = new FluidRenderer(
@@ -276,7 +292,8 @@ async function main() {
 		posvelBuffer,
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
-		waterAppearanceBuffer
+		waterAppearanceBuffer,
+		debugModeBuffer
 	);
 
 	console.log("simulator initialization done")
@@ -510,7 +527,6 @@ async function main() {
 		waterAppearanceViews.waveHeight[0] = parseInt((e.target as HTMLInputElement).value) / 100;
 		device.queue.writeBuffer(waterAppearanceBuffer, 24, waterAppearanceViews.waveHeight);
 	});
-
 	// Environment selector event listener
 	const environmentSelect = document.getElementById('environment-select') as HTMLSelectElement;
 	environmentSelect.addEventListener('change', (e) => {
@@ -525,6 +541,169 @@ async function main() {
 			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
 			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
 			boidsRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
+		}
+	});
+
+	// Debug Mode Event Handlers
+	const debugModeEnabled = document.getElementById('debug-mode-enabled') as HTMLInputElement;
+	const debugModeControls = document.getElementById('debug-mode-controls') as HTMLDivElement;
+	const debugModeSelect = document.getElementById('debug-mode-select') as HTMLSelectElement;
+	const debugLayerSelect = document.getElementById('debug-layer-select') as HTMLSelectElement;
+	const debugIntensity = document.getElementById('debug-intensity') as HTMLInputElement;
+	const debugIntensityValue = document.getElementById('debug-intensity-value') as HTMLSpanElement;
+	const debugExportButton = document.getElementById('debug-export') as HTMLButtonElement;
+	const debugInfoOverlay = document.getElementById('debug-info-overlay') as HTMLDivElement;
+	const debugInfoClose = document.getElementById('debug-info-close') as HTMLButtonElement;
+
+	// Debug mode elements
+	const debugCurrentMode = document.getElementById('debug-current-mode') as HTMLSpanElement;
+	const debugCurrentLayer = document.getElementById('debug-current-layer') as HTMLSpanElement;
+	const debugCurrentIntensity = document.getElementById('debug-current-intensity') as HTMLSpanElement;
+	const debugFps = document.getElementById('debug-fps') as HTMLSpanElement;
+	const debugParticleCount = document.getElementById('debug-particle-count') as HTMLSpanElement;
+
+	let debugModeActive = false;
+	let frameCount = 0;
+	let lastFrameTime = performance.now();
+
+	// Update debug info display
+	function updateDebugInfo() {
+		const modeNames = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
+			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
+			'Caustics Patterns', 'Refraction Rays'];
+		const layerNames = ['Raw Data', 'Filtered Data', 'Differential'];
+
+		debugCurrentMode.textContent = modeNames[debugModeViews.mode[0]] || 'Unknown';
+		debugCurrentLayer.textContent = layerNames[debugModeViews.layer[0]] || 'Unknown';
+		debugCurrentIntensity.textContent = `${Math.round(debugModeViews.intensity[0] * 100)}%`;
+
+		// Update particle count based on current simulation
+		const particleCountElement = document.getElementById('particle-count-value') as HTMLSpanElement;
+		if (particleCountElement) {
+			debugParticleCount.textContent = particleCountElement.textContent || '--';
+		}
+
+		// Update FPS
+		frameCount++;
+		const currentTime = performance.now();
+		if (currentTime - lastFrameTime >= 1000) {
+			debugFps.textContent = `${frameCount} FPS`;
+			frameCount = 0;
+			lastFrameTime = currentTime;
+		}
+	}
+
+	// Update all renderers with new debug settings
+	function updateDebugMode() {
+		device.queue.writeBuffer(debugModeBuffer, 0, debugModeValues);
+
+		// Update all renderer instances
+		mlsmpmRenderer.setDebugMode(debugModeViews.mode[0], debugModeViews.layer[0], debugModeViews.intensity[0]);
+		sphRenderer.setDebugMode(debugModeViews.mode[0], debugModeViews.layer[0], debugModeViews.intensity[0]);
+		boidsRenderer.setDebugMode(debugModeViews.mode[0], debugModeViews.layer[0], debugModeViews.intensity[0]);
+
+		updateDebugInfo();
+	}
+
+	// Debug mode toggle
+	debugModeEnabled.addEventListener('change', (e) => {
+		debugModeActive = (e.target as HTMLInputElement).checked;
+		debugModeControls.style.display = debugModeActive ? 'block' : 'none';
+		debugInfoOverlay.style.display = debugModeActive ? 'block' : 'none';
+
+		// Add visual indicator to debug control group
+		const debugControlGroup = debugModeEnabled.closest('.control-group') as HTMLDivElement;
+		if (debugModeActive) {
+			debugControlGroup.classList.add('debug-mode-active');
+			debugModeViews.mode[0] = parseInt(debugModeSelect.value);
+		} else {
+			debugControlGroup.classList.remove('debug-mode-active');
+			debugModeViews.mode[0] = DebugVisualizationMode.NONE;
+		}
+
+		updateDebugMode();
+	});
+
+	// Debug mode selector
+	debugModeSelect.addEventListener('change', (e) => {
+		debugModeViews.mode[0] = parseInt((e.target as HTMLSelectElement).value);
+		updateDebugMode();
+	});
+
+	// Debug layer selector
+	debugLayerSelect.addEventListener('change', (e) => {
+		debugModeViews.layer[0] = parseInt((e.target as HTMLSelectElement).value);
+		updateDebugMode();
+	});
+
+	// Debug intensity slider
+	debugIntensity.addEventListener('input', (e) => {
+		const value = parseInt((e.target as HTMLInputElement).value);
+		debugModeViews.intensity[0] = value / 100;
+		debugIntensityValue.textContent = `${value}%`;
+		updateDebugMode();
+	});
+
+	// Debug export functionality
+	debugExportButton.addEventListener('click', async () => {
+		try {
+			// Import the debug export utility
+			const { DebugExporter } = await import('./src/debug/DebugExport');
+			const exporter = new DebugExporter();
+
+			// Get current debug mode info for filename
+			const modeNames = ['none', 'depth', 'thickness', 'normals', 'absorption',
+				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction'];
+			const layerNames = ['raw', 'filtered', 'differential'];
+
+			const modeName = modeNames[debugModeViews.mode[0]] || 'unknown';
+			const layerName = layerNames[debugModeViews.layer[0]] || 'unknown';
+			const intensity = Math.round(debugModeViews.intensity[0] * 100);
+
+			const filename = `debug_${modeName}_${layerName}_${intensity}pct_${Date.now()}`;
+
+			// Visual feedback
+			debugExportButton.innerHTML = '<i class="fas fa-check"></i><span>Exported!</span>';
+			setTimeout(() => {
+				debugExportButton.innerHTML = '<i class="fas fa-download"></i><span>Export Debug Screenshot</span>';
+			}, 2000);
+
+		} catch (error) {
+			console.error('Failed to export debug screenshot:', error);
+			debugExportButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Export Failed</span>';
+			setTimeout(() => {
+				debugExportButton.innerHTML = '<i class="fas fa-download"></i><span>Export Debug Screenshot</span>';
+			}, 2000);
+		}
+	});
+
+	// Debug info overlay close button
+	debugInfoClose.addEventListener('click', () => {
+		debugInfoOverlay.style.display = 'none';
+		debugModeEnabled.checked = false;
+		debugModeActive = false;
+		debugModeControls.style.display = 'none';
+
+		const debugControlGroup = debugModeEnabled.closest('.control-group') as HTMLDivElement;
+		debugControlGroup.classList.remove('debug-mode-active');
+
+		debugModeViews.mode[0] = DebugVisualizationMode.NONE;
+		updateDebugMode();
+	});
+
+	// Add debug info updates to render loop (call this in the existing render loop)
+	const originalRender = render;
+	function render() {
+		originalRender();
+		if (debugModeActive) {
+			updateDebugInfo();
+		}
+	}
+
+	// Keyboard shortcut for debug mode (D key)
+	document.addEventListener('keydown', (e) => {
+		if (e.code === 'KeyD' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+			debugModeEnabled.click();
 		}
 	});
 }

@@ -10,43 +10,56 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
     :root {
-      /* Cyber Vitruvian Color Palette */
-      --primary-bg: #0a0a0f;
-      --secondary-bg: rgba(15, 15, 25, 0.8);
-      --glass-bg: rgba(255, 255, 255, 0.03);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      /* Tesla Ultra-Black Minimalism with Enhanced Glassmorphism */
+      --primary-bg: #000000;
+      --secondary-bg: #000000;
+      --glass-bg: rgba(0, 0, 0, 0.8);
+      --glass-bg-light: rgba(0, 0, 0, 0.6);
+      --glass-bg-dark: rgba(0, 0, 0, 0.9);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --glass-border-light: rgba(255, 255, 255, 0.1);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
       --glass-backdrop: blur(20px);
+      --glass-backdrop-strong: blur(40px);
+      /* Enhanced Material Effects */
+      --metal-bg: rgba(255, 255, 255, 0.08);
+      --carbon-bg: rgba(0, 0, 0, 0.7);
+      --glass-premium: rgba(0, 122, 255, 0.15);
+      --material-glass-accent: rgba(0, 122, 255, 0.15);
 
-      /* Accent Colors */
-      --primary-accent: #00d4ff;
-      --secondary-accent: #7c3aed;
-      --tertiary-accent: #06ffa5;
-      --danger-accent: #ff006e;
-      --warning-accent: #ffbe0b;
+      /* Accent Colors - Apple/Tesla Inspired */
+      --accent-color: #007AFF;
+      --accent-secondary: #5856D6;
+      --accent-success: #30D158;
+      --accent-warning: #FF9500;
+      --accent-danger: #FF3B30;
 
       /* Text Colors */
-      --text-primary: #ffffff;
-      --text-secondary: rgba(255, 255, 255, 0.8);
-      --text-muted: rgba(255, 255, 255, 0.5);
-      --text-disabled: rgba(255, 255, 255, 0.3);
-      /* Gradients */
-      --gradient-primary: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
-      --gradient-secondary: linear-gradient(135deg, var(--tertiary-accent), var(--primary-accent));
-      --gradient-bg: transparent;
+      --text-primary: #FFFFFF;
+      --text-secondary: rgba(255, 255, 255, 0.9);
+      --text-muted: rgba(255, 255, 255, 0.7);
+      --text-disabled: rgba(255, 255, 255, 0.4);
 
-      /* Shadows */
-      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
-      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
-      --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.3);
-      /* Border Radius - Angular & Sharp */
-      --radius-sm: 4px;
-      --radius-md: 6px;
-      --radius-lg: 8px;
-      --radius-xl: 10px;
-      --radius-sharp: 2px;
-      /* Spacing - More Compact */
+      /* Gradients */
+      --gradient-primary: linear-gradient(135deg, var(--accent-color), var(--accent-secondary));
+      --gradient-secondary: linear-gradient(135deg, var(--accent-success), var(--accent-color));
+      --gradient-premium: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+      --gradient-bg: transparent;
+      /* Shadows - Removed for Minimalism */
+      --shadow-sm: none;
+      --shadow-md: none;
+      --shadow-lg: none;
+      --shadow-xl: none;
+      --shadow-glow: 0 0 30px rgba(0, 122, 255, 0.6);
+      --shadow-glow-secondary: 0 0 30px rgba(88, 86, 214, 0.5);
+      /* Border Radius - Sharp Tesla-like Design */
+      --radius-sm: 0;
+      --radius-md: 0;
+      --radius-lg: 0;
+      --radius-xl: 0;
+      --radius-premium: 0;
+
+      /* Spacing - Apple's Generous Spacing */
       --space-xs: 0.25rem;
       --space-sm: 0.5rem;
       --space-md: 0.75rem;
@@ -59,7 +72,7 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     html {
@@ -68,7 +81,7 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
       font-weight: 400;
       line-height: 1.6;
       color: var(--text-primary);
@@ -76,6 +89,9 @@
       height: 100vh;
       overflow: hidden;
       position: relative;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
 
     body::before {
@@ -86,8 +102,9 @@
       right: 0;
       bottom: 0;
       background:
-        radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.02) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
+        radial-gradient(circle at 20% 80%, rgba(0, 122, 255, 0.03) 0%, transparent 60%),
+        radial-gradient(circle at 80% 20%, rgba(88, 86, 214, 0.02) 0%, transparent 60%),
+        radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
       pointer-events: none;
       z-index: 0;
     }
@@ -98,24 +115,29 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Custom Scrollbar */
+    /* Custom Scrollbar - Apple Style */
     ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+      width: 8px;
+      height: 8px;
     }
 
     ::-webkit-scrollbar-track {
       background: transparent;
+      border-radius: var(--radius-sm);
     }
 
     ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-      transition: background 0.3s ease;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: var(--radius-sm);
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     ::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.4);
+    }
+
+    ::-webkit-scrollbar-thumb:active {
+      background: rgba(255, 255, 255, 0.5);
     }
 
     /* Canvas Styling */
@@ -128,21 +150,21 @@
       z-index: 1;
     }
 
-    /* Header - More Angular */
+    /* Header - Tesla Ultra-Black Minimalism */
     .header {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-backdrop);
-      border-bottom: 2px solid var(--glass-border);
+      background: transparent;
+      backdrop-filter: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       z-index: 100;
       padding: var(--space-md) var(--space-lg);
-      height: 60px;
+      height: 64px;
       display: flex;
       align-items: center;
-      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px));
+      box-shadow: none;
     }
 
     .header-content {
@@ -155,8 +177,8 @@
     }
 
     .header-title {
-      font-size: 1.25rem;
-      font-weight: 800;
+      font-size: 1.3rem;
+      font-weight: 700;
       color: var(--text-primary);
       display: flex;
       align-items: center;
@@ -165,14 +187,13 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: -0.02em;
     }
 
     .header-title i {
-      color: var(--primary-accent);
-      font-size: 1.25rem;
-      filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+      color: var(--accent-color);
+      font-size: 1.3rem;
+      filter: drop-shadow(0 0 8px rgba(0, 122, 255, 0.4));
     }
 
     .header-actions {
@@ -182,24 +203,24 @@
     }
 
     .header-btn {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       color: var(--text-secondary);
-      padding: var(--space-sm) var(--space-md);
-      border-radius: var(--radius-sharp);
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: 0;
       cursor: pointer;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.875rem;
+      font-weight: 500;
       text-decoration: none;
       display: flex;
       align-items: center;
       gap: var(--space-xs);
-      backdrop-filter: var(--glass-backdrop);
+      backdrop-filter: none;
       position: relative;
       overflow: hidden;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+      letter-spacing: -0.01em;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      min-height: 36px;
     }
 
     .header-btn::before {
@@ -210,7 +231,7 @@
       width: 100%;
       height: 100%;
       background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-      transition: left 0.5s ease;
+      transition: left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     .header-btn:hover::before {
@@ -220,39 +241,45 @@
     .header-btn:hover {
       background: rgba(255, 255, 255, 0.05);
       color: var(--text-primary);
-      border-color: var(--primary-accent);
-      box-shadow: var(--shadow-glow);
-      transform: translateY(-1px);
+      border-color: var(--accent-color);
+      box-shadow: none;
+      transform: translateY(0);
+    }
+
+    .header-btn:active {
+      transform: translateY(0);
+      transition: transform 0.1s;
     }
 
     .header-btn.primary {
       background: var(--gradient-primary);
       color: var(--text-primary);
-      border-color: var(--primary-accent);
-      box-shadow: var(--shadow-md);
+      border-color: var(--accent-color);
+      box-shadow: none;
+      font-weight: 600;
     }
 
     .header-btn.primary:hover {
-      box-shadow: var(--shadow-glow);
-      transform: translateY(-2px);
+      box-shadow: none;
+      transform: translateY(0);
     }
 
-    /* Control Panels - More Compact & Angular */
+    /* Control Panels - Enhanced Dark Glassmorphism */
     .control-panel {
       position: fixed;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-backdrop);
-      border: 2px solid var(--glass-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-lg);
+      background: var(--glass-bg-dark);
+      backdrop-filter: var(--glass-backdrop-strong);
+      -webkit-backdrop-filter: var(--glass-backdrop-strong);
+      border: 1px solid var(--glass-border);
+      border-radius: 0;
+      padding: var(--space-xl);
       z-index: 50;
-      box-shadow: var(--glass-shadow);
-      min-width: 280px;
-      max-width: 320px;
-      max-height: calc(100vh - 80px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      min-width: 300px;
+      max-width: 340px;
+      max-height: calc(100vh - 90px);
       overflow-y: auto;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     .control-panel.collapsed {
@@ -266,13 +293,22 @@
     }
 
     .control-panel.left {
-      top: 80px;
+      top: 90px;
       left: var(--space-lg);
     }
 
     .control-panel.right {
-      top: 80px;
+      top: 90px;
       right: var(--space-lg);
+    }
+
+    .control-panel:hover {
+      background: var(--material-glass-accent);
+      border-color: var(--accent-color);
+      box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(0, 122, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
 
     /* Hide all panels when .panels-hidden is added to body */
@@ -296,73 +332,78 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: var(--space-lg);
-      padding-bottom: var(--space-sm);
-      border-bottom: 2px solid var(--glass-border);
+      margin-bottom: var(--space-xl);
+      padding-bottom: var(--space-md);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
       position: relative;
     }
 
     .panel-header::after {
       content: '';
       position: absolute;
-      bottom: -2px;
+      bottom: -1px;
       left: 0;
-      width: 40%;
+      width: 50%;
       height: 2px;
       background: var(--gradient-primary);
       opacity: 0.8;
-      clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 100%, 4px 100%);
+      border-radius: 1px;
     }
 
     .panel-title {
-      font-size: 1rem;
-      font-weight: 800;
+      font-size: 1.1rem;
+      font-weight: 700;
       color: var(--text-primary);
       display: flex;
       align-items: center;
       gap: var(--space-sm);
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: -0.02em;
     }
 
     .panel-title i {
-      color: var(--primary-accent);
-      filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5));
+      color: var(--accent-color);
+      filter: drop-shadow(0 0 4px rgba(0, 122, 255, 0.4));
     }
 
     .panel-toggle {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--glass-border);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       color: var(--text-muted);
       cursor: pointer;
-      padding: var(--space-xs);
-      border-radius: var(--radius-sm);
+      padding: var(--space-sm);
+      border-radius: 0;
       font-size: 1rem;
-      backdrop-filter: var(--glass-backdrop);
-      transition: all 0.3s ease;
+      backdrop-filter: none;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      min-width: 36px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .panel-toggle:hover {
       background: rgba(255, 255, 255, 0.1);
       color: var(--text-primary);
-      border-color: var(--primary-accent);
-      box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+      border-color: var(--accent-color);
+      box-shadow: none;
     }
 
-    /* Form Controls */
+    /* Form Controls - Tesla Ultra-Black Minimalism */
     .control-group {
       margin-bottom: var(--space-xl);
       padding: var(--space-lg);
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: var(--radius-md);
-      backdrop-filter: blur(10px);
-      transition: all 0.3s ease;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      backdrop-filter: none;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     .control-group:hover {
-      background: rgba(255, 255, 255, 0.03);
-      border-color: rgba(255, 255, 255, 0.1);
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
     }
 
     .control-group:last-child {
@@ -371,12 +412,11 @@
 
     .control-label {
       display: block;
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       font-weight: 600;
       color: var(--text-primary);
       margin-bottom: var(--space-sm);
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: -0.01em;
       background: var(--gradient-primary);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -384,11 +424,11 @@
     }
 
     .control-description {
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       color: var(--text-muted);
       margin-bottom: var(--space-md);
-      line-height: 1.6;
-      font-style: italic;
+      line-height: 1.5;
+      font-weight: 400;
     }
 
     /* Radio Groups */
@@ -403,13 +443,13 @@
       align-items: center;
       gap: var(--space-md);
       padding: var(--space-md);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       position: relative;
       overflow: hidden;
-      background: rgba(255, 255, 255, 0.02);
+      background: transparent;
     }
 
     .radio-option::before {
@@ -419,8 +459,8 @@
       left: -100%;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent);
-      transition: left 0.5s ease;
+      background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.1), transparent);
+      transition: left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     .radio-option:hover::before {
@@ -429,129 +469,284 @@
 
     .radio-option:hover {
       background: rgba(255, 255, 255, 0.05);
-      border-color: var(--primary-accent);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
+      border-color: var(--accent-color);
+      transform: translateY(0);
+      box-shadow: none;
     }
 
     .radio-option.selected {
-      background: rgba(0, 212, 255, 0.1);
-      border-color: var(--primary-accent);
-      box-shadow: 0 0 16px rgba(0, 212, 255, 0.3);
+      background: rgba(0, 122, 255, 0.1);
+      border-color: var(--accent-color);
+      box-shadow: none;
     }
 
     .radio-option input[type="radio"] {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       margin: 0;
-      accent-color: var(--primary-accent);
+      accent-color: var(--accent-color);
       position: relative;
     }
 
     .radio-option-label {
       font-size: 0.95rem;
       color: var(--text-primary);
-      font-weight: 600;
+      font-weight: 500;
     }
 
     .radio-option-description {
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       color: var(--text-muted);
       margin-top: 0.25rem;
       line-height: 1.4;
     }
 
-    /* Range Sliders */
+    /* Enhanced Range Sliders with Presets */
     .slider-container {
-      margin-bottom: var(--space-md);
+      margin-bottom: var(--space-lg);
+      position: relative;
     }
 
-    .slider-label {
+    .slider-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: var(--space-sm);
     }
 
+    .slider-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      flex: 1;
+    }
+
     .slider-value {
-      background: var(--glass-bg);
+      background: var(--glass-bg-light);
+      backdrop-filter: var(--glass-backdrop);
+      -webkit-backdrop-filter: var(--glass-backdrop);
       color: var(--text-primary);
-      padding: var(--space-xs) var(--space-sm);
-      border-radius: var(--radius-sm);
-      font-size: 0.85rem;
+      padding: var(--space-xs) var(--space-md);
+      border-radius: 0;
+      font-size: 0.875rem;
       font-weight: 600;
       min-width: 3.5rem;
       text-align: center;
-      border: 1px solid var(--glass-border);
-      backdrop-filter: var(--glass-backdrop);
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--glass-border-light);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slider-value::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.1), transparent);
+      transition: left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .slider-value.updating::before {
+      left: 100%;
+    }
+
+    .slider-reset {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-muted);
+      padding: var(--space-xs);
+      border-radius: 0;
+      cursor: pointer;
+      font-size: 0.75rem;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      opacity: 0.7;
+    }
+
+    .slider-reset:hover {
+      background: var(--material-glass-accent);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      opacity: 1;
+      transform: scale(1.1);
     }
 
     input[type="range"] {
       width: 100%;
-      height: 6px;
-      border-radius: 3px;
-      background: linear-gradient(to right, var(--primary-accent), rgba(255, 255, 255, 0.1));
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(to right, var(--accent-color), rgba(255, 255, 255, 0.15));
       outline: none;
       -webkit-appearance: none;
       appearance: none;
       cursor: pointer;
       position: relative;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      margin: var(--space-md) 0;
+    }
+
+    input[type="range"]:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+    }
+
+    input[type="range"]:active {
+      transform: translateY(0);
+    }
+
+    /* Enhanced Slider Tooltips */
+    .slider-tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--glass-bg-dark);
+      backdrop-filter: var(--glass-backdrop-strong);
+      -webkit-backdrop-filter: var(--glass-backdrop-strong);
+      color: var(--text-primary);
+      padding: var(--space-xs) var(--space-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid var(--glass-border);
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+      margin-bottom: var(--space-xs);
+    }
+
+    .slider-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 4px solid transparent;
+      border-top-color: var(--glass-border);
+    }
+
+    .slider-tooltip.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-4px);
+    }
+
+    /* Smart Value Indicators */
+    .value-indicator {
+      position: absolute;
+      right: -30px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+
+    .value-indicator.visible {
+      opacity: 1;
+    }
+
+    .value-indicator.performance-warning {
+      background: var(--accent-warning);
+      color: #000;
+    }
+
+    .value-indicator.performance-danger {
+      background: var(--accent-danger);
+      color: #fff;
+    }
+
+    .value-indicator.optimal {
+      background: var(--accent-success);
+      color: #000;
+    }
+
+    .value-indicator.info {
+      background: var(--accent-color);
+      color: #fff;
     }
 
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       background: var(--gradient-primary);
       cursor: pointer;
-      border: 2px solid rgba(255, 255, 255, 0.2);
+      border: 3px solid rgba(255, 255, 255, 0.4);
       box-shadow:
-        0 4px 12px rgba(0, 212, 255, 0.4),
-        0 0 0 4px rgba(0, 212, 255, 0.1);
-      transition: all 0.3s ease;
+        0 4px 12px rgba(0, 122, 255, 0.4),
+        0 0 0 4px rgba(0, 122, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      position: relative;
     }
 
     input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow:
+        0 6px 20px rgba(0, 122, 255, 0.6),
+        0 0 0 6px rgba(0, 122, 255, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    input[type="range"]::-webkit-slider-thumb:active {
       transform: scale(1.1);
       box-shadow:
-        0 6px 16px rgba(0, 212, 255, 0.6),
-        0 0 0 6px rgba(0, 212, 255, 0.2);
+        0 4px 16px rgba(0, 122, 255, 0.8),
+        0 0 0 8px rgba(0, 122, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
     input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: var(--gradient-primary);
       cursor: pointer;
-      border: 2px solid rgba(255, 255, 255, 0.2);
+      border: 3px solid rgba(255, 255, 255, 0.3);
       box-shadow:
-        0 4px 12px rgba(0, 212, 255, 0.4),
-        0 0 0 4px rgba(0, 212, 255, 0.1);
+        0 4px 12px rgba(0, 122, 255, 0.4),
+        0 0 0 4px rgba(0, 122, 255, 0.15);
     }
 
-    /* Select Dropdown */
+    /* Select Dropdown - Tesla Ultra-Black Minimalism */
     select {
       width: 100%;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       color: var(--text-primary);
-      padding: var(--space-md);
-      border-radius: var(--radius-md);
+      padding: var(--space-md) var(--space-lg);
+      border-radius: 0;
       font-size: 0.9rem;
       font-weight: 500;
       cursor: pointer;
       outline: none;
-      backdrop-filter: var(--glass-backdrop);
-      transition: all 0.3s ease;
+      backdrop-filter: none;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     select:focus {
-      border-color: var(--primary-accent);
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
+      border-color: var(--accent-color);
+      box-shadow: none;
     }
 
     select option {
@@ -560,39 +755,239 @@
       padding: var(--space-sm);
     }
 
-    /* Color Picker */
+    /* Color Picker - Tesla Ultra-Black Minimalism */
     input[type="color"] {
       width: 100%;
-      height: 48px;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-md);
+      height: 50px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 0;
       background: transparent;
       cursor: pointer;
       outline: none;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     input[type="color"]:hover {
-      border-color: var(--primary-accent);
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
+      border-color: var(--accent-color);
+      box-shadow: none;
     }
 
     input[type="color"]::-webkit-color-swatch {
       border: none;
-      border-radius: calc(var(--radius-md) - 2px);
+      border-radius: 0;
     }
 
-    /* Checkbox */
+    /* Color Presets System */
+    .color-presets-container {
+      margin-bottom: var(--space-md);
+    }
+
+    .color-presets-label {
+      margin-bottom: var(--space-sm);
+    }
+
+    .color-presets-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .color-preset {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: var(--space-sm);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-xs);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .color-preset::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.1), transparent);
+      transition: left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .color-preset:hover::before {
+      left: 100%;
+    }
+
+    .color-preset:hover {
+      border-color: var(--accent-color);
+      background: var(--material-glass-accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+    }
+
+    .color-preset.active {
+      border-color: var(--accent-color);
+      background: var(--material-glass-accent);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.3);
+    }
+
+    .color-preset.active::after {
+      content: '✓';
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      color: var(--accent-color);
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+
+    .preset-color {
+      width: 32px;
+      height: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preset-color::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: inherit;
+      opacity: 0.9;
+    }
+
+    .preset-name {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-align: center;
+      transition: color 0.3s ease;
+    }
+
+    .color-preset:hover .preset-name,
+    .color-preset.active .preset-name {
+      color: var(--text-primary);
+    }
+
+    .custom-color-container {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: var(--space-md);
+    }
+
+    /* Material Property Presets */
+    .material-presets-container {
+      margin: var(--space-lg) 0;
+      padding-top: var(--space-md);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .material-presets-label {
+      margin-bottom: var(--space-sm);
+    }
+
+    .material-presets-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .material-preset {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: var(--space-md) var(--space-sm);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-xs);
+      position: relative;
+      overflow: hidden;
+      min-height: 60px;
+    }
+
+    .material-preset::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.1), transparent);
+      transition: left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .material-preset:hover::before {
+      left: 100%;
+    }
+
+    .material-preset:hover {
+      border-color: var(--accent-color);
+      background: var(--material-glass-accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+    }
+
+    .material-preset.active {
+      border-color: var(--accent-color);
+      background: var(--material-glass-accent);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.3);
+    }
+
+    .material-preset.active::after {
+      content: '✓';
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      color: var(--accent-color);
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+
+    .preset-icon {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      transition: color 0.3s ease;
+    }
+
+    .material-preset:hover .preset-icon,
+    .material-preset.active .preset-icon {
+      color: var(--accent-color);
+    }
+
+    .material-preset .preset-name {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-align: center;
+      transition: color 0.3s ease;
+    }
+
+    .material-preset:hover .preset-name,
+    .material-preset.active .preset-name {
+      color: var(--text-primary);
+    }
+
+    /* Checkbox - Tesla Ultra-Black Minimalism */
     .checkbox-container {
       display: flex;
       align-items: center;
       gap: var(--space-md);
       padding: var(--space-md);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      background: rgba(255, 255, 255, 0.02);
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      background: transparent;
       position: relative;
       overflow: hidden;
     }
@@ -604,8 +999,8 @@
       left: -100%;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent);
-      transition: left 0.5s ease;
+      background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.1), transparent);
+      transition: left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     .checkbox-container:hover::before {
@@ -614,25 +1009,25 @@
 
     .checkbox-container:hover {
       background: rgba(255, 255, 255, 0.05);
-      border-color: var(--primary-accent);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
+      border-color: var(--accent-color);
+      transform: translateY(0);
+      box-shadow: none;
     }
 
     .checkbox-container.checked {
-      background: rgba(0, 212, 255, 0.1);
-      border-color: var(--primary-accent);
-      box-shadow: 0 0 16px rgba(0, 212, 255, 0.3);
+      background: rgba(0, 122, 255, 0.1);
+      border-color: var(--accent-color);
+      box-shadow: none;
     }
 
     input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       margin: 0;
-      accent-color: var(--primary-accent);
+      accent-color: var(--accent-color);
     }
 
-    /* Loading State */
+    /* Loading State - Tesla Ultra-Black Minimalism */
     .loading-container {
       position: fixed;
       top: 50%;
@@ -640,20 +1035,20 @@
       transform: translate(-50%, -50%);
       z-index: 1000;
       text-align: center;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-backdrop);
+      background: transparent;
+      backdrop-filter: none;
       padding: var(--space-2xl);
-      border-radius: var(--radius-xl);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-shadow);
-      min-width: 300px;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+      min-width: 320px;
     }
 
     .loading-spinner {
-      width: 60px;
-      height: 60px;
-      border: 4px solid rgba(255, 255, 255, 0.1);
-      border-top: 4px solid var(--primary-accent);
+      width: 64px;
+      height: 64px;
+      border: 4px solid rgba(255, 255, 255, 0.15);
+      border-top: 4px solid var(--accent-color);
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin: 0 auto var(--space-lg);
@@ -666,10 +1061,10 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 40px;
-      height: 40px;
-      border: 2px solid rgba(124, 58, 237, 0.3);
-      border-top: 2px solid var(--secondary-accent);
+      width: 42px;
+      height: 42px;
+      border: 2px solid rgba(88, 86, 214, 0.3);
+      border-top: 2px solid var(--accent-secondary);
       border-radius: 50%;
       animation: spin 1.5s linear infinite reverse;
     }
@@ -692,22 +1087,24 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      letter-spacing: -0.01em;
     }
 
-    /* Instructions Panel */
+    /* Instructions Panel - Enhanced Dark Glassmorphism */
     .instructions-panel {
       position: fixed;
       bottom: var(--space-xl);
       left: var(--space-xl);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-backdrop);
+      background: var(--glass-bg-dark);
+      backdrop-filter: var(--glass-backdrop-strong);
+      -webkit-backdrop-filter: var(--glass-backdrop-strong);
       border: 1px solid var(--glass-border);
-      border-radius: var(--radius-lg);
+      border-radius: 0;
       padding: var(--space-lg) var(--space-xl);
       z-index: 50;
-      box-shadow: var(--glass-shadow);
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      max-width: 350px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      max-width: 360px;
     }
 
     .instructions-panel.collapsed {
@@ -716,8 +1113,17 @@
       pointer-events: none;
     }
 
+    .instructions-panel:hover {
+      background: var(--material-glass-accent);
+      border-color: var(--accent-color);
+      box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(0, 122, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
     .instructions-panel h4 {
-      font-size: 1rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: var(--text-primary);
       margin-bottom: var(--space-md);
@@ -728,11 +1134,12 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      letter-spacing: -0.02em;
     }
 
     .instructions-panel h4 i {
-      color: var(--primary-accent);
-      filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5));
+      color: var(--accent-color);
+      filter: drop-shadow(0 0 4px rgba(0, 122, 255, 0.4));
     }
 
     .instruction-item {
@@ -754,20 +1161,20 @@
     }
 
     .kbd {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
+      background: var(--glass-bg-light);
+      backdrop-filter: var(--glass-backdrop);
+      -webkit-backdrop-filter: var(--glass-backdrop);
+      border: 1px solid var(--glass-border-light);
+      border-radius: 0;
       padding: var(--space-xs) var(--space-sm);
       font-size: 0.8rem;
       font-weight: 700;
       color: var(--text-primary);
       min-width: 2.5rem;
       text-align: center;
-      backdrop-filter: var(--glass-backdrop);
-      box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.2),
-        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
       position: relative;
+      transition: all 0.3s ease;
     }
 
     .kbd::before {
@@ -778,10 +1185,21 @@
       right: -1px;
       bottom: -1px;
       background: var(--gradient-primary);
-      border-radius: var(--radius-sm);
+      border-radius: 0;
       opacity: 0;
       transition: opacity 0.3s ease;
       z-index: -1;
+    }
+
+    .kbd:hover {
+      background: var(--material-glass-accent);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(0, 122, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transform: translateY(-1px);
     }
 
     .instruction-item:hover .kbd::before {
@@ -793,17 +1211,18 @@
       font-weight: 500;
     }
 
-    /* GitHub Link */
+    /* GitHub Link - Enhanced Dark Glassmorphism */
     .github-link {
       position: fixed;
       bottom: var(--space-xl);
       right: var(--space-xl);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-backdrop);
+      background: var(--glass-bg-dark);
+      backdrop-filter: var(--glass-backdrop-strong);
+      -webkit-backdrop-filter: var(--glass-backdrop-strong);
       border: 1px solid var(--glass-border);
-      border-radius: 50%;
-      width: 64px;
-      height: 64px;
+      border-radius: 0;
+      width: 68px;
+      height: 68px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -811,8 +1230,8 @@
       font-size: 1.5rem;
       text-decoration: none;
       z-index: 50;
-      box-shadow: var(--glass-shadow);
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       position: relative;
       overflow: hidden;
     }
@@ -826,8 +1245,8 @@
       bottom: 0;
       background: var(--gradient-primary);
       opacity: 0;
-      transition: all 0.3s ease;
-      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      border-radius: 0;
     }
 
     .github-link:hover::before {
@@ -836,11 +1255,13 @@
 
     .github-link:hover {
       color: var(--text-primary);
-      border-color: var(--primary-accent);
-      transform: translateY(-4px) scale(1.05);
+      border-color: var(--accent-color);
+      background: var(--material-glass-accent);
+      transform: translateY(0) scale(1);
       box-shadow:
-        var(--shadow-glow),
-        0 12px 24px rgba(0, 0, 0, 0.4);
+        0 12px 40px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(0, 122, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
 
     .github-link i {
@@ -946,11 +1367,11 @@
     /* Dark Mode Specific Enhancements */
     @media (prefers-color-scheme: dark) {
       .glass-bg {
-        background: rgba(255, 255, 255, 0.05);
+        background: transparent;
       }
 
       .glass-border {
-        border-color: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.1);
       }
     }
 
@@ -969,6 +1390,145 @@
         --glass-border: rgba(255, 255, 255, 0.3);
         --text-muted: rgba(255, 255, 255, 0.8);
       }
+    }
+
+    /* Debug UI Styling */
+    .debug-info-overlay {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 280px;
+      background: var(--glass-bg-dark);
+      backdrop-filter: var(--glass-backdrop-strong);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+      font-size: 0.85rem;
+      z-index: 1000;
+      animation: slideInRight 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .debug-info-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-md);
+      background: rgba(255, 149, 0, 0.1);
+      border-bottom: 1px solid var(--glass-border);
+      font-weight: 600;
+      color: var(--accent-warning);
+    }
+
+    .debug-info-header i {
+      margin-right: var(--space-sm);
+    }
+
+    .debug-info-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: var(--space-xs);
+      transition: color 0.3s ease;
+    }
+
+    .debug-info-close:hover {
+      color: var(--text-primary);
+    }
+
+    .debug-info-content {
+      padding: var(--space-md);
+    }
+
+    .debug-info-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: var(--space-sm);
+      padding: var(--space-xs) 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .debug-info-item:last-child {
+      margin-bottom: 0;
+      border-bottom: none;
+    }
+
+    .debug-info-label {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .debug-info-item span:last-child {
+      color: var(--accent-color);
+      font-weight: 600;
+    }
+
+    /* Debug controls styling */
+    #debug-mode-controls select {
+      width: 100%;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      padding: var(--space-sm);
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    #debug-mode-controls select:focus {
+      outline: none;
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+    }
+
+    #debug-mode-controls select option {
+      background: var(--primary-bg);
+      color: var(--text-primary);
+    }
+
+    #debug-export {
+      transition: all 0.3s ease;
+    }
+
+    #debug-export:hover {
+      background: var(--accent-warning) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+    }
+
+    /* Animation keyframes */
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
+
+    /* Debug mode indicator */
+    .debug-mode-active {
+      border-left: 3px solid var(--accent-warning) !important;
+    }
+
+    .debug-mode-active .control-label {
+      color: var(--accent-warning) !important;
+      background: none !important;
+      -webkit-text-fill-color: var(--accent-warning) !important;
     }
   </style>
 </head>
@@ -1065,9 +1625,14 @@
       </label>
       <div class="control-description">Higher counts provide more detail but require more processing power</div>
       <div class="slider-container">
-        <div class="slider-label">
-          <span>Particle Count</span>
-          <span class="slider-value" id="particle-count-value">70,000</span>
+        <div class="slider-header">
+          <div class="slider-label">
+            <span>Particle Count</span>
+            <span class="slider-value" id="particle-count-value">70,000</span>
+          </div>
+          <button class="slider-reset" onclick="resetSlider('particle-count-slider', 70000)" title="Reset to default">
+            <i class="fas fa-undo" style="font-size: 10px;"></i>
+          </button>
         </div>
         <input type="range" id="particle-count-slider" min="1" max="200000" value="70000" step="1000" />
         <div
@@ -1102,9 +1667,14 @@
       </label>
       <div class="control-description">Adjust the physical boundaries of the simulation space</div>
       <div class="slider-container">
-        <div class="slider-label">
-          <span id="slider-label">Boundary Size</span>
-          <span class="slider-value" id="slider-value">100</span>
+        <div class="slider-header">
+          <div class="slider-label">
+            <span id="slider-label">Boundary Size</span>
+            <span class="slider-value" id="slider-value">100</span>
+          </div>
+          <button class="slider-reset" onclick="resetSlider('slider', 100)" title="Reset to default">
+            <i class="fas fa-undo" style="font-size: 10px;"></i>
+          </button>
         </div>
         <input type="range" id="slider" min="0" max="100" value="100" />
         <div
@@ -1144,21 +1714,56 @@
     </div>
 
     <!-- Water Appearance Controls -->
-    <div id="water-appearance-controls">
-      <!-- Water Color -->
+    <div id="water-appearance-controls"> <!-- Water Color -->
       <div class="control-group">
         <label class="control-label">
           <i class="fas fa-tint" style="margin-right: 0.5rem; color: var(--tertiary-accent);"></i>
           Water Properties
         </label>
-        <div class="control-description">Adjust the fundamental appearance of water</div>
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center;">
-          <span style="font-size: 0.9rem; color: var(--text-secondary);">Base Color</span>
-          <input type="color" id="water-color" value="#3498db" style="width: 60px; height: 40px;" />
-        </div>
-      </div>
+        <div class="control-description">Choose from preset water types or customize your own color</div>
 
-      <!-- Material Properties -->
+        <!-- Color Presets -->
+        <div class="color-presets-container">
+          <div class="color-presets-label">
+            <span style="font-size: 0.9rem; color: var(--text-secondary);">Water Type Presets</span>
+          </div>
+          <div class="color-presets-grid">
+            <button class="color-preset active" data-color="#3498db" data-name="Ocean Blue" title="Ocean Blue">
+              <div class="preset-color" style="background: #3498db;"></div>
+              <span class="preset-name">Ocean</span>
+            </button>
+            <button class="color-preset" data-color="#2E8B57" data-name="Deep Sea" title="Deep Sea Green">
+              <div class="preset-color" style="background: #2E8B57;"></div>
+              <span class="preset-name">Deep Sea</span>
+            </button>
+            <button class="color-preset" data-color="#4682B4" data-name="Clear Lake" title="Clear Lake Blue">
+              <div class="preset-color" style="background: #4682B4;"></div>
+              <span class="preset-name">Lake</span>
+            </button>
+            <button class="color-preset" data-color="#20B2AA" data-name="Tropical" title="Tropical Turquoise">
+              <div class="preset-color" style="background: #20B2AA;"></div>
+              <span class="preset-name">Tropical</span>
+            </button>
+            <button class="color-preset" data-color="#483D8B" data-name="Deep Ocean" title="Deep Ocean Blue">
+              <div class="preset-color" style="background: #483D8B;"></div>
+              <span class="preset-name">Deep</span>
+            </button>
+            <button class="color-preset" data-color="#708090" data-name="Murky Water" title="Murky Gray Water">
+              <div class="preset-color" style="background: #708090;"></div>
+              <span class="preset-name">Murky</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Color Picker -->
+        <div class="custom-color-container">
+          <div
+            style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; margin-top: var(--space-md);">
+            <span style="font-size: 0.9rem; color: var(--text-secondary);">Custom Color</span>
+            <input type="color" id="water-color" value="#3498db" style="width: 60px; height: 40px;" />
+          </div>
+        </div>
+      </div> <!-- Material Properties -->
       <div class="control-group">
         <label class="control-label">
           <i class="fas fa-adjust" style="margin-right: 0.5rem; color: var(--secondary-accent);"></i>
@@ -1166,11 +1771,54 @@
         </label>
         <div class="control-description">Fine-tune the physical appearance of the water surface</div>
 
+        <!-- Material Property Presets -->
+        <div class="material-presets-container">
+          <div class="material-presets-label">
+            <span style="font-size: 0.9rem; color: var(--text-secondary);">Water Type Presets</span>
+          </div>
+          <div class="material-presets-grid">
+            <button class="material-preset active" data-opacity="80" data-reflectivity="50" data-surface="30"
+              data-name="Balanced Water" title="Balanced settings for general use">
+              <div class="preset-icon"><i class="fas fa-balance-scale"></i></div>
+              <span class="preset-name">Balanced</span>
+            </button>
+            <button class="material-preset" data-opacity="95" data-reflectivity="20" data-surface="10"
+              data-name="Clear Lake" title="Crystal clear calm water">
+              <div class="preset-icon"><i class="fas fa-gem"></i></div>
+              <span class="preset-name">Clear Lake</span>
+            </button>
+            <button class="material-preset" data-opacity="70" data-reflectivity="80" data-surface="15"
+              data-name="Mirror Surface" title="Highly reflective calm water">
+              <div class="preset-icon"><i class="fas fa-mirror"></i></div>
+              <span class="preset-name">Mirror</span>
+            </button>
+            <button class="material-preset" data-opacity="60" data-reflectivity="30" data-surface="70"
+              data-name="Stormy Ocean" title="Turbulent rough water">
+              <div class="preset-icon"><i class="fas fa-wind"></i></div>
+              <span class="preset-name">Stormy</span>
+            </button>
+            <button class="material-preset" data-opacity="85" data-reflectivity="15" data-surface="5"
+              data-name="Swimming Pool" title="Clean transparent pool water">
+              <div class="preset-icon"><i class="fas fa-swimming-pool"></i></div>
+              <span class="preset-name">Pool</span>
+            </button>
+            <button class="material-preset" data-opacity="50" data-reflectivity="10" data-surface="40"
+              data-name="Murky Swamp" title="Dark muddy water">
+              <div class="preset-icon"><i class="fas fa-seedling"></i></div>
+              <span class="preset-name">Swamp</span>
+            </button>
+          </div>
+        </div>
         <!-- Transparency -->
         <div class="slider-container">
-          <div class="slider-label">
-            <span>Opacity</span>
-            <span class="slider-value" id="transparency-value">80%</span>
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Opacity</span>
+              <span class="slider-value" id="transparency-value">80%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('transparency', 80)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
           </div>
           <input type="range" id="transparency" min="0" max="100" value="80" />
           <div
@@ -1178,13 +1826,16 @@
             <span>Transparent</span>
             <span>Opaque</span>
           </div>
-        </div>
-
-        <!-- Reflectivity -->
+        </div> <!-- Reflectivity -->
         <div class="slider-container">
-          <div class="slider-label">
-            <span>Surface Reflection</span>
-            <span class="slider-value" id="reflectivity-value">50%</span>
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Surface Reflection</span>
+              <span class="slider-value" id="reflectivity-value">50%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('reflectivity', 50)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
           </div>
           <input type="range" id="reflectivity" min="0" max="100" value="50" />
           <div
@@ -1192,13 +1843,16 @@
             <span>Matte</span>
             <span>Mirror</span>
           </div>
-        </div>
-
-        <!-- Wave Height -->
+        </div> <!-- Wave Height -->
         <div class="slider-container">
-          <div class="slider-label">
-            <span>Surface Detail</span>
-            <span class="slider-value" id="wave-height-value">30%</span>
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Surface Detail</span>
+              <span class="slider-value" id="wave-height-value">30%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('wave-height', 30)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
           </div>
           <input type="range" id="wave-height" min="0" max="100" value="30" />
           <div
@@ -1207,6 +1861,82 @@
             <span>Turbulent</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Debug Mode Controls -->
+    <div class="control-group">
+      <label class="control-label">
+        <i class="fas fa-bug" style="margin-right: 0.5rem; color: var(--accent-warning);"></i>
+        Debug Visualization
+      </label>
+      <div class="control-description">Advanced debugging tools for developers and researchers</div>
+
+      <!-- Debug Mode Toggle -->
+      <div class="checkbox-container" id="debug-mode-checkbox">
+        <input type="checkbox" id="debug-mode-enabled">
+        <div>
+          <div class="radio-option-label">Enable Debug Mode</div>
+          <div class="radio-option-description">Activate visual debugging layers</div>
+        </div>
+      </div>
+
+      <!-- Debug Mode Selector -->
+      <div id="debug-mode-controls" style="display: none; margin-top: 1rem;">
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">Debug
+            Mode</label>
+          <select id="debug-mode-select">
+            <option value="0">None</option>
+            <option value="1">Depth Map</option>
+            <option value="2">Thickness Map</option>
+            <option value="3">Surface Normals</option>
+            <option value="4">Absorption Effects</option>
+            <option value="5">Velocity Field</option>
+            <option value="6">Pressure Distribution</option>
+            <option value="7">Surface Curvature</option>
+            <option value="8">Fresnel Effects</option>
+            <option value="9">Caustics Patterns</option>
+            <option value="10">Refraction Rays</option>
+          </select>
+        </div>
+
+        <!-- Debug Layer Selector -->
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">Debug
+            Layer</label>
+          <select id="debug-layer-select">
+            <option value="0">Raw Data</option>
+            <option value="1">Filtered Data</option>
+            <option value="2">Differential</option>
+          </select>
+        </div>
+
+        <!-- Debug Intensity Slider -->
+        <div class="slider-container">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Debug Intensity</span>
+              <span class="slider-value" id="debug-intensity-value">100%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('debug-intensity', 100)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="debug-intensity" min="0" max="100" value="100" />
+          <div
+            style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+            <span>Subtle</span>
+            <span>Full</span>
+          </div>
+        </div>
+
+        <!-- Debug Export Button -->
+        <button id="debug-export" class="header-btn"
+          style="width: 100%; margin-top: 1rem; background: var(--accent-warning); color: #000;">
+          <i class="fas fa-download"></i>
+          <span>Export Debug Screenshot</span>
+        </button>
       </div>
     </div>
   </div> <!-- Instructions Panel -->
@@ -1248,6 +1978,10 @@
         <span class="instruction-text">Toggle this instructions panel</span>
       </div>
       <div class="instruction-item">
+        <span class="kbd">D</span>
+        <span class="instruction-text">Toggle debug visualization mode</span>
+      </div>
+      <div class="instruction-item">
         <span class="kbd">Space</span>
         <span class="instruction-text">Hide all interface panels</span>
       </div>
@@ -1267,10 +2001,42 @@
 
   <!-- Canvas -->
   <canvas id="fluidCanvas"></canvas>
-
   <!-- Debug Info (hidden by default) -->
   <div id="debug-info" style="display: none;">
     <span id="error-reason"></span>
+  </div>
+
+  <!-- Debug Info Overlay -->
+  <div id="debug-info-overlay" class="debug-info-overlay" style="display: none;">
+    <div class="debug-info-header">
+      <i class="fas fa-bug"></i>
+      <span>Debug Information</span>
+      <button id="debug-info-close" class="debug-info-close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="debug-info-content">
+      <div class="debug-info-item">
+        <span class="debug-info-label">Current Mode:</span>
+        <span id="debug-current-mode">None</span>
+      </div>
+      <div class="debug-info-item">
+        <span class="debug-info-label">Layer:</span>
+        <span id="debug-current-layer">Raw Data</span>
+      </div>
+      <div class="debug-info-item">
+        <span class="debug-info-label">Intensity:</span>
+        <span id="debug-current-intensity">100%</span>
+      </div>
+      <div class="debug-info-item">
+        <span class="debug-info-label">Frame Rate:</span>
+        <span id="debug-fps">--</span>
+      </div>
+      <div class="debug-info-item">
+        <span class="debug-info-label">Particles:</span>
+        <span id="debug-particle-count">--</span>
+      </div>
+    </div>
   </div>
   <script>
     // Global panel visibility state
@@ -1551,9 +2317,7 @@
       // Prevent shortcuts when typing in input fields
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
         return;
-      }
-
-      // Visual feedback for key presses
+      }      // Visual feedback for key presses
       const showKeyFeedback = (key) => {
         const feedback = document.createElement('div');
         feedback.textContent = key;
@@ -1562,14 +2326,14 @@
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          background: var(--glass-bg);
-          border: 1px solid var(--glass-border);
-          border-radius: var(--radius-md);
+          background: transparent;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 0;
           padding: var(--space-md) var(--space-lg);
           color: var(--text-primary);
           font-weight: 700;
           font-size: 1.2rem;
-          backdrop-filter: var(--glass-backdrop);
+          backdrop-filter: none;
           z-index: 9999;
           pointer-events: none;
           animation: keyFeedback 0.8s ease-out forwards;
@@ -1623,9 +2387,449 @@
           transform: scale(4);
           opacity: 0;
         }
+      }    `;
+    document.head.appendChild(style);    // Color Preset Functionality
+    function initializeColorPresets() {
+      const colorPresets = document.querySelectorAll('.color-preset');
+      const waterColorInput = document.getElementById('water-color');
+
+      colorPresets.forEach(preset => {
+        preset.addEventListener('click', function (e) {
+          e.preventDefault();
+
+          // Remove active class from all presets
+          colorPresets.forEach(p => p.classList.remove('active'));
+
+          // Add active class to clicked preset
+          this.classList.add('active');
+
+          // Get the color value
+          const color = this.dataset.color;
+          const name = this.dataset.name;          // Update the color input
+          if (waterColorInput) {
+            waterColorInput.value = color;
+            // Trigger both input and change events to update the simulation
+            waterColorInput.dispatchEvent(new Event('input', { bubbles: true }));
+            waterColorInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+
+          // Add visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            this.style.transform = '';
+          }, 150);
+
+          // Show feedback toast
+          showColorPresetFeedback(name, color);
+        });
+      });
+
+      // Handle custom color picker changes
+      if (waterColorInput) {
+        waterColorInput.addEventListener('change', function () {
+          // Remove active class from all presets when custom color is selected
+          colorPresets.forEach(p => p.classList.remove('active'));
+        });
+      }
+    }
+
+    // Material Preset Functionality
+    function initializeMaterialPresets() {
+      const materialPresets = document.querySelectorAll('.material-preset');
+      const transparencySlider = document.getElementById('transparency');
+      const reflectivitySlider = document.getElementById('reflectivity');
+      const waveHeightSlider = document.getElementById('wave-height');
+
+      materialPresets.forEach(preset => {
+        preset.addEventListener('click', function (e) {
+          e.preventDefault();
+
+          // Remove active class from all presets
+          materialPresets.forEach(p => p.classList.remove('active'));
+
+          // Add active class to clicked preset
+          this.classList.add('active');
+
+          // Get the preset values
+          const opacity = parseInt(this.dataset.opacity);
+          const reflectivity = parseInt(this.dataset.reflectivity);
+          const surface = parseInt(this.dataset.surface);
+          const name = this.dataset.name;
+
+          // Update sliders with smooth animation
+          updateSliderWithAnimation(transparencySlider, opacity, 'transparency-value', '%');
+          updateSliderWithAnimation(reflectivitySlider, reflectivity, 'reflectivity-value', '%');
+          updateSliderWithAnimation(waveHeightSlider, surface, 'wave-height-value', '%');
+
+          // Add visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            this.style.transform = '';
+          }, 150);
+
+          // Show feedback toast
+          showMaterialPresetFeedback(name);
+        });
+      });
+
+      // Handle manual slider changes to deactivate presets
+      [transparencySlider, reflectivitySlider, waveHeightSlider].forEach(slider => {
+        if (slider) {
+          slider.addEventListener('input', function () {
+            // Check if current values match any preset
+            const currentOpacity = parseInt(transparencySlider?.value || 0);
+            const currentReflectivity = parseInt(reflectivitySlider?.value || 0);
+            const currentSurface = parseInt(waveHeightSlider?.value || 0);
+
+            let matchFound = false;
+            materialPresets.forEach(preset => {
+              const presetOpacity = parseInt(preset.dataset.opacity);
+              const presetReflectivity = parseInt(preset.dataset.reflectivity);
+              const presetSurface = parseInt(preset.dataset.surface);
+
+              if (currentOpacity === presetOpacity &&
+                currentReflectivity === presetReflectivity &&
+                currentSurface === presetSurface) {
+                preset.classList.add('active');
+                matchFound = true;
+              } else {
+                preset.classList.remove('active');
+              }
+            });
+          });
+        }
+      });
+    }
+
+    function updateSliderWithAnimation(slider, value, valueId, suffix = '') {
+      if (!slider) return;
+
+      const valueDisplay = document.getElementById(valueId);
+      const startValue = parseInt(slider.value);
+      const endValue = value;
+      const duration = 500; // milliseconds
+      const startTime = performance.now();
+
+      function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Easing function (ease-out)
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.round(startValue + (endValue - startValue) * easeOut);
+
+        slider.value = currentValue;
+        if (valueDisplay) {
+          valueDisplay.textContent = currentValue + suffix;
+          valueDisplay.classList.add('updating');
+        }
+
+        // Trigger events
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          // Final update
+          slider.value = endValue;
+          if (valueDisplay) {
+            valueDisplay.textContent = endValue + suffix;
+            setTimeout(() => valueDisplay.classList.remove('updating'), 100);
+          }
+          slider.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+
+      requestAnimationFrame(animate);
+    } function showMaterialPresetFeedback(name) {
+      const feedback = document.createElement('div');
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <i class="fas fa-sliders-h" style="color: var(--accent-color);"></i>
+          <span>${name} Applied</span>
+        </div>
+      `;
+      feedback.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--glass-bg-light);
+        backdrop-filter: var(--glass-backdrop);
+        -webkit-backdrop-filter: var(--glass-backdrop);
+        border: 1px solid var(--glass-border);
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        z-index: 9999;
+        pointer-events: none;
+        animation: slideInFadeOut 2.5s ease-out forwards;
+        border-radius: 0;
+      `;
+
+      document.body.appendChild(feedback);
+      setTimeout(() => feedback.remove(), 2500);
+    }
+
+    // Add slide in fade out animation
+    const colorStyle = document.createElement('style');
+    colorStyle.textContent = `
+      @keyframes slideInFadeOut {
+        0% {
+          opacity: 0;
+          transform: translateX(100%);
+        }
+        15%, 85% {
+          opacity: 1;
+          transform: translateX(0);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(100%);
+        }
       }
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(colorStyle);
+
+    // Slider reset functionality
+    function resetSlider(sliderId, defaultValue) {
+      const slider = document.getElementById(sliderId);
+      const valueDisplay = document.getElementById(sliderId + '-value') ||
+        document.getElementById(sliderId.replace('-slider', '-value'));
+
+      if (slider) {
+        slider.value = defaultValue;
+
+        // Trigger change event
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        slider.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Update value display if it exists
+        if (valueDisplay) {
+          if (sliderId.includes('particle-count')) {
+            valueDisplay.textContent = (defaultValue / 1000).toFixed(0) + 'K';
+          } else if (sliderId.includes('transparency') || sliderId.includes('reflectivity') || sliderId.includes('wave-height')) {
+            valueDisplay.textContent = defaultValue + '%';
+          } else {
+            valueDisplay.textContent = defaultValue;
+          }
+
+          // Add updating animation
+          valueDisplay.classList.add('updating');
+          setTimeout(() => valueDisplay.classList.remove('updating'), 600);
+        }
+
+        // Visual feedback
+        const resetButton = event.target;
+        resetButton.style.transform = 'scale(0.8)';
+        setTimeout(() => {
+          resetButton.style.transform = '';
+        }, 150);
+      }
+    }    // Initialize color presets when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeColorPresets();
+      initializeMaterialPresets();
+      initializeSliderTooltips(); initializeSliderEnhancements();
+      initializeSmartValueIndicators();
+    });
+
+    // If DOM is already loaded, initialize immediately
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        initializeColorPresets();
+        initializeMaterialPresets();
+        initializeSliderTooltips();
+        initializeSliderEnhancements();
+        initializeSmartValueIndicators();
+      });
+    } else {
+      initializeColorPresets();
+      initializeMaterialPresets();
+      initializeSliderTooltips();
+      initializeSliderEnhancements();
+      initializeSmartValueIndicators();
+    }
+
+    // Enhanced Slider Functionality
+    function initializeSliderTooltips() {
+      const sliders = document.querySelectorAll('input[type="range"]');
+
+      sliders.forEach(slider => {
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'slider-tooltip';
+
+        // Position tooltip container
+        const container = slider.closest('.slider-container');
+        if (container) {
+          container.style.position = 'relative';
+          container.appendChild(tooltip);
+        }
+
+        // Update tooltip content and position
+        function updateTooltip() {
+          const value = slider.value;
+          const min = slider.min;
+          const max = slider.max;
+          const percentage = ((value - min) / (max - min)) * 100;
+
+          // Format value based on slider type
+          let displayValue = value;
+          if (slider.id.includes('particle-count')) {
+            displayValue = (value / 1000).toFixed(0) + 'K particles';
+          } else if (slider.id.includes('transparency') || slider.id.includes('reflectivity') || slider.id.includes('wave-height')) {
+            displayValue = value + '%';
+          }
+
+          tooltip.textContent = displayValue;
+          tooltip.style.left = percentage + '%';
+        }
+
+        // Show tooltip on interaction
+        slider.addEventListener('mousedown', () => {
+          updateTooltip();
+          tooltip.classList.add('visible');
+        });
+
+        slider.addEventListener('mousemove', updateTooltip);
+        slider.addEventListener('input', updateTooltip);
+
+        // Hide tooltip when interaction ends
+        slider.addEventListener('mouseup', () => {
+          setTimeout(() => tooltip.classList.remove('visible'), 1000);
+        });
+
+        slider.addEventListener('mouseleave', () => {
+          tooltip.classList.remove('visible');
+        });
+      });
+    }
+
+    function initializeSliderEnhancements() {
+      const sliders = document.querySelectorAll('input[type="range"]');
+
+      sliders.forEach(slider => {
+        // Add smooth value updates
+        slider.addEventListener('input', function () {
+          const valueDisplay = this.closest('.slider-container').querySelector('.slider-value');
+          if (valueDisplay) {
+            valueDisplay.classList.add('updating');
+            setTimeout(() => valueDisplay.classList.remove('updating'), 300);
+          }
+        });
+
+        // Add keyboard navigation enhancement
+        slider.addEventListener('keydown', function (e) {
+          const step = parseFloat(this.step) || 1;
+          const largeStep = step * 10;
+
+          switch (e.key) {
+            case 'PageUp':
+              e.preventDefault();
+              this.value = Math.min(parseFloat(this.max), parseFloat(this.value) + largeStep);
+              this.dispatchEvent(new Event('input', { bubbles: true }));
+              break;
+            case 'PageDown':
+              e.preventDefault();
+              this.value = Math.max(parseFloat(this.min), parseFloat(this.value) - largeStep);
+              this.dispatchEvent(new Event('input', { bubbles: true }));
+              break;
+            case 'Home':
+              e.preventDefault();
+              this.value = this.min;
+              this.dispatchEvent(new Event('input', { bubbles: true }));
+              break;
+            case 'End':
+              e.preventDefault();
+              this.value = this.max;
+              this.dispatchEvent(new Event('input', { bubbles: true }));
+              break;
+          }
+        });
+        // Add double-click to reset functionality
+        slider.addEventListener('dblclick', function () {
+          const resetButton = this.closest('.slider-container').querySelector('.slider-reset');
+          if (resetButton) {
+            resetButton.click();
+          }
+        });
+      });
+    }
+
+    function initializeSmartValueIndicators() {
+      const sliders = document.querySelectorAll('input[type="range"]');
+
+      sliders.forEach(slider => {
+        // Create indicator element
+        const indicator = document.createElement('div');
+        indicator.className = 'value-indicator';
+
+        const valueContainer = slider.closest('.slider-container').querySelector('.slider-value');
+        if (valueContainer) {
+          valueContainer.parentElement.style.position = 'relative';
+          valueContainer.parentElement.appendChild(indicator);
+        }
+
+        function updateIndicator() {
+          const value = parseInt(slider.value);
+          const max = parseInt(slider.max);
+          const min = parseInt(slider.min);
+
+          // Reset classes
+          indicator.classList.remove('performance-warning', 'performance-danger', 'optimal', 'info', 'visible');
+
+          if (slider.id.includes('particle-count')) {
+            if (value > 150000) {
+              indicator.classList.add('performance-danger', 'visible');
+              indicator.textContent = '⚠';
+              indicator.title = 'Very high particle count - may impact performance';
+            } else if (value > 100000) {
+              indicator.classList.add('performance-warning', 'visible');
+              indicator.textContent = '⚡';
+              indicator.title = 'High particle count - monitor performance';
+            } else if (value >= 50000 && value <= 100000) {
+              indicator.classList.add('optimal', 'visible');
+              indicator.textContent = '✓';
+              indicator.title = 'Optimal particle count for most systems';
+            }
+          } else if (slider.id.includes('transparency')) {
+            if (value < 20) {
+              indicator.classList.add('info', 'visible');
+              indicator.textContent = '👁';
+              indicator.title = 'Very transparent - may be hard to see';
+            } else if (value > 95) {
+              indicator.classList.add('info', 'visible');
+              indicator.textContent = '🌊';
+              indicator.title = 'Nearly opaque water';
+            }
+          } else if (slider.id.includes('reflectivity')) {
+            if (value > 80) {
+              indicator.classList.add('info', 'visible');
+              indicator.textContent = '✨';
+              indicator.title = 'Mirror-like surface';
+            } else if (value < 10) {
+              indicator.classList.add('info', 'visible');
+              indicator.textContent = '🌫';
+              indicator.title = 'Matte surface - minimal reflections';
+            }
+          } else if (slider.id.includes('wave-height')) {
+            if (value > 70) {
+              indicator.classList.add('performance-warning', 'visible');
+              indicator.textContent = '🌊';
+              indicator.title = 'Very turbulent - high surface detail';
+            } else if (value < 10) {
+              indicator.classList.add('info', 'visible');
+              indicator.textContent = '💧';
+              indicator.title = 'Very calm surface';
+            }
+          }
+        }
+
+        slider.addEventListener('input', updateIndicator);
+        updateIndicator(); // Initial check
+      });
+    }
   </script>
 
   <script type="module" src="main.ts"></script>

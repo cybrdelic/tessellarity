@@ -28,27 +28,27 @@ export class FluidRenderer {
     thicknessFilterBindGroups: GPUBindGroup[]
     fluidBindGroup: GPUBindGroup
     sphereBindGroup: GPUBindGroup
-
-
     device: GPUDevice
     renderUniformBuffer: GPUBuffer
     waterAppearanceBuffer: GPUBuffer
+    debugModeBuffer: GPUBuffer
     sampler: GPUSampler
 
     constructor(
         device: GPUDevice,
-        canvas: HTMLCanvasElement,
-        presentationFormat: GPUTextureFormat,
+        canvas: HTMLCanvasElement, presentationFormat: GPUTextureFormat,
         radius: number,
         fov: number,
         posvelBuffer: GPUBuffer,
         renderUniformBuffer: GPUBuffer,
         cubemapTextureView: GPUTextureView,
-        waterAppearanceBuffer: GPUBuffer
+        waterAppearanceBuffer: GPUBuffer,
+        debugModeBuffer: GPUBuffer
     ) {
         this.device = device
         this.renderUniformBuffer = renderUniformBuffer
         this.waterAppearanceBuffer = waterAppearanceBuffer
+        this.debugModeBuffer = debugModeBuffer
 
         const maxFilterSize = 100
         const blurdDepthScale = 10
@@ -328,8 +328,7 @@ export class FluidRenderer {
                     { binding: 2, resource: { buffer: filterYUniformBuffer } },
                 ],
             }),
-        ]
-
+        ];
         this.fluidBindGroup = device.createBindGroup({
             label: 'fluid bind group',
             layout: this.fluidPipeline.getBindGroupLayout(0),
@@ -340,6 +339,7 @@ export class FluidRenderer {
                 { binding: 3, resource: this.thicknessTextureView },
                 { binding: 4, resource: cubemapTextureView },
                 { binding: 5, resource: { buffer: waterAppearanceBuffer } },
+                { binding: 6, resource: { buffer: debugModeBuffer } },
             ],
         })
 
@@ -533,9 +533,7 @@ export class FluidRenderer {
             }
 
             newCubemapTextureView = dummyTexture.createView({ dimension: 'cube' });
-        }
-
-        // Recreate fluid bind group with new environment texture
+        }        // Recreate fluid bind group with new environment texture
         this.fluidBindGroup = this.device.createBindGroup({
             label: 'fluid bind group',
             layout: this.fluidPipeline.getBindGroupLayout(0),
@@ -546,7 +544,47 @@ export class FluidRenderer {
                 { binding: 3, resource: this.thicknessTextureView },
                 { binding: 4, resource: newCubemapTextureView },
                 { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
+                { binding: 6, resource: { buffer: this.debugModeBuffer } },
             ],
         });
+    }
+
+    /**
+     * Set debug visualization mode
+     * @param mode - The debug visualization mode
+     * @param layer - The debug layer (raw, filtered, differential)
+     * @param intensity - The visualization intensity (0.0 - 3.0)
+     */
+    setDebugMode(mode: number, layer: number = 0, intensity: number = 1.0): void {
+        const debugModeValues = new ArrayBuffer(16);
+        const modeView = new Uint32Array(debugModeValues, 0, 1);
+        const layerView = new Uint32Array(debugModeValues, 4, 1);
+        const intensityView = new Float32Array(debugModeValues, 8, 1);
+
+        modeView[0] = mode;
+        layerView[0] = layer;
+        intensityView[0] = intensity;
+
+        this.device.queue.writeBuffer(this.debugModeBuffer, 0, debugModeValues);
+    }
+
+    /**
+     * Get available debug modes
+     * @returns Array of debug mode names
+     */
+    getAvailableDebugModes(): string[] {
+        return [
+            'Normal Rendering',
+            'Depth Map',
+            'Thickness Map',
+            'Surface Normals',
+            'Light Absorption',
+            'Flow Velocity',
+            'Pressure Field',
+            'Surface Curvature',
+            'Fresnel Effect',
+            'Caustics Pattern',
+            'Refraction Vectors'
+        ];
     }
 }
