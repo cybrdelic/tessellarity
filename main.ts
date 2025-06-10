@@ -5,7 +5,7 @@ import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews } from './common'
+import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews } from './common'
 import { FluidRenderer } from './render/fluidRender'
 import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
 
@@ -170,13 +170,37 @@ async function main() {
 		size: waterAppearanceValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
-
 	// Create debug mode buffer
 	const debugModeBuffer = device.createBuffer({
 		label: 'debug mode buffer',
 		size: debugModeValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
+
+	// Create effects toggle buffer
+	const effectsToggleBuffer = device.createBuffer({
+		label: 'effects toggle buffer',
+		size: effectsToggleValues.byteLength,
+		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+	});
+
+	// Initialize effects toggle (all enabled by default)
+	effectsToggleViews.enableReynoldsPhysics[0] = 1;
+	effectsToggleViews.enableCavitation[0] = 1;
+	effectsToggleViews.enableFoam[0] = 1;
+	effectsToggleViews.enableTurbulentNormals[0] = 1;
+	effectsToggleViews.enableSpecular[0] = 1;
+	effectsToggleViews.enableSubsurface[0] = 1;
+	effectsToggleViews.enableFresnel[0] = 1;
+	effectsToggleViews.enableReflection[0] = 1;
+	effectsToggleViews.enableRefraction[0] = 1;
+	effectsToggleViews.enableCaustics[0] = 1;
+	effectsToggleViews.enableDispersion[0] = 1;
+	effectsToggleViews.enableAbsorption[0] = 1;
+	effectsToggleViews.enableDepthColoring[0] = 1;
+	effectsToggleViews.enableVelocityColoring[0] = 1;
+	effectsToggleViews.enableRimLighting[0] = 1;
+	device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
 
 	// Initialize debug mode (disabled by default)
 	debugModeViews.mode[0] = DebugVisualizationMode.NONE;
@@ -267,7 +291,8 @@ async function main() {
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer,
-		debugModeBuffer
+		debugModeBuffer,
+		effectsToggleBuffer
 	);
 
 	const sphRenderer = new FluidRenderer(
@@ -280,7 +305,8 @@ async function main() {
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer,
-		debugModeBuffer
+		debugModeBuffer,
+		effectsToggleBuffer
 	);
 
 	const boidsRenderer = new FluidRenderer(
@@ -293,7 +319,8 @@ async function main() {
 		renderUniformBuffer,
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer,
-		debugModeBuffer
+		debugModeBuffer,
+		effectsToggleBuffer
 	);
 
 	console.log("simulator initialization done")
@@ -565,12 +592,11 @@ async function main() {
 	let debugModeActive = false;
 	let frameCount = 0;
 	let lastFrameTime = performance.now();
-
 	// Update debug info display
 	function updateDebugInfo() {
 		const modeNames = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
-			'Caustics Patterns', 'Refraction Rays'];
+			'Caustics Patterns', 'Refraction Rays', 'Combined Variation'];
 		const layerNames = ['Raw Data', 'Filtered Data', 'Differential'];
 
 		debugCurrentMode.textContent = modeNames[debugModeViews.mode[0]] || 'Unknown';
@@ -699,13 +725,39 @@ async function main() {
 			updateDebugInfo();
 		}
 	}
-
 	// Keyboard shortcut for debug mode (D key)
 	document.addEventListener('keydown', (e) => {
 		if (e.code === 'KeyD' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
 			debugModeEnabled.click();
 		}
 	});
+	// Expose global function for effects toggle updates
+	(window as any).updateEffectsToggle = (index: number, enabled: boolean) => {
+		// Update the specific effect in the effects toggle buffer
+		const effectKeys = [
+			'enableReynoldsPhysics', 'enableCavitation', 'enableFoam', 'enableTurbulentNormals',
+			'enableSpecular', 'enableSubsurface', 'enableFresnel', 'enableReflection',
+			'enableRefraction', 'enableCaustics', 'enableDispersion', 'enableAbsorption',
+			'enableDepthColoring', 'enableVelocityColoring', 'enableRimLighting'
+		];
+
+		if (index >= 0 && index < effectKeys.length) {
+			const effectKey = effectKeys[index] as keyof typeof effectsToggleViews;
+			effectsToggleViews[effectKey][0] = enabled ? 1 : 0;
+
+			// Write the updated buffer to GPU
+			device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
+
+			// Update all renderer instances with the current effects toggle buffer
+			mlsmpmRenderer.updateEffectsToggles(effectsToggleValues);
+			sphRenderer.updateEffectsToggles(effectsToggleValues);
+			boidsRenderer.updateEffectsToggles(effectsToggleValues);
+
+			console.log(`Updated effect ${effectKey} (index ${index}) to ${enabled ? 'enabled' : 'disabled'}`);
+		} else {
+			console.error(`Invalid effect index: ${index}`);
+		}
+	};
 }
 
 main()

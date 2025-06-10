@@ -32,6 +32,7 @@ export class FluidRenderer {
     renderUniformBuffer: GPUBuffer
     waterAppearanceBuffer: GPUBuffer
     debugModeBuffer: GPUBuffer
+    effectsToggleBuffer: GPUBuffer
     sampler: GPUSampler
 
     constructor(
@@ -43,12 +44,14 @@ export class FluidRenderer {
         renderUniformBuffer: GPUBuffer,
         cubemapTextureView: GPUTextureView,
         waterAppearanceBuffer: GPUBuffer,
-        debugModeBuffer: GPUBuffer
+        debugModeBuffer: GPUBuffer,
+        effectsToggleBuffer: GPUBuffer
     ) {
         this.device = device
         this.renderUniformBuffer = renderUniformBuffer
         this.waterAppearanceBuffer = waterAppearanceBuffer
         this.debugModeBuffer = debugModeBuffer
+        this.effectsToggleBuffer = effectsToggleBuffer
 
         const maxFilterSize = 100
         const blurdDepthScale = 10
@@ -328,8 +331,7 @@ export class FluidRenderer {
                     { binding: 2, resource: { buffer: filterYUniformBuffer } },
                 ],
             }),
-        ];
-        this.fluidBindGroup = device.createBindGroup({
+        ]; this.fluidBindGroup = device.createBindGroup({
             label: 'fluid bind group',
             layout: this.fluidPipeline.getBindGroupLayout(0),
             entries: [
@@ -340,6 +342,7 @@ export class FluidRenderer {
                 { binding: 4, resource: cubemapTextureView },
                 { binding: 5, resource: { buffer: waterAppearanceBuffer } },
                 { binding: 6, resource: { buffer: debugModeBuffer } },
+                { binding: 7, resource: { buffer: effectsToggleBuffer } },
             ],
         })
 
@@ -545,11 +548,10 @@ export class FluidRenderer {
                 { binding: 4, resource: newCubemapTextureView },
                 { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
                 { binding: 6, resource: { buffer: this.debugModeBuffer } },
+                { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
             ],
         });
-    }
-
-    /**
+    }    /**
      * Set debug visualization mode
      * @param mode - The debug visualization mode
      * @param layer - The debug layer (raw, filtered, differential)
@@ -566,6 +568,14 @@ export class FluidRenderer {
         intensityView[0] = intensity;
 
         this.device.queue.writeBuffer(this.debugModeBuffer, 0, debugModeValues);
+    }
+
+    /**
+     * Update individual effect toggles
+     * @param effectsToggleBuffer - The ArrayBuffer containing the effect toggle data
+     */
+    updateEffectsToggles(effectsToggleBuffer: ArrayBuffer): void {
+        this.device.queue.writeBuffer(this.effectsToggleBuffer, 0, effectsToggleBuffer);
     }
 
     /**

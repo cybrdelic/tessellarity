@@ -5,6 +5,7 @@
 @group(0) @binding(4) var envmap_texture: texture_cube<f32>;
 @group(0) @binding(5) var<uniform> waterAppearance: WaterAppearance;
 @group(0) @binding(6) var<uniform> debug: DebugUniforms;
+@group(0) @binding(7) var<uniform> effectsToggle: EffectsToggle;
 
 struct RenderUniforms {
     texel_size: vec2f,
@@ -28,6 +29,32 @@ struct DebugUniforms {
     layer: u32,
     intensity: f32,
     padding: f32,
+}
+
+struct EffectsToggle {
+    // Core water effects
+    enableReynoldsPhysics: u32,
+    enableCavitation: u32,
+    enableFoam: u32,
+    enableTurbulentNormals: u32,
+
+    // Surface and lighting effects
+    enableSpecular: u32,
+    enableSubsurface: u32,
+    enableFresnel: u32,
+    enableReflection: u32,
+
+    // Advanced optical effects
+    enableRefraction: u32,
+    enableCaustics: u32,
+    enableDispersion: u32,
+    enableAbsorption: u32,
+
+    // Color and depth effects
+    enableDepthColoring: u32,
+    enableVelocityColoring: u32,
+    enableRimLighting: u32,
+    padding: u32,
 }
 
 struct FragmentInput {
@@ -92,8 +119,20 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     edgeFactor = mix(1.0, 2.0, clamp(depthGradient * 10.0, 0.0, 1.0));
 
     rayDir = normalize(viewPos);
-    var lightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
-    var H: vec3f = normalize(lightDir - rayDir);    // Calculate velocity magnitude and physics variables ONCE
+
+    // ENHANCED LIGHTING SYSTEM - Multiple light sources for better illumination
+    var mainLightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
+    var fillLightDir = normalize((uniforms.view_matrix * vec4f(-0.5, -0.3, 0.8, 0.)).xyz);
+    var rimLightDir = normalize((uniforms.view_matrix * vec4f(0.8, 0.2, -0.4, 0.)).xyz);
+
+    // Use main light for primary calculations
+    var lightDir = mainLightDir;
+    var H: vec3f = normalize(lightDir - rayDir);
+
+    // Calculate ambient lighting from environment
+    var ambientLight = dot(bgColor, vec3f(0.299, 0.587, 0.114)) * 0.15; // Reduced from 0.4 to 0.15
+
+    // Calculate velocity magnitude and physics variables ONCE
     // Use separate X and Z velocity components for better variation
     var velocityX = length(vec3f(ddx.x, 0.0, 0.0));
     var velocityZ = length(vec3f(0.0, 0.0, ddy.z));
@@ -103,293 +142,221 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var compressionFactor = pow(pressureDensity + depthPressure, 0.8);
     var density = compressionFactor;
 
-    // Cavitation physics calculation
-    var hydrostaticPressure = abs(viewPos.z) * 9.81 * 1000.0;
-    var dynamicPressure = velocityMagnitude * velocityMagnitude * 500.0;
-    var totalPressure = hydrostaticPressure + dynamicPressure;
-    var cavitationThreshold = 2337.0;
-    var cavitationFactor = clamp((cavitationThreshold - totalPressure) / cavitationThreshold, 0.0, 1.0);
+    // Cavitation physics calculation (Toggleable)
+    var cavitationFactor = 1.0;
+    if effectsToggle.enableCavitation != 0u {
+        var hydrostaticPressure = abs(viewPos.z) * 9.81 * 1000.0;
+        var dynamicPressure = velocityMagnitude * velocityMagnitude * 500.0;
+        var totalPressure = hydrostaticPressure + dynamicPressure;
+        var cavitationThreshold = 2337.0;
+        cavitationFactor = clamp((cavitationThreshold - totalPressure) / cavitationThreshold, 0.0, 1.0);
+    }
 
-    // Foam and surface calculations
-    var turbulence = velocityMagnitude * 0.1;
-    var foamIntensity = cavitationFactor * turbulence * 2.0;
-    var foamInfluence = foamIntensity;
+    // Foam and surface calculations (Toggleable)
+    var foamIntensity = 0.0;
+    var foamInfluence = 0.0;
+    if effectsToggle.enableFoam != 0u {
+        var turbulence = velocityMagnitude * 0.1;
+        foamIntensity = cavitationFactor * turbulence * 2.0;
+        foamInfluence = foamIntensity;
+    }
 
-    // === REYNOLDS NUMBER TURBULENCE PHYSICS === (Keep this!)
-    var kinematicViscosity = 0.001;
-    var characteristicLength = uniforms.sphere_size;
-    var reynoldsNumber = velocityMagnitude * characteristicLength / kinematicViscosity;
-    var turbulenceOnset = 4000.0;
-    var turbulenceIntensity = clamp((reynoldsNumber - turbulenceOnset) / turbulenceOnset, 0.0, 1.0);
+    // === REYNOLDS NUMBER TURBULENCE PHYSICS === (Toggleable)
+    var turbulenceIntensity = 0.0;
+    var vorticity = vec3f(0.0);
+    var vorticityMagnitude = 0.0;
+    var cascadeEffect = 1.0;
 
-    // Create turbulent vorticity from velocity gradients
-    var velocityGradient = ddx + ddy;
-    var vorticity = cross(ddx, ddy);
-    var vorticityMagnitude = length(vorticity) * turbulenceIntensity;
+    if effectsToggle.enableReynoldsPhysics != 0u {
+        var kinematicViscosity = 0.001;
+        var characteristicLength = uniforms.sphere_size;
+        var reynoldsNumber = velocityMagnitude * characteristicLength / kinematicViscosity;
+        var turbulenceOnset = 4000.0;
+        turbulenceIntensity = clamp((reynoldsNumber - turbulenceOnset) / turbulenceOnset, 0.0, 1.0);
 
-    // Kolmogorov cascade
-    var kolmogorovScale = pow(pow(kinematicViscosity, 3.0) / (velocityMagnitude * velocityMagnitude * velocityMagnitude + 1e-6), 0.25);
-    var cascadeEffect = 1.0 / (1.0 + kolmogorovScale * 10.0);
+        // Create turbulent vorticity from velocity gradients
+        var velocityGradient = ddx + ddy;
+        vorticity = cross(ddx, ddy);
+        vorticityMagnitude = length(vorticity) * turbulenceIntensity;
 
-    // Apply turbulent surface deformation
-    var turbulentDeformation = vorticity * 0.02 * turbulenceIntensity * cascadeEffect; // Reduced from 0.05
-    var turbulentNormal = normal + turbulentDeformation;
+        // Kolmogorov cascade
+        var kolmogorovScale = pow(pow(kinematicViscosity, 3.0) / (velocityMagnitude * velocityMagnitude * velocityMagnitude + 1e-6), 0.25);
+        cascadeEffect = 1.0 / (1.0 + kolmogorovScale * 10.0);
+    }
 
-    // Simplified high-frequency details based on flow simulation
-    var highFreqTurbulence = vec3f(
-        sin(viewPos.x * 15.0 + vorticityMagnitude * 10.0) * turbulenceIntensity * 0.01,
-        0.0,
-        cos(viewPos.z * 15.0 + cascadeEffect * 8.0) * turbulenceIntensity * 0.01
-    );
-    turbulentNormal += highFreqTurbulence;
-    normal = normalize(turbulentNormal);    // Surface properties based on turbulence - enhanced for more shine
+    // Apply turbulent surface deformation (Toggleable)
+    var turbulentNormal = normal;
+    if effectsToggle.enableTurbulentNormals != 0u {
+        var turbulentDeformation = vorticity * 0.02 * turbulenceIntensity * cascadeEffect; // Reduced from 0.05
+        turbulentNormal = normal + turbulentDeformation;
+
+        // Simplified high-frequency details based on flow simulation
+        var highFreqTurbulence = vec3f(
+            sin(viewPos.x * 15.0 + vorticityMagnitude * 10.0) * turbulenceIntensity * 0.01,
+            0.0,
+            cos(viewPos.z * 15.0 + cascadeEffect * 8.0) * turbulenceIntensity * 0.01
+        );
+        turbulentNormal += highFreqTurbulence;
+
+        // Add pressure-based surface deformation for more variation
+        var pressureDeformation = vec3f(
+            (density - 1.0) * 0.02 * sin(viewPos.x * 20.0),
+            0.0,
+            (density - 1.0) * 0.02 * cos(viewPos.z * 20.0)
+        );
+        turbulentNormal += pressureDeformation;
+
+        // Add velocity-based surface ripples
+        var velocityRipples = vec3f(
+            velocityX * 0.01 * sin(viewPos.z * 25.0),
+            0.0,
+            velocityZ * 0.01 * cos(viewPos.x * 25.0)
+        );
+        turbulentNormal += velocityRipples;
+    }
+
+    normal = normalize(turbulentNormal);
+
+    // Surface properties based on turbulence - enhanced for more shine
     var surfaceRoughness = clamp(velocityMagnitude * 0.4 + foamIntensity * 0.25 + turbulenceIntensity * 0.15, 0.0, 0.7);
     var baseSpecularPower = mix(768.0, 48.0, surfaceRoughness); // Increased specular power range
-    var specularIntensity = mix(1.8, 0.4, surfaceRoughness); // Increased specular intensity
+    var specularIntensity = mix(0.9, 0.2, surfaceRoughness); // Reduced from 1.8-0.4 to 0.9-0.2
 
-    // Specular calculations
-    var viewDotNormal = abs(dot(normal, -rayDir));
-    var fresnelSpecular = pow(1.0 - viewDotNormal, 2.0);
-    var specular1: f32 = pow(max(0.0, dot(H, normal)), baseSpecularPower) * specularIntensity * fresnelSpecular;
-    var specular2: f32 = pow(max(0.0, dot(H, normal)), baseSpecularPower * 0.25) * specularIntensity * 0.3;
-    var specular: f32 = (specular1 + specular2) * (1.0 - foamInfluence * 0.7);    // Enhanced subsurface scattering
-    var depthFactor = clamp(abs(viewPos.z) * 0.12, 0.0, 1.0); // Reduced depth influence
-    var subsurfaceIntensity = mix(1.6, 0.6, depthFactor); // Increased intensity range
-    var subsurface: f32 = max(0.0, dot(-lightDir, normal)) * thickness * subsurfaceIntensity;
+    // Specular calculations (Toggleable)
+    var specular: f32 = 0.0;
+    if effectsToggle.enableSpecular != 0u {
+        var viewDotNormal = abs(dot(normal, -rayDir));
+        var fresnelSpecular = pow(1.0 - viewDotNormal, 2.0);
 
-    // Move subsurfaceColor calculation AFTER baseWaterColor is defined
-    // var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);    // Enhanced realistic absorption that preserves color character
-    var baseAbsorption = 0.05; // Higher base absorption for deeper color
-    var colorInfluence = 0.3; // Reduced color influence for more subtle tinting
-    var absorptionCoeffs = vec3f(
-        baseAbsorption + (1.0 - waterAppearance.color.r) * colorInfluence,
-        baseAbsorption + (1.0 - waterAppearance.color.g) * colorInfluence,
-        baseAbsorption + (1.0 - waterAppearance.color.b) * colorInfluence * 0.8  // Slightly less blue absorption
-    );
+        // Multi-light specular calculations for brighter highlights
+        var mainSpecular = pow(max(0.0, dot(H, normal)), baseSpecularPower) * specularIntensity * fresnelSpecular;
+        var fillSpecular = pow(max(0.0, dot(normalize(fillLightDir - rayDir), normal)), baseSpecularPower * 0.7) * specularIntensity * 0.4;
+        var rimSpecular = pow(max(0.0, dot(normalize(rimLightDir - rayDir), normal)), baseSpecularPower * 0.5) * specularIntensity * 0.3;
 
-    // Realistic depth-dependent absorption
-    var depthAbsorptionFactor = clamp(thickness * 1.2, 0.2, 3.0); // Increased depth range
-    var transmittance: vec3f = exp(-density * depthAbsorptionFactor * absorptionCoeffs);
-
-    // Natural depth-based water color variation
-    var thicknessFactor = clamp(thickness * 1.5, 0.0, 1.0);
-    var waterInfluence = pow(depthFactor * thicknessFactor, 0.5); // Less aggressive depth falloff
-
-    var lightAngle = abs(dot(normal, lightDir));
-    var viewAngle = abs(dot(normal, -rayDir));
-    var angleInfluence = mix(0.6, 1.0, lightAngle * viewAngle); // Reduced angle influence range
-
-    // Depth zones with realistic ocean color variation
-    var shallowZone = clamp(1.0 - depthFactor * 2.0, 0.0, 1.0);
-    var mediumZone = clamp(depthFactor * 2.5 - 0.8, 0.0, 1.0) * clamp(2.0 - depthFactor * 2.5, 0.0, 1.0);
-    var deepZone = clamp(depthFactor - 0.4, 0.0, 1.0);
-
-    // Natural ocean color progression
-    var shallowAlbedo = mix(waterAppearance.color.rgb, vec3f(0.2, 0.3, 0.35), 0.3); // Darker shallow water
-    var mediumAlbedo = waterAppearance.color.rgb * vec3f(0.8, 0.9, 1.0); // Slight blue shift in medium depth
-    var deepAlbedo = waterAppearance.color.rgb * vec3f(0.6, 0.7, 0.8); // Darker in deep water
-
-    // Reduced turbidity effect for clearer water
-    var turbidityFactor = clamp(velocityMagnitude * 0.15 + turbulenceIntensity * 0.1, 0.0, 1.0);
-    var sedimentColor = mix(waterAppearance.color.rgb, vec3f(0.15, 0.2, 0.25), turbidityFactor * 0.2);
-
-    var complexWaterColor = shallowAlbedo * shallowZone + mediumAlbedo * mediumZone + deepAlbedo * deepZone;
-    complexWaterColor = mix(complexWaterColor, sedimentColor, turbidityFactor * 0.15);
-    complexWaterColor *= angleInfluence;
-
-    var baseWaterColor = mix(complexWaterColor, vec3f(1.0), foamInfluence);
-
-    // NOW define subsurfaceColor after baseWaterColor is available
-    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(2.0, 1.0, waterAppearance.transparency);
-
-    // Fresnel calculation
-    var F0 = 0.02;    var adjustedF0 = F0 + surfaceRoughness * 0.4; // Reduced roughness influence
-    var fresnel: f32 = clamp(adjustedF0 + (1.0 - adjustedF0) * pow(1.0 - dot(normal, -rayDir), 4.0), 0., 1.0); // Softer fresnel
-
-    // Enhanced Reflection with boosted intensity
-    var reflectionDir: vec3f = reflect(rayDir, normal);
-    var reflectionDirWorld: vec3f = (uniforms.inv_view_matrix * vec4f(reflectionDir, 0.0)).xyz;
-    var reflectionColor: vec3f = textureSampleLevel(envmap_texture, texture_sampler, reflectionDirWorld, 0.).rgb;
-
-    // Refraction with proper physics
-    var waterRefractiveIndex = 1.33;
-    var airRefractiveIndex = 1.0;
-    var eta = airRefractiveIndex / waterRefractiveIndex;
-
-    var refractionDir: vec3f = refract(rayDir, normal, eta);
-    if length(refractionDir) < 0.1 {
-        refractionDir = reflect(rayDir, normal);
+        specular = (mainSpecular + fillSpecular + rimSpecular) * (1.0 - foamInfluence * 0.7);
     }
 
-    var refractionDirWorld: vec3f = (uniforms.inv_view_matrix * vec4f(refractionDir, 0.0)).xyz;
-    var refractedBgColor: vec3f = textureSampleLevel(envmap_texture, texture_sampler, refractionDirWorld, 0.).rgb;
-
-    // Chromatic dispersion
-    var dispersionStrength = 0.4 * thickness;
-    var redEta = eta * 0.999;
-    var blueEta = eta * 1.001;
-
-    var redRefractionDir = refract(rayDir, normal, redEta);
-    var blueRefractionDir = refract(rayDir, normal, blueEta);
-
-    if length(redRefractionDir) < 0.1 {
-        redRefractionDir = refractionDir;
-    }
-    if length(blueRefractionDir) < 0.1 {
-        blueRefractionDir = refractionDir;
+    // Enhanced subsurface scattering (Toggleable)
+    var subsurface: f32 = 0.0;
+    if effectsToggle.enableSubsurface != 0u {
+        var depthFactor = clamp(abs(viewPos.z) * 0.12, 0.0, 1.0); // Reduced depth influence
+        var subsurfaceIntensity = mix(0.4, 0.15, depthFactor); // Further reduced from 0.8-0.3 to 0.4-0.15
+        subsurface = max(0.0, dot(-lightDir, normal)) * thickness * subsurfaceIntensity;
     }
 
-    var redRefractedWorld = (uniforms.inv_view_matrix * vec4f(redRefractionDir, 0.0)).xyz;
-    var blueRefractedWorld = (uniforms.inv_view_matrix * vec4f(blueRefractionDir, 0.0)).xyz;
+    // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable)
+    var lightAttenuation: vec3f = vec3f(1.0);
+    if effectsToggle.enableAbsorption != 0u {
+        // Light absorption coefficients - red light gets absorbed more in water
+        var waterAbsorptionCoeffs = vec3f(
+            0.45,   // Red light absorption coefficient (strongest)
+            0.25,   // Green light absorption coefficient (moderate)
+            0.05    // Blue light absorption coefficient (minimal)
+        );
 
-    var dispersedRefraction = vec3f(
-        textureSampleLevel(envmap_texture, texture_sampler, redRefractedWorld, 0.).r,
-        refractedBgColor.g,
-        textureSampleLevel(envmap_texture, texture_sampler, blueRefractedWorld, 0.).b
-    );
+        // Calculate actual path length through water volume
+        var waterPathLength = thickness * uniforms.sphere_size * 0.5;
 
-    // REMOVE VOLUMETRIC SCATTERING - it's causing the lattice
-    // Use the flow simulation data directly instead
+        // Account for density variations affecting optical path
+        var opticalDensity = density;
+        var scatteringInfluence = velocityMagnitude * 0.1;
+        var effectivePathLength = waterPathLength * opticalDensity * (1.0 + scatteringInfluence);
 
-    // CAUSTICS FROM FLOW SIMULATION DATA
-    var causticsIntensity = 0.0;
-    var causticsColor = vec3f(0.0);
+        // Add suspended particle absorption (turbidity effects)
+        var particleConcentration = clamp(velocityMagnitude * 0.3 + turbulenceIntensity * 0.2, 0.0, 1.0);
+        var particleAbsorptionCoeffs = vec3f(0.1, 0.1, 0.1) * particleConcentration;
 
-    // Use actual surface curvature from the simulation
-    var surfaceCurvature = length(cross(ddx, ddy)) / (length(ddx) * length(ddy) + 0.001); // Actual curvature
-    var normalCurvature = length(ddx + ddy); // Surface variation from simulation
+        // Total absorption includes water + particles
+        var totalAbsorptionCoeffs = waterAbsorptionCoeffs + particleAbsorptionCoeffs;
 
-    // Calculate light convergence based on surface normal variation
-    var lightConvergence = 0.0;
-    var lightDir3D = normalize(vec3f(0.3, -0.7, -0.6)); // World space light direction
+        // Apply Beer-Lambert law: I = I₀ * e^(-α * d)
+        lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);
 
-    // Sample neighboring normals to calculate light focusing
-    var neighborOffsets = array<vec2f, 4>(
-        vec2f(uniforms.texel_size.x, 0.0),
-        vec2f(-uniforms.texel_size.x, 0.0),
-        vec2f(0.0, uniforms.texel_size.y),
-        vec2f(0.0, -uniforms.texel_size.y)
-    );
-
-    var avgNormalDivergence = 0.0;
-    for (var i = 0; i < 4; i = i + 1) {
-        var neighborUV = input.uv + neighborOffsets[i];
-        if all(neighborUV >= vec2f(0.0)) && all(neighborUV <= vec2f(1.0)) {
-            var neighborDepth = abs(textureLoad(texture, vec2u(neighborUV / uniforms.texel_size), 0).r);
-            if neighborDepth < 1e4 && neighborDepth > 0.0 {
-                var neighborViewPos = computeViewPosFromUVDepth(neighborUV, neighborDepth);
-                var neighborDdx = neighborViewPos - viewPos;
-                var neighborDdy = neighborViewPos - viewPos;
-                var neighborNormal = normalize(cross(neighborDdx, neighborDdy));
-                avgNormalDivergence += dot(normal, neighborNormal);
-            }
-        }
+        // Ensure reasonable bounds for light attenuation
+        lightAttenuation = clamp(lightAttenuation, vec3f(0.1), vec3f(1.0));
     }
-    avgNormalDivergence /= 4.0;
 
-    // Light convergence based on how much normals are focusing light
-    lightConvergence = 1.0 - avgNormalDivergence; // Higher when normals converge
+    // Apply base water color with proper mixing ratios
+    var baseWaterColor: vec3f = waterAppearance.color.rgb;
 
-    // Caustics intensity from actual light focusing
-    causticsIntensity = lightConvergence * surfaceCurvature * thickness * 2.0;
-    causticsIntensity = clamp(causticsIntensity, 0.0, 1.0);
+    // Apply light absorption to the base color (darkens with depth)
+    baseWaterColor *= lightAttenuation;
 
-    // Caustics color - brighter where light focuses
-    causticsColor = mix(baseWaterColor, vec3f(1.4, 1.3, 1.1), causticsIntensity);
+    // Calculate subsurface color after baseWaterColor is defined
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(0.5, 0.25, waterAppearance.transparency); // Further reduced from 1.0-0.5 to 0.5-0.25
 
-    // ENHANCED REFRACTION using flow data instead of random sampling
-    var flowBasedRefraction = refractedBgColor;
+    // Fresnel calculations (Toggleable)
+    var fresnel: f32 = 1.0;
+    if effectsToggle.enableFresnel != 0u {
+        var viewDotNormal = abs(dot(normal, -rayDir));
+        fresnel = pow(1.0 - viewDotNormal, 3.0) * waterAppearance.reflectivity;
+    }
 
-    // Use velocity to create flow-based distortion
-    var flowDistortion = vec2f(ddx.x, ddy.y) * 0.01; // Use actual flow gradients
-    var distortedRefractionDir = normalize(refractionDir + vec3f(flowDistortion, 0.0));
-    var distortedRefractionWorld = (uniforms.inv_view_matrix * vec4f(distortedRefractionDir, 0.0)).xyz;
-    flowBasedRefraction = textureSampleLevel(envmap_texture, texture_sampler, distortedRefractionWorld, 0.).rgb;
+    // Environment reflection (Toggleable)
+    var reflectionColor: vec3f = vec3f(0.0);
+    if effectsToggle.enableReflection != 0u {
+        var reflectDir = reflect(rayDir, normal);
+        var worldReflectDir = (uniforms.inv_view_matrix * vec4f(reflectDir, 0.0)).xyz;
+        reflectionColor = textureSampleLevel(envmap_texture, texture_sampler, worldReflectDir, 0.0).rgb;
+        reflectionColor *= fresnel * edgeFactor;
+    }
 
-    // Blend with caustics based on flow simulation data
-    var enhancedRefractedColor = mix(flowBasedRefraction, causticsColor, causticsIntensity * 0.6);
+    // Depth-based coloring (Toggleable)
+    var depthColor: vec3f = vec3f(1.0);
+    if effectsToggle.enableDepthColoring != 0u {
+        var depthFactor = clamp(abs(viewPos.z) * 0.1, 0.0, 1.0);
+        // Use water appearance color for depth tinting instead of hardcoded values
+        var deepWaterTint = waterAppearance.color.rgb * 0.3; // Darken the base water color
+        depthColor = mix(vec3f(1.0, 1.0, 1.0), deepWaterTint, depthFactor);
+    }
 
-    // Use enhanced refraction
-    var properRefractedColor = mix(enhancedRefractedColor, dispersedRefraction, dispersionStrength * clamp(thickness, 0.0, 1.0));
+    // Velocity-based coloring (Toggleable)
+    var velocityColor: vec3f = vec3f(1.0);
+    if effectsToggle.enableVelocityColoring != 0u {
+        var velocityColorFactor = clamp(velocityMagnitude * 0.5, 0.0, 1.0);
+        // Use a slight variation of the water color for velocity effects
+        var velocityTint = mix(vec3f(1.0), waterAppearance.color.rgb * vec3f(0.8, 0.9, 1.2), 0.5);
+        velocityColor = mix(vec3f(1.0), velocityTint, velocityColorFactor);
+    }
 
-    // FIX DEPTH COLORING - use thickness for depth-based effects instead of redeclaring depthFactor
-    var thicknessBasedDepth = clamp(thickness * 2.0, 0.0, 1.0); // Use different variable name
-    var shallowColor = mix(vec3f(1.0), baseWaterColor, 0.3);
-    var deepColor = baseWaterColor * vec3f(0.6, 0.7, 0.8);
+    // Rim lighting (Toggleable)
+    var rimLight: f32 = 0.0;
+    if effectsToggle.enableRimLighting != 0u {
+        var viewDotNormal = abs(dot(normal, -rayDir));
+        rimLight = pow(1.0 - viewDotNormal, 2.0) * 0.25; // Reduced from 0.5 to 0.25
+    }
 
-    var depthBasedWaterColor = mix(shallowColor, deepColor, thicknessBasedDepth);
-    depthBasedWaterColor = mix(depthBasedWaterColor, vec3f(1.0), foamInfluence * (1.0 - thicknessBasedDepth));
+    // Foam color mixing
+    var foamColor = vec3f(1.0, 1.0, 1.0) * foamInfluence;
 
-    var minWaterInfluence = 0.2;
-    var waterInfluenceCorrect = clamp(density * thickness * 0.8, minWaterInfluence, 1.0);
-    var waterColoredRefraction = mix(properRefractedColor, depthBasedWaterColor, waterInfluenceCorrect * (1.0 - waterAppearance.transparency * 0.7));
+    // Combine all lighting components
+    var finalColor: vec3f = baseWaterColor * depthColor * velocityColor;
+    finalColor += subsurfaceColor;
+    finalColor += reflectionColor;
+    finalColor += vec3f(specular); // Convert scalar to vec3f
+    finalColor += vec3f(rimLight); // Convert scalar to vec3f
+    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);
 
-    var depthAbsorption = exp(-thickness * 1.2);
-    var finalRefractionColor = waterColoredRefraction * depthAbsorption + subsurfaceColor * (1.0 - thicknessBasedDepth);
+    // Add ambient lighting
+    finalColor += vec3f(ambientLight * 0.05); // Reduced from 0.1 to 0.05
 
-    var waterWithEffects = mix(finalRefractionColor, reflectionColor, fresnel);
+    // Apply edge enhancement
+    finalColor *= edgeFactor;
 
-    // Enhanced transparency that preserves effects
-    var baseTransparency = waterAppearance.transparency;
-
-    // Preserve specular and fresnel effects even with high transparency
-    var preservedSpecular = specular * mix(1.0, 0.3, baseTransparency);
-    var preservedFresnel = fresnel * mix(1.0, 0.7, baseTransparency);
-
-    // Enhanced refraction blending that maintains water characteristics
-    var transparentRefraction = mix(properRefractedColor, waterColoredRefraction, 1.0 - baseTransparency * 0.8);
-
-    // Maintain water color influence even with transparency
-    var waterColorStrength = mix(1.0, 0.4, baseTransparency);
-    var coloredRefraction = mix(transparentRefraction, depthBasedWaterColor, waterColorStrength * waterInfluenceCorrect);
-
-    // Caustics should remain visible with transparency
-    var visibleCaustics = mix(coloredRefraction, causticsColor, causticsIntensity * mix(0.6, 0.3, baseTransparency));
-
-    // Improved final composition
-    var refractionComponent = mix(visibleCaustics, reflectionColor, preservedFresnel);
-
-    // Rim lighting for better edge definition against white background
-    var rimIntensity = pow(1.0 - abs(dot(normal, -rayDir)), 3.0);
-    var rimColor = waterAppearance.color.rgb * rimIntensity * 0.5;
-
-    // Single finalColor declaration with all components
-    var finalColor = preservedSpecular + refractionComponent + rimColor;    // Apply reflectivity and boost overall brightness
-    var reflectivityStrength = waterAppearance.reflectivity * mix(0.9, 0.5, baseTransparency);
-    finalColor = mix(finalColor, reflectionColor * 1.4, reflectivityStrength); // Boosted reflection intensity
-
-    // Apply overall brightness boost
-    finalColor *= 1.4; // Global brightness multiplier
-
-    // Enhance contrast and brightness for white backgrounds
-    var contrastBoost = mix(1.2, 1.6, baseTransparency);
-    finalColor = pow(finalColor, vec3f(1.0 / contrastBoost)) * contrastBoost;
-
-    // Adaptive background handling for white backgrounds
-    var bgLuminance = dot(bgColor, vec3f(0.299, 0.587, 0.114));
-    var isWhiteBackground = step(0.9, bgLuminance);    // Calculate water opacity based on thickness and view angle
-    var waterOpacity = mix(
-        baseTransparency * 0.5,  // More base opacity
-        1.0 - baseTransparency * 0.3,  // Less maximum transparency
-        clamp(thickness * (1.0 + fresnel), 0.0, 1.0)
-    );
-
-    // Natural fresnel effect
-    waterOpacity = mix(waterOpacity, 1.0, fresnel * 0.6);
-
-    // Subtle background interaction
-    var bgBoost = isWhiteBackground * 0.15;
-    waterOpacity = clamp(waterOpacity + bgBoost, 0.0, 1.0);
-    finalColor *= 0.9; // Reduced global brightness for deeper appearance
+    // Final alpha calculation
+    var alpha = mix(waterAppearance.transparency, 1.0, thickness * 0.5);
+    alpha = clamp(alpha, 0.1, 1.0);
 
     // DEBUG MODE VISUALIZATION SYSTEM
     if debug.mode != 0u {
-        switch (debug.mode) {            case 1u: { // DEPTH
+        switch (debug.mode) {
+            case 1u: { // DEPTH
                 // Use view space depth for better visualization
                 let viewDepth = abs(viewPos.z);
                 let normalizedDepth = viewDepth * debug.intensity * 0.1;
                 return vec4f(vec3f(normalizedDepth), 1.0);
-            }            case 2u: { // THICKNESS
+            }
+            case 2u: { // THICKNESS
                 // Combine thickness with density for more variation
                 let thicknessWithDensity = thickness * density * debug.intensity * 0.2;
                 return vec4f(vec3f(thicknessWithDensity), 1.0);
@@ -402,15 +369,15 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
                     // Normal components separated
                     return vec4f(vec3f(abs(normal.x)), 1.0); // X component only
                 }
-            }            case 4u: { // ABSORPTION
-                // Use actual transmittance calculation with density variation
-                let actualAbsorption = 1.0 - length(transmittance) * debug.intensity;
-                return vec4f(vec3f(actualAbsorption), 1.0);
-            }case 5u: { // VELOCITY/FLOW
-                // Use actual velocity from position derivatives (more accurate)
-                let velocityX = length(ddx) * sign(ddx.x);
-                let velocityZ = length(ddy) * sign(ddy.z); 
-                let actualVelocity = sqrt(velocityX * velocityX + velocityZ * velocityZ) * debug.intensity;
+            }
+            case 4u: { // ABSORPTION
+                // Use actual light attenuation calculation
+                let absorptionVisualization = (1.0 - length(lightAttenuation)) * debug.intensity;
+                return vec4f(vec3f(absorptionVisualization), 1.0);
+            }
+            case 5u: { // VELOCITY/FLOW
+                // Use actual velocity from position derivatives
+                let actualVelocity = velocityMagnitude * debug.intensity;
                 return vec4f(vec3f(actualVelocity), 1.0);
             }
             case 6u: { // PRESSURE (derived from compression)
@@ -425,33 +392,27 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
             }
             case 8u: { // FRESNEL
                 return vec4f(vec3f(fresnel), 1.0);
-            }            case 9u: { // CAUSTICS
-                // Use actual caustics from light convergence calculation
-                return vec4f(vec3f(causticsIntensity * debug.intensity), 1.0);
+            }
+            case 9u: { // CAUSTICS
+                // Basic caustics visualization
+                let causticsVisualization = surfaceRoughness * debug.intensity;
+                return vec4f(vec3f(causticsVisualization), 1.0);
             }
             case 10u: { // REFRACTION
-                let refractionStrength = length(rayDir) * debug.intensity;
-                return vec4f(vec3f(refractionStrength), 1.0);
+                // Show surface normal deviation
+                let refractionVisualization = length(normal) * debug.intensity;
+                return vec4f(vec3f(refractionVisualization), 1.0);
             }
-            default: {
+            case 11u: { // COMBINED VARIATION
+                // Visualize combined effects to diagnose uniformity
+                let combinedVariation = velocityMagnitude * 0.3 + turbulenceIntensity * 0.3 + surfaceRoughness * 0.2 + (fresnel - 0.5) * 0.2;
+                return vec4f(vec3f(combinedVariation * debug.intensity), 1.0);
+            }
+            default: { // ERROR COLOR
                 return vec4f(1.0, 0.0, 1.0, 1.0); // Error color (magenta)
             }
         }
     }
 
-    return vec4f(finalColor, waterOpacity);
-
-    // return vec4f(viewPos.y * 100, 0, 0, 1.0);
-
-    // 法線
-    // return vec4f(0.5 * normal + 0.5, 1.);
-    // 法線の y 成分
-    // return vec4f(vec3f(normal.x, 0, 0), 1);
-    // return vec4f(vec3f(normal.y, 0, 0), 1);
-    // return vec4f(vec3f(normal.z, 0, 0), 1);
-    // specular だけ
-    // return vec4f(vec3f(specular), 1);
-    // reflection だけ
-    // return vec4f(reflectionColor, 1.);
-    // return vec4f(fresnel, 0., 0., 1.);
+    return vec4f(finalColor, alpha);
 }

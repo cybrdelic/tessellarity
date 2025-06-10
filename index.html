@@ -1862,6 +1862,178 @@
           </div>
         </div>
       </div>
+    </div> <!-- Effects Toggle Controls -->
+    <div class="control-group">
+      <label class="control-label">
+        <i class="fas fa-magic" style="margin-right: 0.5rem; color: var(--accent-color);"></i>
+        Visual Effects Toggle
+      </label>
+      <div class="control-description">Toggle individual visual effects to see how each one affects the final rendering
+      </div>
+
+      <!-- Effects Toggle Grid -->
+      <div style="display: grid; grid-template-columns: 1fr; gap: var(--space-sm); margin-top: var(--space-md);">
+
+        <!-- Physics Effects -->
+        <div
+          style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: var(--space-md); margin-bottom: var(--space-md);">
+          <div
+            style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-sm); font-weight: 600;">
+            Physics Effects</div>
+
+          <div class="checkbox-container" id="reynolds-toggle">
+            <input type="checkbox" id="enable-reynolds" checked>
+            <div>
+              <div class="radio-option-label">Reynolds Turbulence</div>
+              <div class="radio-option-description">Advanced fluid turbulence physics</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="cavitation-toggle">
+            <input type="checkbox" id="enable-cavitation" checked>
+            <div>
+              <div class="radio-option-label">Cavitation Effects</div>
+              <div class="radio-option-description">Bubble formation in low-pressure areas</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="foam-toggle">
+            <input type="checkbox" id="enable-foam" checked>
+            <div>
+              <div class="radio-option-label">Foam Generation</div>
+              <div class="radio-option-description">Surface foam and bubble patterns</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Surface Effects -->
+        <div
+          style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: var(--space-md); margin-bottom: var(--space-md);">
+          <div
+            style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-sm); font-weight: 600;">
+            Surface Effects</div>
+
+          <div class="checkbox-container" id="turbulent-normals-toggle">
+            <input type="checkbox" id="enable-turbulent-normals" checked>
+            <div>
+              <div class="radio-option-label">Turbulent Normals</div>
+              <div class="radio-option-description">Dynamic surface roughness calculation</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="specular-toggle">
+            <input type="checkbox" id="enable-specular" checked>
+            <div>
+              <div class="radio-option-label">Specular Highlights</div>
+              <div class="radio-option-description">Surface light reflections</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="subsurface-toggle">
+            <input type="checkbox" id="enable-subsurface" checked>
+            <div>
+              <div class="radio-option-label">Subsurface Scattering</div>
+              <div class="radio-option-description">Light penetration through water</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optical Effects -->
+        <div
+          style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: var(--space-md); margin-bottom: var(--space-md);">
+          <div
+            style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-sm); font-weight: 600;">
+            Optical Effects</div>
+
+          <div class="checkbox-container" id="fresnel-toggle">
+            <input type="checkbox" id="enable-fresnel" checked>
+            <div>
+              <div class="radio-option-label">Fresnel Reflection</div>
+              <div class="radio-option-description">Angle-dependent reflectance</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="reflection-toggle">
+            <input type="checkbox" id="enable-reflection" checked>
+            <div>
+              <div class="radio-option-label">Environment Reflection</div>
+              <div class="radio-option-description">Scene reflections on water surface</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="refraction-toggle">
+            <input type="checkbox" id="enable-refraction" checked>
+            <div>
+              <div class="radio-option-label">Refraction & Dispersion</div>
+              <div class="radio-option-description">Light bending and chromatic effects</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="caustics-toggle">
+            <input type="checkbox" id="enable-caustics" checked>
+            <div>
+              <div class="radio-option-label">Caustics Patterns</div>
+              <div class="radio-option-description">Underwater light patterns</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Coloring Effects -->
+        <div>
+          <div
+            style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-sm); font-weight: 600;">
+            Coloring Effects</div>
+
+          <div class="checkbox-container" id="absorption-toggle">
+            <input type="checkbox" id="enable-absorption" checked>
+            <div>
+              <div class="radio-option-label">Light Absorption</div>
+              <div class="radio-option-description">Depth-based color attenuation</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="depth-coloring-toggle">
+            <input type="checkbox" id="enable-depth-coloring" checked>
+            <div>
+              <div class="radio-option-label">Depth Coloring</div>
+              <div class="radio-option-description">Color variation by water depth</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="velocity-coloring-toggle">
+            <input type="checkbox" id="enable-velocity-coloring" checked>
+            <div>
+              <div class="radio-option-label">Velocity Coloring</div>
+              <div class="radio-option-description">Color based on water motion</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="rim-lighting-toggle">
+            <input type="checkbox" id="enable-rim-lighting" checked>
+            <div>
+              <div class="radio-option-label">Rim Lighting</div>
+              <div class="radio-option-description">Edge highlighting effects</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Toggle Controls -->
+        <div
+          style="margin-top: var(--space-lg); padding-top: var(--space-md); border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm);">
+            <button id="effects-enable-all" class="header-btn"
+              style="width: 100%; background: var(--accent-success); color: #000;">
+              <i class="fas fa-check-double"></i>
+              <span>Enable All</span>
+            </button>
+            <button id="effects-disable-all" class="header-btn"
+              style="width: 100%; background: var(--accent-danger); color: #fff;">
+              <i class="fas fa-times-circle"></i>
+              <span>Disable All</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Debug Mode Controls -->
@@ -1898,6 +2070,7 @@
             <option value="8">Fresnel Effects</option>
             <option value="9">Caustics Patterns</option>
             <option value="10">Refraction Rays</option>
+            <option value="11">Combined Variation</option>
           </select>
         </div>
 
@@ -2630,8 +2803,10 @@
     document.addEventListener('DOMContentLoaded', () => {
       initializeColorPresets();
       initializeMaterialPresets();
-      initializeSliderTooltips(); initializeSliderEnhancements();
+      initializeSliderTooltips();
+      initializeSliderEnhancements();
       initializeSmartValueIndicators();
+      initializeEffectsToggles();
     });
 
     // If DOM is already loaded, initialize immediately
@@ -2642,6 +2817,7 @@
         initializeSliderTooltips();
         initializeSliderEnhancements();
         initializeSmartValueIndicators();
+        initializeEffectsToggles();
       });
     } else {
       initializeColorPresets();
@@ -2649,6 +2825,108 @@
       initializeSliderTooltips();
       initializeSliderEnhancements();
       initializeSmartValueIndicators();
+      initializeEffectsToggles();
+    }
+
+    // Effects Toggle Functionality
+    function initializeEffectsToggles() {
+      // Initialize individual effect toggles
+      const effectToggles = document.querySelectorAll('.checkbox-container input[type="checkbox"]');
+
+      effectToggles.forEach(toggle => {
+        const container = toggle.closest('.checkbox-container');
+        if (container) {
+          // Set initial state
+          container.classList.toggle('checked', toggle.checked);
+
+          // Handle changes
+          toggle.addEventListener('change', function () {
+            container.classList.toggle('checked', this.checked);
+
+            // Add ripple effect
+            const ripple = document.createElement('div');
+            ripple.style.cssText = `
+              position: absolute;
+              border-radius: 50%;
+              background: rgba(0, 122, 255, 0.3);
+              transform: scale(0);
+              animation: ripple 0.6s linear;
+              pointer-events: none;
+            `;
+
+            const rect = container.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (rect.width / 2 - size / 2) + 'px';
+            ripple.style.top = (rect.height / 2 - size / 2) + 'px';
+
+            container.style.position = 'relative';
+            container.appendChild(ripple);
+
+            setTimeout(() => {
+              ripple.remove();
+            }, 600);
+          });
+        }
+      });
+
+      // Initialize bulk toggle controls
+      const enableAllBtn = document.getElementById('effects-enable-all');
+      const disableAllBtn = document.getElementById('effects-disable-all');
+
+      if (enableAllBtn) {
+        enableAllBtn.addEventListener('click', function () {
+          effectToggles.forEach(toggle => {
+            if (!toggle.checked) {
+              toggle.checked = true;
+              toggle.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+
+          // Visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            this.style.transform = '';
+          }, 150);
+        });
+      }
+
+      if (disableAllBtn) {
+        disableAllBtn.addEventListener('click', function () {
+          effectToggles.forEach(toggle => {
+            if (toggle.checked) {
+              toggle.checked = false;
+              toggle.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+
+          // Visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            this.style.transform = '';
+          }, 150);
+        });
+      }
+
+      // Initialize debug mode controls
+      const debugModeEnabled = document.getElementById('debug-mode-enabled');
+      const debugModeControls = document.getElementById('debug-mode-controls');
+
+      if (debugModeEnabled && debugModeControls) {
+        debugModeEnabled.addEventListener('change', function () {
+          debugModeControls.style.display = this.checked ? 'block' : 'none';
+
+          if (this.checked) {
+            debugModeControls.style.opacity = '0';
+            debugModeControls.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+              debugModeControls.style.transition = 'all 0.3s ease';
+              debugModeControls.style.opacity = '1';
+              debugModeControls.style.transform = 'translateY(0)';
+            }, 50);
+          }
+        });
+      }
     }
 
     // Enhanced Slider Functionality
@@ -2826,10 +3104,173 @@
           }
         }
 
-        slider.addEventListener('input', updateIndicator);
-        updateIndicator(); // Initial check
+        slider.addEventListener('input', updateIndicator); updateIndicator(); // Initial check
       });
     }
+
+    // Effects Toggle System
+    function initializeEffectsToggles() {      // Map effect toggle IDs to their corresponding indices in the effects buffer
+      const effectMappings = {
+        'enable-reynolds': 0,
+        'enable-cavitation': 1,
+        'enable-foam': 2,
+        'enable-turbulent-normals': 3,
+        'enable-specular': 4,
+        'enable-subsurface': 5,
+        'enable-fresnel': 6,
+        'enable-reflection': 7,
+        'enable-refraction': 8,
+        'enable-caustics': 9,
+        // Note: dispersion (index 10) is controlled by refraction toggle
+        'enable-absorption': 11,
+        'enable-depth-coloring': 12,
+        'enable-velocity-coloring': 13,
+        'enable-rim-lighting': 14
+      };
+
+      // Add event listeners for each effect toggle
+      Object.keys(effectMappings).forEach(effectId => {
+        const checkbox = document.getElementById(effectId);
+        const container = document.getElementById(effectId.replace('enable-', '') + '-toggle'); if (checkbox && container) {
+          checkbox.addEventListener('change', function () {
+            const effectIndex = effectMappings[effectId];
+            const isEnabled = this.checked;
+
+            // Update the container styling
+            container.classList.toggle('checked', isEnabled);
+
+            // Add visual feedback
+            addEffectToggleFeedback(container, isEnabled);
+
+            // Update the effects buffer if available
+            if (window.updateEffectsToggle) {
+              window.updateEffectsToggle(effectIndex, isEnabled);
+
+              // Special case: refraction toggle also controls dispersion
+              if (effectId === 'enable-refraction') {
+                window.updateEffectsToggle(10, isEnabled); // dispersion index is 10
+                console.log(`Dispersion (index 10): ${isEnabled ? 'enabled' : 'disabled'} (controlled by refraction)`);
+              }
+            }
+
+            // Log for debugging
+            console.log(`Effect ${effectId} (index ${effectIndex}):`, isEnabled ? 'enabled' : 'disabled');
+          });
+
+          // Initialize container state based on checkbox
+          container.classList.toggle('checked', checkbox.checked);
+        }
+      });
+
+      // Bulk toggle controls
+      const enableAllBtn = document.getElementById('effects-enable-all');
+      const disableAllBtn = document.getElementById('effects-disable-all');
+
+      if (enableAllBtn) {
+        enableAllBtn.addEventListener('click', function () {
+          Object.keys(effectMappings).forEach(effectId => {
+            const checkbox = document.getElementById(effectId);
+            if (checkbox && !checkbox.checked) {
+              checkbox.checked = true;
+              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+
+          // Visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            this.style.transform = '';
+          }, 150);
+
+          showEffectsBulkFeedback('All effects enabled', true);
+        });
+      }
+
+      if (disableAllBtn) {
+        disableAllBtn.addEventListener('click', function () {
+          Object.keys(effectMappings).forEach(effectId => {
+            const checkbox = document.getElementById(effectId);
+            if (checkbox && checkbox.checked) {
+              checkbox.checked = false;
+              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+
+          // Visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            this.style.transform = '';
+          }, 150);
+
+          showEffectsBulkFeedback('All effects disabled', false);
+        });
+      }
+    }
+
+    function addEffectToggleFeedback(container, isEnabled) {
+      // Add ripple effect
+      const ripple = document.createElement('div');
+      ripple.style.cssText = `
+        position: absolute;
+        border-radius: 50%;
+        background: ${isEnabled ? 'rgba(48, 209, 88, 0.3)' : 'rgba(255, 59, 48, 0.3)'};
+        transform: scale(0);
+        animation: ripple 0.6s linear;
+        pointer-events: none;
+      `;
+
+      const rect = container.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = '0px';
+      ripple.style.top = '0px';
+
+      container.style.position = 'relative';
+      container.appendChild(ripple);
+
+      setTimeout(() => {
+        ripple.remove();
+      }, 600);
+    }
+
+    function showEffectsBulkFeedback(message, isEnabled) {
+      const feedback = document.createElement('div');
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <i class="fas ${isEnabled ? 'fa-check-circle' : 'fa-times-circle'}"
+             style="color: ${isEnabled ? 'var(--accent-success)' : 'var(--accent-danger)'};"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      feedback.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--glass-bg-dark);
+        backdrop-filter: var(--glass-backdrop-strong);
+        -webkit-backdrop-filter: var(--glass-backdrop-strong);
+        border: 1px solid ${isEnabled ? 'var(--accent-success)' : 'var(--accent-danger)'};
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        z-index: 9999;
+        pointer-events: none;
+        animation: slideInFadeOut 2.5s ease-out forwards;
+        border-radius: 0;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      `;
+
+      document.body.appendChild(feedback);
+      setTimeout(() => feedback.remove(), 2500);
+    }
+
+    // Global function to expose effects updates to main.ts
+    window.updateEffectsToggle = function (index, enabled) {
+      // This will be called by the UI and should update the effects buffer
+      // The actual implementation will be in main.ts
+      console.log(`Updating effect ${index} to ${enabled ? 'enabled' : 'disabled'}`);
+    };
   </script>
 
   <script type="module" src="main.ts"></script>
