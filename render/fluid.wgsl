@@ -246,12 +246,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable)
     var lightAttenuation: vec3f = vec3f(1.0);
-    if effectsToggle.enableAbsorption != 0u {
-        // Light absorption coefficients - red light gets absorbed more in water
+    if effectsToggle.enableAbsorption != 0u {        // Light absorption coefficients - more neutral for white backgrounds
         var waterAbsorptionCoeffs = vec3f(
-            0.45,   // Red light absorption coefficient (strongest)
-            0.25,   // Green light absorption coefficient (moderate)
-            0.05    // Blue light absorption coefficient (minimal)
+            0.15,   // Red light absorption coefficient (reduced)
+            0.12,   // Green light absorption coefficient (reduced)
+            0.10    // Blue light absorption coefficient (increased for balance)
         );
 
         // Calculate actual path length through water volume
@@ -313,17 +312,96 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // Velocity-based coloring (Toggleable)
     var velocityColor: vec3f = vec3f(1.0);
     if effectsToggle.enableVelocityColoring != 0u {
-        var velocityColorFactor = clamp(velocityMagnitude * 0.5, 0.0, 1.0);
-        // Use a slight variation of the water color for velocity effects
-        var velocityTint = mix(vec3f(1.0), waterAppearance.color.rgb * vec3f(0.8, 0.9, 1.2), 0.5);
+        var velocityColorFactor = clamp(velocityMagnitude * 0.5, 0.0, 1.0);        // Use a more neutral variation of the water color for velocity effects
+        var velocityTint = mix(vec3f(1.0), waterAppearance.color.rgb * vec3f(1.0, 1.0, 1.0), 0.3);
         velocityColor = mix(vec3f(1.0), velocityTint, velocityColorFactor);
     }
 
-    // Rim lighting (Toggleable)
-    var rimLight: f32 = 0.0;
+    // COMPREHENSIVE RIM LIGHTING SYSTEM (Toggleable)
+    var rimLighting: vec3f = vec3f(0.0);
     if effectsToggle.enableRimLighting != 0u {
         var viewDotNormal = abs(dot(normal, -rayDir));
-        rimLight = pow(1.0 - viewDotNormal, 2.0) * 0.25; // Reduced from 0.5 to 0.25
+        var fresnel_rim = 1.0 - viewDotNormal;
+
+        // Multi-layered rim lighting for different edge conditions
+        // Primary rim - sharp edge detection
+        var primaryRim = pow(fresnel_rim, 1.5) * 0.4;
+
+        // Secondary rim - softer glow for volume edges
+        var secondaryRim = pow(fresnel_rim, 3.0) * 0.6;
+
+        // Tertiary rim - subtle atmospheric glow
+        var tertiaryRim = pow(fresnel_rim, 5.0) * 0.8;
+
+        // Thickness-based rim variation
+        var thicknessRim = pow(fresnel_rim, 2.0) * clamp(1.0 - thickness * 0.3, 0.2, 1.0) * 0.3;
+
+        // Velocity-influenced rim lighting (moving water catches more light)
+        var velocityRim = pow(fresnel_rim, 2.5) * clamp(velocityMagnitude * 0.8, 0.0, 0.5) * 0.25;
+
+        // Depth-influenced rim (deeper water has darker rims)
+        var depthRimFactor = clamp(1.0 - abs(viewPos.z) * 0.08, 0.3, 1.0);
+
+        // Multi-light rim contributions
+        var mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 0.7;
+        var fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.4;
+        var rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.5;
+
+        // Combine all rim components with environmental influence
+        var combinedRim = (mainRimContribution + fillRimContribution + rimRimContribution) * depthRimFactor;
+
+        // Color the rim lighting based on environment and water properties
+        var rimColor = mix(
+            bgColor * 0.3,
+            waterAppearance.color.rgb * 1.2,
+            clamp(thickness * 0.5, 0.2, 0.8)
+        );
+
+        rimLighting = rimColor * combinedRim;
+    }
+
+    // VOLUMETRIC INTERIOR LIGHTING SYSTEM
+    var interiorLighting: vec3f = vec3f(0.0);
+
+    // Calculate light penetration into water volume
+    var waterDepth = abs(viewPos.z);
+    var volumeThickness = thickness * uniforms.sphere_size * 0.5;
+
+    // Multi-directional light penetration
+    var lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 0.6;
+    var lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.3;
+    var lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.2;
+
+    var totalLightPenetration = lightPenetrationMain + lightPenetrationFill + lightPenetrationRim;
+
+    // Depth-based light attenuation (exponential falloff)
+    var depthAttenuation = exp(-waterDepth * 0.15);
+    var thicknessAttenuation = exp(-volumeThickness * 0.8);
+
+    // Scattering-based interior illumination
+    var scatteringFactor = clamp(velocityMagnitude * 0.3 + turbulenceIntensity * 0.4, 0.1, 1.0);
+    var scatteredLight = totalLightPenetration * scatteringFactor * 0.25;
+
+    // Volumetric caustics simulation (simplified)
+    var causticsPattern = sin(viewPos.x * 8.0 + velocityMagnitude * 5.0) * cos(viewPos.z * 6.0 + turbulenceIntensity * 4.0) * 0.5 + 0.5;
+    var causticIntensity = pow(causticsPattern, 3.0) * totalLightPenetration * 0.15;
+
+    // Deep water ambient illumination
+    var deepAmbient = ambientLight * clamp(thickness * 0.4, 0.1, 0.6) * depthAttenuation;    // Color the interior lighting
+    var interiorLightColor = mix(
+        bgColor * 0.7,                     // Increased environmental color influence
+        waterAppearance.color.rgb * 0.4,   // Reduced base water color influence
+        clamp(waterDepth * 0.05, 0.0, 0.5) // Reduced depth-based color mixing
+    );
+
+    // Combine interior lighting components
+    interiorLighting = interiorLightColor * (scatteredLight * depthAttenuation + causticIntensity * thicknessAttenuation + deepAmbient);
+
+    // Add particle-based light scattering in turbulent areas
+    if turbulenceIntensity > 0.1 {
+        var particleScattering = turbulenceIntensity * totalLightPenetration * 0.1;
+        var particleColor = mix(waterAppearance.color.rgb, waterAppearance.color.rgb * vec3f(1.1, 1.05, 1.0), 0.3);
+        interiorLighting += particleColor * particleScattering * thicknessAttenuation;
     }
 
     // Foam color mixing
@@ -334,7 +412,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     finalColor += subsurfaceColor;
     finalColor += reflectionColor;
     finalColor += vec3f(specular); // Convert scalar to vec3f
-    finalColor += vec3f(rimLight); // Convert scalar to vec3f
+    finalColor += rimLighting; // Enhanced rim lighting
+    finalColor += interiorLighting; // New interior lighting
     finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);
 
     // Add ambient lighting
