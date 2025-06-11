@@ -6,6 +6,7 @@
 @group(0) @binding(5) var<uniform> waterAppearance: WaterAppearance;
 @group(0) @binding(6) var<uniform> debug: DebugUniforms;
 @group(0) @binding(7) var<uniform> effectsToggle: EffectsToggle;
+@group(0) @binding(8) var<uniform> lightingControls: LightingControls;
 
 struct RenderUniforms {
     texel_size: vec2f,
@@ -55,6 +56,46 @@ struct EffectsToggle {
     enableVelocityColoring: u32,
     enableRimLighting: u32,
     padding: u32,
+}
+
+struct LightingControls {
+    // Main light properties
+    mainLightDirection: vec3f,
+    mainLightIntensity: f32,
+    mainLightColor: vec3f,
+    mainLightEnabled: u32,
+
+    // Fill light properties
+    fillLightDirection: vec3f,
+    fillLightIntensity: f32,
+    fillLightColor: vec3f,
+    fillLightEnabled: u32,
+
+    // Rim light properties
+    rimLightDirection: vec3f,
+    rimLightIntensity: f32,
+    rimLightColor: vec3f,
+    rimLightEnabled: u32,
+
+    // Global lighting properties
+    ambientIntensity: f32,
+    ambientColor: vec3f,
+    shadowIntensity: f32,
+    lightingMode: u32,
+
+    // Advanced lighting properties
+    specularIntensityMultiplier: f32,
+    subsurfaceIntensityMultiplier: f32,
+
+    // Additional lighting properties (for WebGPU 160-byte alignment)
+    lightingPower: f32,
+    lightingContrast: f32,
+    volumetricIntensity: f32,
+    rimLightingPower: f32,
+    lightingPadding1: f32,
+    lightingPadding2: f32,
+    lightingPadding3: f32,
+    lightingPadding4: f32,
 }
 
 struct FragmentInput {
@@ -116,21 +157,40 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         abs(ddx.z),
         abs(ddy.z)
     ));
-    edgeFactor = mix(1.0, 2.0, clamp(depthGradient * 10.0, 0.0, 1.0));
+    edgeFactor = mix(1.0, 2.0, clamp(depthGradient * 10.0, 0.0, 1.0));    rayDir = normalize(viewPos);
 
-    rayDir = normalize(viewPos);
+    // COMPREHENSIVE CONTROLLABLE LIGHTING SYSTEM
+    // Initialize light directions with defaults or user-controlled values
+    var mainLightDir: vec3f;
+    var fillLightDir: vec3f;
+    var rimLightDir: vec3f;
 
-    // ENHANCED LIGHTING SYSTEM - Multiple light sources for better illumination
-    var mainLightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
-    var fillLightDir = normalize((uniforms.view_matrix * vec4f(-0.5, -0.3, 0.8, 0.)).xyz);
-    var rimLightDir = normalize((uniforms.view_matrix * vec4f(0.8, 0.2, -0.4, 0.)).xyz);
+    if lightingControls.mainLightEnabled != 0u {
+        mainLightDir = normalize((uniforms.view_matrix * vec4f(lightingControls.mainLightDirection, 0.)).xyz);
+    } else {
+        mainLightDir = normalize((uniforms.view_matrix * vec4f(0.3, -0.7, -0.6, 0.)).xyz);
+    }
+
+    if lightingControls.fillLightEnabled != 0u {
+        fillLightDir = normalize((uniforms.view_matrix * vec4f(lightingControls.fillLightDirection, 0.)).xyz);
+    } else {
+        fillLightDir = normalize((uniforms.view_matrix * vec4f(-0.5, -0.3, 0.8, 0.)).xyz);
+    }
+
+    if lightingControls.rimLightEnabled != 0u {
+        rimLightDir = normalize((uniforms.view_matrix * vec4f(lightingControls.rimLightDirection, 0.)).xyz);
+    } else {
+        rimLightDir = normalize((uniforms.view_matrix * vec4f(0.8, 0.2, -0.4, 0.)).xyz);
+    }
 
     // Use main light for primary calculations
     var lightDir = mainLightDir;
     var H: vec3f = normalize(lightDir - rayDir);
 
-    // Calculate ambient lighting from environment
-    var ambientLight = dot(bgColor, vec3f(0.299, 0.587, 0.114)) * 0.15; // Reduced from 0.4 to 0.15
+    // Calculate controllable ambient lighting
+    var baseAmbientFromEnv = dot(bgColor, vec3f(0.299, 0.587, 0.114));
+    var ambientLight = baseAmbientFromEnv * lightingControls.ambientIntensity * 0.15;
+    var ambientContribution = lightingControls.ambientColor * ambientLight;
 
     // Calculate velocity magnitude and physics variables ONCE
     // Use separate X and Z velocity components for better variation
@@ -220,28 +280,61 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // Surface properties based on turbulence - enhanced for more shine
     var surfaceRoughness = clamp(velocityMagnitude * 0.4 + foamIntensity * 0.25 + turbulenceIntensity * 0.15, 0.0, 0.7);
     var baseSpecularPower = mix(768.0, 48.0, surfaceRoughness); // Increased specular power range
-    var specularIntensity = mix(0.9, 0.2, surfaceRoughness); // Reduced from 1.8-0.4 to 0.9-0.2
-
-    // Specular calculations (Toggleable)
+    var specularIntensity = mix(0.9, 0.2, surfaceRoughness); // Reduced from 1.8-0.4 to 0.9-0.2    // Specular calculations with controllable lighting (Toggleable)
     var specular: f32 = 0.0;
     if effectsToggle.enableSpecular != 0u {
         var viewDotNormal = abs(dot(normal, -rayDir));
         var fresnelSpecular = pow(1.0 - viewDotNormal, 2.0);
 
-        // Multi-light specular calculations for brighter highlights
-        var mainSpecular = pow(max(0.0, dot(H, normal)), baseSpecularPower) * specularIntensity * fresnelSpecular;
-        var fillSpecular = pow(max(0.0, dot(normalize(fillLightDir - rayDir), normal)), baseSpecularPower * 0.7) * specularIntensity * 0.4;
-        var rimSpecular = pow(max(0.0, dot(normalize(rimLightDir - rayDir), normal)), baseSpecularPower * 0.5) * specularIntensity * 0.3;
+        // Apply global specular intensity multiplier
+        var adjustedSpecularIntensity = specularIntensity * lightingControls.specularIntensityMultiplier;
+
+        // Multi-light specular calculations with controllable lights
+        var mainSpecular = 0.0;
+        var fillSpecular = 0.0;
+        var rimSpecular = 0.0;
+
+        if lightingControls.mainLightEnabled != 0u {
+            var mainH = normalize(mainLightDir - rayDir);
+            mainSpecular = pow(max(0.0, dot(mainH, normal)), baseSpecularPower) * adjustedSpecularIntensity * fresnelSpecular * lightingControls.mainLightIntensity;
+        }
+
+        if lightingControls.fillLightEnabled != 0u {
+            var fillH = normalize(fillLightDir - rayDir);
+            fillSpecular = pow(max(0.0, dot(fillH, normal)), baseSpecularPower * 0.7) * adjustedSpecularIntensity * 0.4 * lightingControls.fillLightIntensity;
+        }
+
+        if lightingControls.rimLightEnabled != 0u {
+            var rimH = normalize(rimLightDir - rayDir);
+            rimSpecular = pow(max(0.0, dot(rimH, normal)), baseSpecularPower * 0.5) * adjustedSpecularIntensity * 0.3 * lightingControls.rimLightIntensity;
+        }
 
         specular = (mainSpecular + fillSpecular + rimSpecular) * (1.0 - foamInfluence * 0.7);
-    }
-
-    // Enhanced subsurface scattering (Toggleable)
+    }    // Enhanced subsurface scattering with controllable lighting (Toggleable)
     var subsurface: f32 = 0.0;
     if effectsToggle.enableSubsurface != 0u {
-        var depthFactor = clamp(abs(viewPos.z) * 0.12, 0.0, 1.0); // Reduced depth influence
-        var subsurfaceIntensity = mix(0.4, 0.15, depthFactor); // Further reduced from 0.8-0.3 to 0.4-0.15
-        subsurface = max(0.0, dot(-lightDir, normal)) * thickness * subsurfaceIntensity;
+        var depthFactor = clamp(abs(viewPos.z) * 0.12, 0.0, 1.0);
+        var baseSubsurfaceIntensity = mix(0.4, 0.15, depthFactor);
+        var adjustedSubsurfaceIntensity = baseSubsurfaceIntensity * lightingControls.subsurfaceIntensityMultiplier;
+
+        // Calculate subsurface contribution from each light source
+        var mainSubsurface = 0.0;
+        var fillSubsurface = 0.0;
+        var rimSubsurface = 0.0;
+
+        if lightingControls.mainLightEnabled != 0u {
+            mainSubsurface = max(0.0, dot(-mainLightDir, normal)) * thickness * adjustedSubsurfaceIntensity * lightingControls.mainLightIntensity;
+        }
+
+        if lightingControls.fillLightEnabled != 0u {
+            fillSubsurface = max(0.0, dot(-fillLightDir, normal)) * thickness * adjustedSubsurfaceIntensity * lightingControls.fillLightIntensity * 0.5;
+        }
+
+        if lightingControls.rimLightEnabled != 0u {
+            rimSubsurface = max(0.0, dot(-rimLightDir, normal)) * thickness * adjustedSubsurfaceIntensity * lightingControls.rimLightIntensity * 0.3;
+        }
+
+        subsurface = mainSubsurface + fillSubsurface + rimSubsurface;
     }
 
     // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable)
@@ -340,24 +433,46 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var velocityRim = pow(fresnel_rim, 2.5) * clamp(velocityMagnitude * 0.8, 0.0, 0.5) * 0.25;
 
         // Depth-influenced rim (deeper water has darker rims)
-        var depthRimFactor = clamp(1.0 - abs(viewPos.z) * 0.08, 0.3, 1.0);
+        var depthRimFactor = clamp(1.0 - abs(viewPos.z) * 0.08, 0.3, 1.0);        // Multi-light rim contributions with controllable lighting
+        var mainRimContribution = 0.0;
+        var fillRimContribution = 0.0;
+        var rimRimContribution = 0.0;
 
-        // Multi-light rim contributions
-        var mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 0.7;
-        var fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.4;
-        var rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.5;
+        if lightingControls.mainLightEnabled != 0u {
+            mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 0.7 * lightingControls.mainLightIntensity;
+        }
+
+        if lightingControls.fillLightEnabled != 0u {
+            fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.4 * lightingControls.fillLightIntensity;
+        }
+
+        if lightingControls.rimLightEnabled != 0u {
+            rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.5 * lightingControls.rimLightIntensity;
+        }
 
         // Combine all rim components with environmental influence
         var combinedRim = (mainRimContribution + fillRimContribution + rimRimContribution) * depthRimFactor;
 
-        // Color the rim lighting based on environment and water properties
+        // Color the rim lighting with controllable light colors
         var rimColor = mix(
             bgColor * 0.3,
             waterAppearance.color.rgb * 1.2,
             clamp(thickness * 0.5, 0.2, 0.8)
         );
 
-        rimLighting = rimColor * combinedRim;
+        // Apply light colors to rim lighting
+        var coloredRimLighting = vec3f(0.0);
+        if lightingControls.mainLightEnabled != 0u {
+            coloredRimLighting += rimColor * mainRimContribution * lightingControls.mainLightColor;
+        }
+        if lightingControls.fillLightEnabled != 0u {
+            coloredRimLighting += rimColor * fillRimContribution * lightingControls.fillLightColor;
+        }
+        if lightingControls.rimLightEnabled != 0u {
+            coloredRimLighting += rimColor * rimRimContribution * lightingControls.rimLightColor;
+        }
+
+        rimLighting = coloredRimLighting;
     }
 
     // VOLUMETRIC INTERIOR LIGHTING SYSTEM
@@ -365,12 +480,20 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Calculate light penetration into water volume
     var waterDepth = abs(viewPos.z);
-    var volumeThickness = thickness * uniforms.sphere_size * 0.5;
+    var volumeThickness = thickness * uniforms.sphere_size * 0.5;    // Multi-directional light penetration with controllable lighting
+    var lightPenetrationMain = 0.0;
+    var lightPenetrationFill = 0.0;
+    var lightPenetrationRim = 0.0;
 
-    // Multi-directional light penetration
-    var lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 0.6;
-    var lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.3;
-    var lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.2;
+    if lightingControls.mainLightEnabled != 0u {
+        lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 0.6 * lightingControls.mainLightIntensity;
+    }
+    if lightingControls.fillLightEnabled != 0u {
+        lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.3 * lightingControls.fillLightIntensity;
+    }
+    if lightingControls.rimLightEnabled != 0u {
+        lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.2 * lightingControls.rimLightIntensity;
+    }
 
     var totalLightPenetration = lightPenetrationMain + lightPenetrationFill + lightPenetrationRim;
 
@@ -384,15 +507,33 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Volumetric caustics simulation (simplified)
     var causticsPattern = sin(viewPos.x * 8.0 + velocityMagnitude * 5.0) * cos(viewPos.z * 6.0 + turbulenceIntensity * 4.0) * 0.5 + 0.5;
-    var causticIntensity = pow(causticsPattern, 3.0) * totalLightPenetration * 0.15;
+    var causticIntensity = pow(causticsPattern, 3.0) * totalLightPenetration * 0.15;    // Deep water ambient illumination with controllable ambient
+    var deepAmbient = ambientLight * clamp(thickness * 0.4, 0.1, 0.6) * depthAttenuation;
 
-    // Deep water ambient illumination
-    var deepAmbient = ambientLight * clamp(thickness * 0.4, 0.1, 0.6) * depthAttenuation;    // Color the interior lighting
-    var interiorLightColor = mix(
-        bgColor * 0.7,                     // Increased environmental color influence
-        waterAppearance.color.rgb * 0.4,   // Reduced base water color influence
-        clamp(waterDepth * 0.05, 0.0, 0.5) // Reduced depth-based color mixing
+    // Color the interior lighting with controllable light colors
+    var baseInteriorLightColor = mix(
+        bgColor * 0.7,                     // Environmental color influence
+        waterAppearance.color.rgb * 0.4,   // Water color influence
+        clamp(waterDepth * 0.05, 0.0, 0.5) // Depth-based color mixing
     );
+
+    // Apply light colors based on contribution
+    var interiorLightColor = baseInteriorLightColor;
+    if lightingControls.mainLightEnabled != 0u && lightPenetrationMain > 0.0 {
+        interiorLightColor = mix(interiorLightColor,
+            interiorLightColor * lightingControls.mainLightColor,
+            lightPenetrationMain / (lightPenetrationMain + lightPenetrationFill + lightPenetrationRim + 0.001));
+    }
+    if lightingControls.fillLightEnabled != 0u && lightPenetrationFill > 0.0 {
+        interiorLightColor = mix(interiorLightColor,
+            interiorLightColor * lightingControls.fillLightColor,
+            lightPenetrationFill / (lightPenetrationMain + lightPenetrationFill + lightPenetrationRim + 0.001) * 0.5);
+    }
+    if lightingControls.rimLightEnabled != 0u && lightPenetrationRim > 0.0 {
+        interiorLightColor = mix(interiorLightColor,
+            interiorLightColor * lightingControls.rimLightColor,
+            lightPenetrationRim / (lightPenetrationMain + lightPenetrationFill + lightPenetrationRim + 0.001) * 0.3);
+    }
 
     // Combine interior lighting components
     interiorLighting = interiorLightColor * (scatteredLight * depthAttenuation + causticIntensity * thicknessAttenuation + deepAmbient);
@@ -414,10 +555,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     finalColor += vec3f(specular); // Convert scalar to vec3f
     finalColor += rimLighting; // Enhanced rim lighting
     finalColor += interiorLighting; // New interior lighting
-    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);
-
-    // Add ambient lighting
-    finalColor += vec3f(ambientLight * 0.05); // Reduced from 0.1 to 0.05
+    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);    // Add controllable ambient lighting
+    finalColor += ambientContribution * 0.05;
 
     // Apply edge enhancement
     finalColor *= edgeFactor;

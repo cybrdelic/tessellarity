@@ -5,7 +5,7 @@ import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews } from './common'
+import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews } from './common'
 import { FluidRenderer } from './render/fluidRender'
 import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
 
@@ -176,11 +176,17 @@ async function main() {
 		size: debugModeValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
-
 	// Create effects toggle buffer
 	const effectsToggleBuffer = device.createBuffer({
 		label: 'effects toggle buffer',
 		size: effectsToggleValues.byteLength,
+		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+	});
+
+	// Create lighting controls buffer
+	const lightingControlsBuffer = device.createBuffer({
+		label: 'lighting controls buffer',
+		size: lightingControlsValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
 
@@ -199,8 +205,46 @@ async function main() {
 	effectsToggleViews.enableAbsorption[0] = 1;
 	effectsToggleViews.enableDepthColoring[0] = 1;
 	effectsToggleViews.enableVelocityColoring[0] = 1;
-	effectsToggleViews.enableRimLighting[0] = 1;
 	device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
+
+	// Initialize lighting controls with default values
+	// Main light - primary key light
+	lightingControlsViews.mainLightDirection.set([0.3, -0.7, -0.6]);
+	lightingControlsViews.mainLightIntensity[0] = 1.0;
+	lightingControlsViews.mainLightColor.set([1.0, 1.0, 1.0]);
+	lightingControlsViews.mainLightEnabled[0] = 1;
+
+	// Fill light - secondary light for softer illumination
+	lightingControlsViews.fillLightDirection.set([-0.5, -0.3, 0.8]);
+	lightingControlsViews.fillLightIntensity[0] = 0.6;
+	lightingControlsViews.fillLightColor.set([0.9, 0.95, 1.0]);
+	lightingControlsViews.fillLightEnabled[0] = 1;
+
+	// Rim light - edge lighting for definition
+	lightingControlsViews.rimLightDirection.set([0.8, 0.2, -0.4]);
+	lightingControlsViews.rimLightIntensity[0] = 0.4;
+	lightingControlsViews.rimLightColor.set([1.0, 0.9, 0.8]);
+	lightingControlsViews.rimLightEnabled[0] = 1;
+
+	// Global lighting properties
+	lightingControlsViews.ambientIntensity[0] = 0.3;
+	lightingControlsViews.ambientColor.set([0.2, 0.3, 0.4]);
+	lightingControlsViews.shadowIntensity[0] = 0.8;
+	lightingControlsViews.lightingMode[0] = 0; // 0=realistic
+	// Advanced lighting properties
+	lightingControlsViews.specularIntensityMultiplier[0] = 1.0; lightingControlsViews.subsurfaceIntensityMultiplier[0] = 1.0;
+
+	// Additional lighting properties (for WebGPU 160-byte alignment)
+	lightingControlsViews.lightingPower[0] = 1.0;        // Default gamma/power
+	lightingControlsViews.lightingContrast[0] = 1.0;     // Default contrast
+	lightingControlsViews.volumetricIntensity[0] = 1.0;  // Default volumetric intensity
+	lightingControlsViews.rimLightingPower[0] = 1.0;     // Default rim lighting power
+	lightingControlsViews.lightingPadding1[0] = 0.0;     // Padding for alignment
+	lightingControlsViews.lightingPadding2[0] = 0.0;     // Padding for alignment
+	lightingControlsViews.lightingPadding3[0] = 0.0;     // Padding for alignment
+	lightingControlsViews.lightingPadding4[0] = 0.0;     // Padding for alignment
+
+	device.queue.writeBuffer(lightingControlsBuffer, 0, lightingControlsValues);
 
 	// Initialize debug mode (disabled by default)
 	debugModeViews.mode[0] = DebugVisualizationMode.NONE;
@@ -263,24 +307,23 @@ async function main() {
 	let sphInitDistances = simulationConfigs['sph'].cameraDistances
 	let boidsInitBoxSizes = simulationConfigs['boids'].boxSizes
 	let boidsInitDistances = simulationConfigs['boids'].cameraDistances
-
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
-	const mlsmpmFov = 45 * Math.PI / 180
-	const mlsmpmRadius = 0.6
-	const mlsmpmDiameter = 2 * mlsmpmRadius
-	const mlsmpmZoomRate = 1.5
-	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device)
-	const sphFov = 45 * Math.PI / 180
-	const sphRadius = 0.04
-	const sphDiameter = 2 * sphRadius
-	const sphZoomRate = 0.05
-	const sphSimulator = new SPHSimulator(particleBuffer, posvelBuffer, sphDiameter, device)
-	const boidsFov = 45 * Math.PI / 180
-	const boidsRadius = 0.3
-	const boidsDiameter = 2 * boidsRadius
-	const boidsZoomRate = 0.8
-	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device)
+	const mlsmpmFov = 45 * Math.PI / 180;
+	const mlsmpmRadius = 0.6;
+	const mlsmpmDiameter = 2 * mlsmpmRadius;
+	const mlsmpmZoomRate = 1.5;
+	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device);
+	const sphFov = 45 * Math.PI / 180;
+	const sphRadius = 0.04;
+	const sphDiameter = 2 * sphRadius;
+	const sphZoomRate = 0.05;
+	const sphSimulator = new SPHSimulator(particleBuffer, posvelBuffer, sphDiameter, device);
+	const boidsFov = 45 * Math.PI / 180;
+	const boidsRadius = 0.3;
+	const boidsDiameter = 2 * boidsRadius;
+	const boidsZoomRate = 0.8;
+	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device);
 	const mlsmpmRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -292,9 +335,9 @@ async function main() {
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer,
 		debugModeBuffer,
-		effectsToggleBuffer
+		effectsToggleBuffer,
+		lightingControlsBuffer
 	);
-
 	const sphRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -306,9 +349,9 @@ async function main() {
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer,
 		debugModeBuffer,
-		effectsToggleBuffer
+		effectsToggleBuffer,
+		lightingControlsBuffer
 	);
-
 	const boidsRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -320,7 +363,8 @@ async function main() {
 		cubemapTextureViews[currentEnvironmentIndex],
 		waterAppearanceBuffer,
 		debugModeBuffer,
-		effectsToggleBuffer
+		effectsToggleBuffer,
+		lightingControlsBuffer
 	);
 
 	console.log("simulator initialization done")
@@ -751,11 +795,97 @@ async function main() {
 			// Update all renderer instances with the current effects toggle buffer
 			mlsmpmRenderer.updateEffectsToggles(effectsToggleValues);
 			sphRenderer.updateEffectsToggles(effectsToggleValues);
-			boidsRenderer.updateEffectsToggles(effectsToggleValues);
-
-			console.log(`Updated effect ${effectKey} (index ${index}) to ${enabled ? 'enabled' : 'disabled'}`);
+			boidsRenderer.updateEffectsToggles(effectsToggleValues); console.log(`Updated effect ${effectKey} (index ${index}) to ${enabled ? 'enabled' : 'disabled'}`);
 		} else {
 			console.error(`Invalid effect index: ${index}`);
+		}
+	};
+
+	// Expose global function for lighting controls updates
+	(window as any).updateLightingControls = (parameter: string, value: any) => {
+		// Update the specific lighting parameter in the lighting controls buffer
+		try {
+			switch (parameter) {
+				// Lighting mode
+				case 'lightingMode':
+					lightingControlsViews.lightingMode[0] = value;
+					break;
+
+				// Main light parameters
+				case 'mainLightDirection':
+					lightingControlsViews.mainLightDirection.set(value);
+					break;
+				case 'mainLightIntensity':
+					lightingControlsViews.mainLightIntensity[0] = value;
+					break;
+				case 'mainLightColor':
+					lightingControlsViews.mainLightColor.set(value);
+					break;
+				case 'mainLightEnabled':
+					lightingControlsViews.mainLightEnabled[0] = value;
+					break;
+
+				// Fill light parameters
+				case 'fillLightDirection':
+					lightingControlsViews.fillLightDirection.set(value);
+					break;
+				case 'fillLightIntensity':
+					lightingControlsViews.fillLightIntensity[0] = value;
+					break;
+				case 'fillLightColor':
+					lightingControlsViews.fillLightColor.set(value);
+					break;
+				case 'fillLightEnabled':
+					lightingControlsViews.fillLightEnabled[0] = value;
+					break;
+
+				// Rim light parameters
+				case 'rimLightDirection':
+					lightingControlsViews.rimLightDirection.set(value);
+					break;
+				case 'rimLightIntensity':
+					lightingControlsViews.rimLightIntensity[0] = value;
+					break;
+				case 'rimLightColor':
+					lightingControlsViews.rimLightColor.set(value);
+					break;
+				case 'rimLightEnabled':
+					lightingControlsViews.rimLightEnabled[0] = value;
+					break;
+
+				// Global lighting parameters
+				case 'ambientIntensity':
+					lightingControlsViews.ambientIntensity[0] = value;
+					break;
+				case 'ambientColor':
+					lightingControlsViews.ambientColor.set(value);
+					break;
+				case 'shadowIntensity':
+					lightingControlsViews.shadowIntensity[0] = value;
+					break;
+				case 'specularIntensityMultiplier':
+					lightingControlsViews.specularIntensityMultiplier[0] = value;
+					break;
+				case 'subsurfaceIntensityMultiplier':
+					lightingControlsViews.subsurfaceIntensityMultiplier[0] = value;
+					break;
+
+				default:
+					console.error(`Unknown lighting parameter: ${parameter}`);
+					return;
+			}
+
+			// Write the updated buffer to GPU
+			device.queue.writeBuffer(lightingControlsBuffer, 0, lightingControlsValues);
+
+			// Update all renderer instances with the current lighting controls buffer
+			mlsmpmRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
+			sphRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
+			boidsRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
+
+			console.log(`Updated lighting parameter ${parameter} to ${value}`);
+		} catch (error) {
+			console.error(`Error updating lighting parameter ${parameter}:`, error);
 		}
 	};
 }

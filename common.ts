@@ -50,7 +50,52 @@ export const effectsToggleViews = {
 
   // Color and depth effects
   enableDepthColoring: new Uint32Array(effectsToggleValues, 48, 1),     // Depth-based color variation
-  enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts
-  enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
+  enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts  enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
   padding: new Uint32Array(effectsToggleValues, 60, 1),                 // Alignment padding
+};
+
+// Comprehensive lighting controls buffer
+export const lightingControlsValues = new ArrayBuffer(176); // 44 floats * 4 bytes each (WebGPU requirement)
+export const lightingControlsViews = {
+  // Main light properties
+  mainLightDirection: new Float32Array(lightingControlsValues, 0, 3),   // Main light direction
+  mainLightIntensity: new Float32Array(lightingControlsValues, 12, 1),  // Main light intensity
+  mainLightColor: new Float32Array(lightingControlsValues, 16, 3),      // Main light color (RGB)
+  mainLightEnabled: new Uint32Array(lightingControlsValues, 28, 1),     // Main light enable toggle
+
+  // Fill light properties
+  fillLightDirection: new Float32Array(lightingControlsValues, 32, 3),  // Fill light direction
+  fillLightIntensity: new Float32Array(lightingControlsValues, 44, 1),  // Fill light intensity
+  fillLightColor: new Float32Array(lightingControlsValues, 48, 3),      // Fill light color (RGB)
+  fillLightEnabled: new Uint32Array(lightingControlsValues, 60, 1),     // Fill light enable toggle
+
+  // Rim light properties
+  rimLightDirection: new Float32Array(lightingControlsValues, 64, 3),   // Rim light direction
+  rimLightIntensity: new Float32Array(lightingControlsValues, 76, 1),   // Rim light intensity
+  rimLightColor: new Float32Array(lightingControlsValues, 80, 3),       // Rim light color (RGB)
+  rimLightEnabled: new Uint32Array(lightingControlsValues, 92, 1),      // Rim light enable toggle
+
+  // Global lighting properties
+  ambientIntensity: new Float32Array(lightingControlsValues, 96, 1),    // Ambient light intensity
+  ambientColor: new Float32Array(lightingControlsValues, 100, 3),       // Ambient light color (RGB)
+  shadowIntensity: new Float32Array(lightingControlsValues, 112, 1),    // Shadow intensity
+  lightingMode: new Uint32Array(lightingControlsValues, 116, 1),        // Lighting mode (0=realistic, 1=artistic, 2=dramatic)
+
+  // Advanced lighting properties
+  specularIntensityMultiplier: new Float32Array(lightingControlsValues, 120, 1), // Global specular multiplier
+  subsurfaceIntensityMultiplier: new Float32Array(lightingControlsValues, 124, 1), // Global subsurface multiplier
+
+  // Additional lighting properties (padding to meet WebGPU 176-byte requirement)
+  lightingPower: new Float32Array(lightingControlsValues, 128, 1),      // Global lighting power/gamma
+  lightingContrast: new Float32Array(lightingControlsValues, 132, 1),   // Global lighting contrast
+  volumetricIntensity: new Float32Array(lightingControlsValues, 136, 1), // Volumetric lighting intensity
+  rimLightingPower: new Float32Array(lightingControlsValues, 140, 1),   // Rim lighting power adjustment
+  lightingPadding1: new Float32Array(lightingControlsValues, 144, 1),   // Alignment padding 1
+  lightingPadding2: new Float32Array(lightingControlsValues, 148, 1),   // Alignment padding 2
+  lightingPadding3: new Float32Array(lightingControlsValues, 152, 1),   // Alignment padding 3
+  lightingPadding4: new Float32Array(lightingControlsValues, 156, 1),   // Alignment padding 4
+  lightingPadding5: new Float32Array(lightingControlsValues, 160, 1),   // Alignment padding 5
+  lightingPadding6: new Float32Array(lightingControlsValues, 164, 1),   // Alignment padding 6
+  lightingPadding7: new Float32Array(lightingControlsValues, 168, 1),   // Alignment padding 7
+  lightingPadding8: new Float32Array(lightingControlsValues, 172, 1),   // Alignment padding 8
 };

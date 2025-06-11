@@ -33,6 +33,7 @@ export class FluidRenderer {
     waterAppearanceBuffer: GPUBuffer
     debugModeBuffer: GPUBuffer
     effectsToggleBuffer: GPUBuffer
+    lightingControlsBuffer: GPUBuffer
     sampler: GPUSampler
 
     constructor(
@@ -45,13 +46,15 @@ export class FluidRenderer {
         cubemapTextureView: GPUTextureView,
         waterAppearanceBuffer: GPUBuffer,
         debugModeBuffer: GPUBuffer,
-        effectsToggleBuffer: GPUBuffer
+        effectsToggleBuffer: GPUBuffer,
+        lightingControlsBuffer: GPUBuffer
     ) {
         this.device = device
         this.renderUniformBuffer = renderUniformBuffer
         this.waterAppearanceBuffer = waterAppearanceBuffer
         this.debugModeBuffer = debugModeBuffer
         this.effectsToggleBuffer = effectsToggleBuffer
+        this.lightingControlsBuffer = lightingControlsBuffer
 
         const maxFilterSize = 100
         const blurdDepthScale = 10
@@ -339,10 +342,10 @@ export class FluidRenderer {
                 { binding: 1, resource: this.depthMapTextureView },
                 { binding: 2, resource: { buffer: renderUniformBuffer } },
                 { binding: 3, resource: this.thicknessTextureView },
-                { binding: 4, resource: cubemapTextureView },
-                { binding: 5, resource: { buffer: waterAppearanceBuffer } },
+                { binding: 4, resource: cubemapTextureView }, { binding: 5, resource: { buffer: waterAppearanceBuffer } },
                 { binding: 6, resource: { buffer: debugModeBuffer } },
                 { binding: 7, resource: { buffer: effectsToggleBuffer } },
+                { binding: 8, resource: { buffer: lightingControlsBuffer } },
             ],
         })
 
@@ -545,10 +548,10 @@ export class FluidRenderer {
                 { binding: 1, resource: this.depthMapTextureView },
                 { binding: 2, resource: { buffer: this.renderUniformBuffer } },
                 { binding: 3, resource: this.thicknessTextureView },
-                { binding: 4, resource: newCubemapTextureView },
-                { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
+                { binding: 4, resource: newCubemapTextureView }, { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
                 { binding: 6, resource: { buffer: this.debugModeBuffer } },
                 { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
+                { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
             ],
         });
     }    /**

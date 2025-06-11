@@ -1713,6 +1713,316 @@
       </select>
     </div>
 
+    <!-- Lighting Controls -->
+    <div class="control-group">
+      <label class="control-label">
+        <i class="fas fa-lightbulb" style="margin-right: 0.5rem; color: var(--accent-warning);"></i>
+        Lighting Controls
+      </label>
+      <div class="control-description">Control multiple light sources, intensities, colors, and global lighting settings
+      </div>
+
+      <!-- Lighting Mode Selector -->
+      <div style="margin-bottom: var(--space-lg);">
+        <label style="display: block; margin-bottom: var(--space-sm); font-size: 0.9rem; color: var(--text-secondary);">
+          Lighting Mode
+        </label>
+        <select id="lighting-mode-select">
+          <option value="0">Realistic</option>
+          <option value="1">Artistic</option>
+          <option value="2">Dramatic</option>
+        </select>
+      </div>
+
+      <!-- Main Light Controls -->
+      <div
+        style="border: 1px solid rgba(255, 255, 255, 0.1); padding: var(--space-md); margin-bottom: var(--space-md); border-radius: 0;">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">
+            <i class="fas fa-sun" style="margin-right: 0.5rem; color: #FFD700;"></i>
+            Main Light (Key)
+          </span>
+          <div class="checkbox-container" style="margin: 0;">
+            <input type="checkbox" id="main-light-enabled" checked>
+          </div>
+        </div>
+
+        <!-- Main Light Direction -->
+        <div style="margin-bottom: var(--space-md);">
+          <label
+            style="display: block; margin-bottom: var(--space-xs); font-size: 0.85rem; color: var(--text-secondary);">
+            Direction
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-sm);">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">X</label>
+              <input type="range" id="main-light-dir-x" min="-1" max="1" step="0.1" value="0.3"
+                style="width: 100%; margin: 0;">
+              <span id="main-light-dir-x-value" style="font-size: 0.7rem; color: var(--text-muted);">0.3</span>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Y</label>
+              <input type="range" id="main-light-dir-y" min="-1" max="1" step="0.1" value="-0.7"
+                style="width: 100%; margin: 0;">
+              <span id="main-light-dir-y-value" style="font-size: 0.7rem; color: var(--text-muted);">-0.7</span>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Z</label>
+              <input type="range" id="main-light-dir-z" min="-1" max="1" step="0.1" value="-0.6"
+                style="width: 100%; margin: 0;">
+              <span id="main-light-dir-z-value" style="font-size: 0.7rem; color: var(--text-muted);">-0.6</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Light Intensity -->
+        <div class="slider-container" style="margin-bottom: var(--space-md);">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Intensity</span>
+              <span class="slider-value" id="main-light-intensity-value">100%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('main-light-intensity', 100)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="main-light-intensity" min="0" max="200" value="100" />
+        </div>
+
+        <!-- Main Light Color -->
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-md); align-items: center;">
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">Color</span>
+          <input type="color" id="main-light-color" value="#ffffff" style="width: 60px; height: 30px;" />
+        </div>
+      </div>
+
+      <!-- Fill Light Controls -->
+      <div
+        style="border: 1px solid rgba(255, 255, 255, 0.1); padding: var(--space-md); margin-bottom: var(--space-md); border-radius: 0;">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">
+            <i class="fas fa-moon" style="margin-right: 0.5rem; color: #87CEEB;"></i>
+            Fill Light (Secondary)
+          </span>
+          <div class="checkbox-container" style="margin: 0;">
+            <input type="checkbox" id="fill-light-enabled" checked>
+          </div>
+        </div>
+
+        <!-- Fill Light Direction -->
+        <div style="margin-bottom: var(--space-md);">
+          <label
+            style="display: block; margin-bottom: var(--space-xs); font-size: 0.85rem; color: var(--text-secondary);">
+            Direction
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-sm);">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">X</label>
+              <input type="range" id="fill-light-dir-x" min="-1" max="1" step="0.1" value="-0.5"
+                style="width: 100%; margin: 0;">
+              <span id="fill-light-dir-x-value" style="font-size: 0.7rem; color: var(--text-muted);">-0.5</span>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Y</label>
+              <input type="range" id="fill-light-dir-y" min="-1" max="1" step="0.1" value="-0.3"
+                style="width: 100%; margin: 0;">
+              <span id="fill-light-dir-y-value" style="font-size: 0.7rem; color: var(--text-muted);">-0.3</span>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Z</label>
+              <input type="range" id="fill-light-dir-z" min="-1" max="1" step="0.1" value="0.8"
+                style="width: 100%; margin: 0;">
+              <span id="fill-light-dir-z-value" style="font-size: 0.7rem; color: var(--text-muted);">0.8</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fill Light Intensity -->
+        <div class="slider-container" style="margin-bottom: var(--space-md);">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Intensity</span>
+              <span class="slider-value" id="fill-light-intensity-value">60%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('fill-light-intensity', 60)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="fill-light-intensity" min="0" max="200" value="60" />
+        </div>
+
+        <!-- Fill Light Color -->
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-md); align-items: center;">
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">Color</span>
+          <input type="color" id="fill-light-color" value="#ffffff" style="width: 60px; height: 30px;" />
+        </div>
+      </div>
+
+      <!-- Rim Light Controls -->
+      <div
+        style="border: 1px solid rgba(255, 255, 255, 0.1); padding: var(--space-md); margin-bottom: var(--space-md); border-radius: 0;">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">
+            <i class="fas fa-star" style="margin-right: 0.5rem; color: #FFB6C1;"></i>
+            Rim Light (Edge)
+          </span>
+          <div class="checkbox-container" style="margin: 0;">
+            <input type="checkbox" id="rim-light-enabled" checked>
+          </div>
+        </div>
+
+        <!-- Rim Light Direction -->
+        <div style="margin-bottom: var(--space-md);">
+          <label
+            style="display: block; margin-bottom: var(--space-xs); font-size: 0.85rem; color: var(--text-secondary);">
+            Direction
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-sm);">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">X</label>
+              <input type="range" id="rim-light-dir-x" min="-1" max="1" step="0.1" value="0.8"
+                style="width: 100%; margin: 0;">
+              <span id="rim-light-dir-x-value" style="font-size: 0.7rem; color: var(--text-muted);">0.8</span>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Y</label>
+              <input type="range" id="rim-light-dir-y" min="-1" max="1" step="0.1" value="0.2"
+                style="width: 100%; margin: 0;">
+              <span id="rim-light-dir-y-value" style="font-size: 0.7rem; color: var(--text-muted);">0.2</span>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Z</label>
+              <input type="range" id="rim-light-dir-z" min="-1" max="1" step="0.1" value="-0.6"
+                style="width: 100%; margin: 0;">
+              <span id="rim-light-dir-z-value" style="font-size: 0.7rem; color: var(--text-muted);">-0.6</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rim Light Intensity -->
+        <div class="slider-container" style="margin-bottom: var(--space-md);">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Intensity</span>
+              <span class="slider-value" id="rim-light-intensity-value">80%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('rim-light-intensity', 80)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="rim-light-intensity" min="0" max="200" value="80" />
+        </div>
+
+        <!-- Rim Light Color -->
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-md); align-items: center;">
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">Color</span>
+          <input type="color" id="rim-light-color" value="#ffffff" style="width: 60px; height: 30px;" />
+        </div>
+      </div>
+
+      <!-- Global Lighting Controls -->
+      <div
+        style="border: 1px solid rgba(255, 255, 255, 0.1); padding: var(--space-md); margin-bottom: var(--space-md); border-radius: 0;">
+        <div style="margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">
+            <i class="fas fa-globe" style="margin-right: 0.5rem; color: var(--accent-color);"></i>
+            Global Lighting
+          </span>
+        </div>
+
+        <!-- Ambient Light Intensity -->
+        <div class="slider-container" style="margin-bottom: var(--space-md);">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Ambient Intensity</span>
+              <span class="slider-value" id="ambient-intensity-value">30%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('ambient-intensity', 30)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="ambient-intensity" min="0" max="100" value="30" />
+        </div>
+
+        <!-- Ambient Color -->
+        <div
+          style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-md); align-items: center; margin-bottom: var(--space-md);">
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">Ambient Color</span>
+          <input type="color" id="ambient-color" value="#404080" style="width: 60px; height: 30px;" />
+        </div>
+
+        <!-- Shadow Intensity -->
+        <div class="slider-container" style="margin-bottom: var(--space-md);">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Shadow Intensity</span>
+              <span class="slider-value" id="shadow-intensity-value">50%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('shadow-intensity', 50)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="shadow-intensity" min="0" max="100" value="50" />
+        </div>
+
+        <!-- Specular Multiplier -->
+        <div class="slider-container" style="margin-bottom: var(--space-md);">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Specular Multiplier</span>
+              <span class="slider-value" id="specular-multiplier-value">100%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('specular-multiplier', 100)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="specular-multiplier" min="0" max="200" value="100" />
+        </div>
+
+        <!-- Subsurface Multiplier -->
+        <div class="slider-container">
+          <div class="slider-header">
+            <div class="slider-label">
+              <span>Subsurface Multiplier</span>
+              <span class="slider-value" id="subsurface-multiplier-value">100%</span>
+            </div>
+            <button class="slider-reset" onclick="resetSlider('subsurface-multiplier', 100)" title="Reset to default">
+              <i class="fas fa-undo" style="font-size: 10px;"></i>
+            </button>
+          </div>
+          <input type="range" id="subsurface-multiplier" min="0" max="200" value="100" />
+        </div>
+      </div>
+
+      <!-- Lighting Presets -->
+      <div style="margin-top: var(--space-lg);">
+        <div style="margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">Lighting Presets</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm);">
+          <button id="lighting-preset-natural" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-sun"></i>
+            <span>Natural</span>
+          </button>
+          <button id="lighting-preset-dramatic" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-theater-masks"></i>
+            <span>Dramatic</span>
+          </button>
+          <button id="lighting-preset-soft" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-cloud"></i>
+            <span>Soft</span>
+          </button>
+          <button id="lighting-preset-studio" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-video"></i>
+            <span>Studio</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Water Appearance Controls -->
     <div id="water-appearance-controls"> <!-- Water Color -->
       <div class="control-group">
@@ -2807,6 +3117,7 @@
       initializeSliderEnhancements();
       initializeSmartValueIndicators();
       initializeEffectsToggles();
+      initializeLightingControls();
     });
 
     // If DOM is already loaded, initialize immediately
@@ -2818,6 +3129,7 @@
         initializeSliderEnhancements();
         initializeSmartValueIndicators();
         initializeEffectsToggles();
+        initializeLightingControls();
       });
     } else {
       initializeColorPresets();
@@ -2826,6 +3138,7 @@
       initializeSliderEnhancements();
       initializeSmartValueIndicators();
       initializeEffectsToggles();
+      initializeLightingControls();
     }
 
     // Effects Toggle Functionality
@@ -2982,18 +3295,19 @@
           tooltip.classList.remove('visible');
         });
       });
-    }
-
-    function initializeSliderEnhancements() {
+    } function initializeSliderEnhancements() {
       const sliders = document.querySelectorAll('input[type="range"]');
 
       sliders.forEach(slider => {
         // Add smooth value updates
         slider.addEventListener('input', function () {
-          const valueDisplay = this.closest('.slider-container').querySelector('.slider-value');
-          if (valueDisplay) {
-            valueDisplay.classList.add('updating');
-            setTimeout(() => valueDisplay.classList.remove('updating'), 300);
+          const sliderContainer = this.closest('.slider-container');
+          if (sliderContainer) {
+            const valueDisplay = sliderContainer.querySelector('.slider-value');
+            if (valueDisplay) {
+              valueDisplay.classList.add('updating');
+              setTimeout(() => valueDisplay.classList.remove('updating'), 300);
+            }
           }
         });
 
@@ -3024,18 +3338,18 @@
               this.dispatchEvent(new Event('input', { bubbles: true }));
               break;
           }
-        });
-        // Add double-click to reset functionality
+        });        // Add double-click to reset functionality
         slider.addEventListener('dblclick', function () {
-          const resetButton = this.closest('.slider-container').querySelector('.slider-reset');
-          if (resetButton) {
-            resetButton.click();
+          const sliderContainer = this.closest('.slider-container');
+          if (sliderContainer) {
+            const resetButton = sliderContainer.querySelector('.slider-reset');
+            if (resetButton) {
+              resetButton.click();
+            }
           }
         });
       });
-    }
-
-    function initializeSmartValueIndicators() {
+    } function initializeSmartValueIndicators() {
       const sliders = document.querySelectorAll('input[type="range"]');
 
       sliders.forEach(slider => {
@@ -3043,7 +3357,11 @@
         const indicator = document.createElement('div');
         indicator.className = 'value-indicator';
 
-        const valueContainer = slider.closest('.slider-container').querySelector('.slider-value');
+        // Find the slider container and value display with null checking
+        const sliderContainer = slider.closest('.slider-container');
+        if (!sliderContainer) return; // Skip sliders without slider-container parent
+
+        const valueContainer = sliderContainer.querySelector('.slider-value');
         if (valueContainer) {
           valueContainer.parentElement.style.position = 'relative';
           valueContainer.parentElement.appendChild(indicator);
@@ -3263,14 +3581,393 @@
 
       document.body.appendChild(feedback);
       setTimeout(() => feedback.remove(), 2500);
-    }
-
-    // Global function to expose effects updates to main.ts
+    }    // Global function to expose effects updates to main.ts
     window.updateEffectsToggle = function (index, enabled) {
       // This will be called by the UI and should update the effects buffer
       // The actual implementation will be in main.ts
       console.log(`Updating effect ${index} to ${enabled ? 'enabled' : 'disabled'}`);
     };
+
+    // Global function to expose lighting controls updates to main.ts
+    window.updateLightingControls = function (parameter, value) {
+      // This will be called by the UI and should update the lighting buffer
+      // The actual implementation will be in main.ts
+      console.log(`Updating lighting parameter ${parameter} to ${value}`);
+    };
+
+    // Initialize Lighting Controls
+    function initializeLightingControls() {
+      console.log('Initializing lighting controls...');
+
+      // Lighting Mode Selector
+      const lightingModeSelect = document.getElementById('lighting-mode-select');
+      if (lightingModeSelect) {
+        lightingModeSelect.addEventListener('change', function () {
+          const mode = parseInt(this.value);
+          window.updateLightingControls('lightingMode', mode);
+        });
+      }
+
+      // Main Light Controls
+      setupLightControls('main', {
+        enabled: true,
+        direction: [0.3, -0.7, -0.6],
+        intensity: 1.0,
+        color: [1.0, 1.0, 1.0]
+      });
+
+      // Fill Light Controls
+      setupLightControls('fill', {
+        enabled: true,
+        direction: [-0.5, -0.3, 0.8],
+        intensity: 0.6,
+        color: [1.0, 1.0, 1.0]
+      });
+
+      // Rim Light Controls
+      setupLightControls('rim', {
+        enabled: true,
+        direction: [0.8, 0.2, -0.6],
+        intensity: 0.8,
+        color: [1.0, 1.0, 1.0]
+      });
+
+      // Global Lighting Controls
+      setupGlobalLightingControls();
+
+      // Lighting Presets
+      setupLightingPresets();
+
+      console.log('Lighting controls initialized');
+    }
+
+    function setupLightControls(lightType, defaults) {
+      const prefix = lightType + '-light';
+
+      // Enable/Disable Toggle
+      const enabledCheckbox = document.getElementById(prefix + '-enabled');
+      if (enabledCheckbox) {
+        enabledCheckbox.addEventListener('change', function () {
+          const enabled = this.checked ? 1 : 0;
+          window.updateLightingControls(lightType + 'LightEnabled', enabled);
+        });
+      }
+
+      // Direction Controls (X, Y, Z)
+      ['x', 'y', 'z'].forEach((axis, index) => {
+        const slider = document.getElementById(prefix + '-dir-' + axis);
+        const valueDisplay = document.getElementById(prefix + '-dir-' + axis + '-value');
+
+        if (slider && valueDisplay) {
+          slider.addEventListener('input', function () {
+            const value = parseFloat(this.value);
+            valueDisplay.textContent = value.toFixed(1);
+
+            // Update the direction vector component
+            const direction = [
+              parseFloat(document.getElementById(prefix + '-dir-x').value),
+              parseFloat(document.getElementById(prefix + '-dir-y').value),
+              parseFloat(document.getElementById(prefix + '-dir-z').value)
+            ];
+            window.updateLightingControls(lightType + 'LightDirection', direction);
+          });
+        }
+      });
+
+      // Intensity Control
+      const intensitySlider = document.getElementById(prefix + '-intensity');
+      const intensityValue = document.getElementById(prefix + '-intensity-value');
+      if (intensitySlider && intensityValue) {
+        intensitySlider.addEventListener('input', function () {
+          const value = parseInt(this.value);
+          intensityValue.textContent = value + '%';
+          window.updateLightingControls(lightType + 'LightIntensity', value / 100.0);
+        });
+      }
+
+      // Color Control
+      const colorPicker = document.getElementById(prefix + '-color');
+      if (colorPicker) {
+        colorPicker.addEventListener('change', function () {
+          const hex = this.value;
+          const rgb = hexToRgb(hex);
+          if (rgb) {
+            const normalizedRgb = [rgb.r / 255, rgb.g / 255, rgb.b / 255];
+            window.updateLightingControls(lightType + 'LightColor', normalizedRgb);
+          }
+        });
+      }
+    }
+
+    function setupGlobalLightingControls() {
+      // Ambient Intensity
+      const ambientIntensitySlider = document.getElementById('ambient-intensity');
+      const ambientIntensityValue = document.getElementById('ambient-intensity-value');
+      if (ambientIntensitySlider && ambientIntensityValue) {
+        ambientIntensitySlider.addEventListener('input', function () {
+          const value = parseInt(this.value);
+          ambientIntensityValue.textContent = value + '%';
+          window.updateLightingControls('ambientIntensity', value / 100.0);
+        });
+      }
+
+      // Ambient Color
+      const ambientColorPicker = document.getElementById('ambient-color');
+      if (ambientColorPicker) {
+        ambientColorPicker.addEventListener('change', function () {
+          const hex = this.value;
+          const rgb = hexToRgb(hex);
+          if (rgb) {
+            const normalizedRgb = [rgb.r / 255, rgb.g / 255, rgb.b / 255];
+            window.updateLightingControls('ambientColor', normalizedRgb);
+          }
+        });
+      }
+
+      // Shadow Intensity
+      const shadowIntensitySlider = document.getElementById('shadow-intensity');
+      const shadowIntensityValue = document.getElementById('shadow-intensity-value');
+      if (shadowIntensitySlider && shadowIntensityValue) {
+        shadowIntensitySlider.addEventListener('input', function () {
+          const value = parseInt(this.value);
+          shadowIntensityValue.textContent = value + '%';
+          window.updateLightingControls('shadowIntensity', value / 100.0);
+        });
+      }
+
+      // Specular Multiplier
+      const specularMultiplierSlider = document.getElementById('specular-multiplier');
+      const specularMultiplierValue = document.getElementById('specular-multiplier-value');
+      if (specularMultiplierSlider && specularMultiplierValue) {
+        specularMultiplierSlider.addEventListener('input', function () {
+          const value = parseInt(this.value);
+          specularMultiplierValue.textContent = value + '%';
+          window.updateLightingControls('specularIntensityMultiplier', value / 100.0);
+        });
+      }
+
+      // Subsurface Multiplier
+      const subsurfaceMultiplierSlider = document.getElementById('subsurface-multiplier');
+      const subsurfaceMultiplierValue = document.getElementById('subsurface-multiplier-value');
+      if (subsurfaceMultiplierSlider && subsurfaceMultiplierValue) {
+        subsurfaceMultiplierSlider.addEventListener('input', function () {
+          const value = parseInt(this.value);
+          subsurfaceMultiplierValue.textContent = value + '%';
+          window.updateLightingControls('subsurfaceIntensityMultiplier', value / 100.0);
+        });
+      }
+    }
+
+    function setupLightingPresets() {
+      // Natural Lighting Preset
+      const naturalPreset = document.getElementById('lighting-preset-natural');
+      if (naturalPreset) {
+        naturalPreset.addEventListener('click', function () {
+          applyLightingPreset('natural');
+          showLightingPresetFeedback('Natural Lighting');
+        });
+      }
+
+      // Dramatic Lighting Preset
+      const dramaticPreset = document.getElementById('lighting-preset-dramatic');
+      if (dramaticPreset) {
+        dramaticPreset.addEventListener('click', function () {
+          applyLightingPreset('dramatic');
+          showLightingPresetFeedback('Dramatic Lighting');
+        });
+      }
+
+      // Soft Lighting Preset
+      const softPreset = document.getElementById('lighting-preset-soft');
+      if (softPreset) {
+        softPreset.addEventListener('click', function () {
+          applyLightingPreset('soft');
+          showLightingPresetFeedback('Soft Lighting');
+        });
+      }
+
+      // Studio Lighting Preset
+      const studioPreset = document.getElementById('lighting-preset-studio');
+      if (studioPreset) {
+        studioPreset.addEventListener('click', function () {
+          applyLightingPreset('studio');
+          showLightingPresetFeedback('Studio Lighting');
+        });
+      }
+    }
+
+    function applyLightingPreset(presetName) {
+      const presets = {
+        natural: {
+          lightingMode: 0, // Realistic
+          mainLight: { enabled: true, direction: [0.3, -0.7, -0.6], intensity: 1.0, color: '#FFFACD' },
+          fillLight: { enabled: true, direction: [-0.5, -0.3, 0.8], intensity: 0.4, color: '#87CEEB' },
+          rimLight: { enabled: true, direction: [0.8, 0.2, -0.6], intensity: 0.6, color: '#FFE4B5' },
+          ambient: { intensity: 0.3, color: '#404080' },
+          shadow: 0.4,
+          specular: 1.0,
+          subsurface: 1.0
+        },
+        dramatic: {
+          lightingMode: 2, // Dramatic
+          mainLight: { enabled: true, direction: [0.7, -0.5, -0.5], intensity: 1.5, color: '#FF6347' },
+          fillLight: { enabled: true, direction: [-0.8, -0.2, 0.6], intensity: 0.2, color: '#4169E1' },
+          rimLight: { enabled: true, direction: [0.9, 0.3, -0.3], intensity: 1.2, color: '#FFD700' },
+          ambient: { intensity: 0.1, color: '#2F4F4F' },
+          shadow: 0.8,
+          specular: 1.3,
+          subsurface: 0.7
+        },
+        soft: {
+          lightingMode: 1, // Artistic
+          mainLight: { enabled: true, direction: [0.2, -0.8, -0.6], intensity: 0.8, color: '#FFF8DC' },
+          fillLight: { enabled: true, direction: [-0.3, -0.4, 0.9], intensity: 0.7, color: '#F0F8FF' },
+          rimLight: { enabled: true, direction: [0.6, 0.4, -0.7], intensity: 0.5, color: '#FFFAFA' },
+          ambient: { intensity: 0.5, color: '#E6E6FA' },
+          shadow: 0.3,
+          specular: 0.8,
+          subsurface: 1.2
+        },
+        studio: {
+          lightingMode: 0, // Realistic
+          mainLight: { enabled: true, direction: [0.4, -0.6, -0.7], intensity: 1.2, color: '#FFFFFF' },
+          fillLight: { enabled: true, direction: [-0.6, -0.3, 0.7], intensity: 0.8, color: '#F5F5F5' },
+          rimLight: { enabled: true, direction: [0.8, 0.1, -0.6], intensity: 1.0, color: '#FFFFFF' },
+          ambient: { intensity: 0.2, color: '#DCDCDC' },
+          shadow: 0.5,
+          specular: 1.1,
+          subsurface: 0.9
+        }
+      };
+
+      const preset = presets[presetName];
+      if (!preset) return;
+
+      // Apply lighting mode
+      const modeSelect = document.getElementById('lighting-mode-select');
+      if (modeSelect) {
+        modeSelect.value = preset.lightingMode;
+        modeSelect.dispatchEvent(new Event('change'));
+      }
+
+      // Apply each light's settings
+      ['main', 'fill', 'rim'].forEach(lightType => {
+        const lightData = preset[lightType + 'Light'];
+        if (!lightData) return;
+
+        // Enable/Disable
+        const enabledCheckbox = document.getElementById(lightType + '-light-enabled');
+        if (enabledCheckbox) {
+          enabledCheckbox.checked = lightData.enabled;
+          enabledCheckbox.dispatchEvent(new Event('change'));
+        }
+
+        // Direction
+        if (lightData.direction) {
+          ['x', 'y', 'z'].forEach((axis, index) => {
+            const slider = document.getElementById(lightType + '-light-dir-' + axis);
+            if (slider) {
+              slider.value = lightData.direction[index];
+              slider.dispatchEvent(new Event('input'));
+            }
+          });
+        }
+
+        // Intensity
+        const intensitySlider = document.getElementById(lightType + '-light-intensity');
+        if (intensitySlider) {
+          intensitySlider.value = Math.round(lightData.intensity * 100);
+          intensitySlider.dispatchEvent(new Event('input'));
+        }
+
+        // Color
+        const colorPicker = document.getElementById(lightType + '-light-color');
+        if (colorPicker) {
+          colorPicker.value = lightData.color;
+          colorPicker.dispatchEvent(new Event('change'));
+        }
+      });
+
+      // Apply global settings
+      if (preset.ambient) {
+        const ambientIntensitySlider = document.getElementById('ambient-intensity');
+        if (ambientIntensitySlider) {
+          ambientIntensitySlider.value = Math.round(preset.ambient.intensity * 100);
+          ambientIntensitySlider.dispatchEvent(new Event('input'));
+        }
+
+        const ambientColorPicker = document.getElementById('ambient-color');
+        if (ambientColorPicker) {
+          ambientColorPicker.value = preset.ambient.color;
+          ambientColorPicker.dispatchEvent(new Event('change'));
+        }
+      }
+
+      // Shadow intensity
+      const shadowSlider = document.getElementById('shadow-intensity');
+      if (shadowSlider) {
+        shadowSlider.value = Math.round(preset.shadow * 100);
+        shadowSlider.dispatchEvent(new Event('input'));
+      }
+
+      // Specular multiplier
+      const specularSlider = document.getElementById('specular-multiplier');
+      if (specularSlider) {
+        specularSlider.value = Math.round(preset.specular * 100);
+        specularSlider.dispatchEvent(new Event('input'));
+      }
+
+      // Subsurface multiplier
+      const subsurfaceSlider = document.getElementById('subsurface-multiplier');
+      if (subsurfaceSlider) {
+        subsurfaceSlider.value = Math.round(preset.subsurface * 100);
+        subsurfaceSlider.dispatchEvent(new Event('input'));
+      }
+    }
+
+    function showLightingPresetFeedback(presetName) {
+      const feedback = document.createElement('div');
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <i class="fas fa-lightbulb" style="color: var(--accent-warning);"></i>
+          <span>${presetName} Applied</span>
+        </div>
+      `;
+      feedback.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--glass-bg-light);
+        backdrop-filter: var(--glass-backdrop);
+        -webkit-backdrop-filter: var(--glass-backdrop);
+        border: 1px solid var(--glass-border);
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        z-index: 9999;
+        pointer-events: none;
+        animation: slideInFadeOut 2.5s ease-out forwards;
+        border-radius: 0;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      `;
+
+      document.body.appendChild(feedback);
+      setTimeout(() => feedback.remove(), 2500);
+    }
+
+    // Utility function to convert hex color to RGB
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : null;
+    }
+
+    // Initialize lighting controls when page loads
+    // (Note: This is already called in the main DOMContentLoaded event listener above)
   </script>
 
   <script type="module" src="main.ts"></script>
