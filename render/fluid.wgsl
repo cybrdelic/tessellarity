@@ -189,8 +189,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Calculate controllable ambient lighting
     var baseAmbientFromEnv = dot(bgColor, vec3f(0.299, 0.587, 0.114));
-    var ambientLight = baseAmbientFromEnv * lightingControls.ambientIntensity * 0.15;
-    var ambientContribution = lightingControls.ambientColor * ambientLight;
+    var ambientLight = baseAmbientFromEnv * lightingControls.ambientIntensity * 0.5; // Increased from 0.15 to 0.5
+    var ambientContribution = lightingControls.ambientColor * ambientLight * 2.0; // Added 2.0 multiplier
 
     // Calculate velocity magnitude and physics variables ONCE
     // Use separate X and Z velocity components for better variation
@@ -278,9 +278,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     normal = normalize(turbulentNormal);
 
     // Surface properties based on turbulence - enhanced for more shine
-    var surfaceRoughness = clamp(velocityMagnitude * 0.4 + foamIntensity * 0.25 + turbulenceIntensity * 0.15, 0.0, 0.7);
-    var baseSpecularPower = mix(768.0, 48.0, surfaceRoughness); // Increased specular power range
-    var specularIntensity = mix(0.9, 0.2, surfaceRoughness); // Reduced from 1.8-0.4 to 0.9-0.2    // Specular calculations with controllable lighting (Toggleable)
+    var surfaceRoughness = clamp(velocityMagnitude * 0.2 + foamIntensity * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.4); // Reduced roughness values
+    var baseSpecularPower = mix(1024.0, 96.0, surfaceRoughness); // Increased specular power range
+    var specularIntensity = mix(1.5, 0.6, surfaceRoughness); // Increased specular intensity range
+
+    // Specular calculations with controllable lighting (Toggleable)
     var specular: f32 = 0.0;
     if effectsToggle.enableSpecular != 0u {
         var viewDotNormal = abs(dot(normal, -rayDir));
@@ -339,24 +341,25 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable)
     var lightAttenuation: vec3f = vec3f(1.0);
-    if effectsToggle.enableAbsorption != 0u {        // Light absorption coefficients - more neutral for white backgrounds
+    if effectsToggle.enableAbsorption != 0u {
+        // Light absorption coefficients - much reduced for brighter appearance
         var waterAbsorptionCoeffs = vec3f(
-            0.15,   // Red light absorption coefficient (reduced)
-            0.12,   // Green light absorption coefficient (reduced)
-            0.10    // Blue light absorption coefficient (increased for balance)
+            0.05,   // Red light absorption coefficient (reduced from 0.15)
+            0.04,   // Green light absorption coefficient (reduced from 0.12)
+            0.03    // Blue light absorption coefficient (reduced from 0.10)
         );
 
         // Calculate actual path length through water volume
-        var waterPathLength = thickness * uniforms.sphere_size * 0.5;
+        var waterPathLength = thickness * uniforms.sphere_size * 0.3; // Reduced from 0.5
 
         // Account for density variations affecting optical path
         var opticalDensity = density;
-        var scatteringInfluence = velocityMagnitude * 0.1;
+        var scatteringInfluence = velocityMagnitude * 0.05; // Reduced from 0.1
         var effectivePathLength = waterPathLength * opticalDensity * (1.0 + scatteringInfluence);
 
         // Add suspended particle absorption (turbidity effects)
-        var particleConcentration = clamp(velocityMagnitude * 0.3 + turbulenceIntensity * 0.2, 0.0, 1.0);
-        var particleAbsorptionCoeffs = vec3f(0.1, 0.1, 0.1) * particleConcentration;
+        var particleConcentration = clamp(velocityMagnitude * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.5); // Reduced
+        var particleAbsorptionCoeffs = vec3f(0.03, 0.03, 0.03) * particleConcentration; // Reduced from 0.1
 
         // Total absorption includes water + particles
         var totalAbsorptionCoeffs = waterAbsorptionCoeffs + particleAbsorptionCoeffs;
@@ -365,7 +368,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);
 
         // Ensure reasonable bounds for light attenuation
-        lightAttenuation = clamp(lightAttenuation, vec3f(0.1), vec3f(1.0));
+        lightAttenuation = clamp(lightAttenuation, vec3f(0.3), vec3f(1.0)); // Increased minimum from 0.1
     }
 
     // Apply base water color with proper mixing ratios
@@ -375,7 +378,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     baseWaterColor *= lightAttenuation;
 
     // Calculate subsurface color after baseWaterColor is defined
-    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(0.5, 0.25, waterAppearance.transparency); // Further reduced from 1.0-0.5 to 0.5-0.25
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.0, 0.6, waterAppearance.transparency); // Increased from 0.5-0.25 to 0.5-0.6
 
     // Fresnel calculations (Toggleable)
     var fresnel: f32 = 1.0;
@@ -418,19 +421,19 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
         // Multi-layered rim lighting for different edge conditions
         // Primary rim - sharp edge detection
-        var primaryRim = pow(fresnel_rim, 1.5) * 0.4;
+        var primaryRim = pow(fresnel_rim, 1.2) * 0.8; // Increased intensity and reduced power
 
         // Secondary rim - softer glow for volume edges
-        var secondaryRim = pow(fresnel_rim, 3.0) * 0.6;
+        var secondaryRim = pow(fresnel_rim, 2.5) * 1.0; // Increased intensity
 
         // Tertiary rim - subtle atmospheric glow
-        var tertiaryRim = pow(fresnel_rim, 5.0) * 0.8;
+        var tertiaryRim = pow(fresnel_rim, 4.0) * 1.2; // Increased intensity
 
         // Thickness-based rim variation
-        var thicknessRim = pow(fresnel_rim, 2.0) * clamp(1.0 - thickness * 0.3, 0.2, 1.0) * 0.3;
+        var thicknessRim = pow(fresnel_rim, 1.8) * clamp(1.0 - thickness * 0.2, 0.4, 1.0) * 0.6; // Brighter
 
         // Velocity-influenced rim lighting (moving water catches more light)
-        var velocityRim = pow(fresnel_rim, 2.5) * clamp(velocityMagnitude * 0.8, 0.0, 0.5) * 0.25;
+        var velocityRim = pow(fresnel_rim, 2.0) * clamp(velocityMagnitude * 1.2, 0.0, 0.8) * 0.5; // Brighter
 
         // Depth-influenced rim (deeper water has darker rims)
         var depthRimFactor = clamp(1.0 - abs(viewPos.z) * 0.08, 0.3, 1.0);        // Multi-light rim contributions with controllable lighting
@@ -439,15 +442,15 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var rimRimContribution = 0.0;
 
         if lightingControls.mainLightEnabled != 0u {
-            mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 0.7 * lightingControls.mainLightIntensity;
+            mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 1.0 * lightingControls.mainLightIntensity; // Increased from 0.7
         }
 
         if lightingControls.fillLightEnabled != 0u {
-            fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.4 * lightingControls.fillLightIntensity;
+            fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.7 * lightingControls.fillLightIntensity; // Increased from 0.4
         }
 
         if lightingControls.rimLightEnabled != 0u {
-            rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.5 * lightingControls.rimLightIntensity;
+            rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.8 * lightingControls.rimLightIntensity; // Increased from 0.5
         }
 
         // Combine all rim components with environmental influence
@@ -486,29 +489,31 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var lightPenetrationRim = 0.0;
 
     if lightingControls.mainLightEnabled != 0u {
-        lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 0.6 * lightingControls.mainLightIntensity;
+        lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 1.0 * lightingControls.mainLightIntensity; // Increased from 0.6
     }
     if lightingControls.fillLightEnabled != 0u {
-        lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.3 * lightingControls.fillLightIntensity;
+        lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.6 * lightingControls.fillLightIntensity; // Increased from 0.3
     }
     if lightingControls.rimLightEnabled != 0u {
-        lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.2 * lightingControls.rimLightIntensity;
+        lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.4 * lightingControls.rimLightIntensity; // Increased from 0.2
     }
 
     var totalLightPenetration = lightPenetrationMain + lightPenetrationFill + lightPenetrationRim;
 
     // Depth-based light attenuation (exponential falloff)
-    var depthAttenuation = exp(-waterDepth * 0.15);
-    var thicknessAttenuation = exp(-volumeThickness * 0.8);
+    var depthAttenuation = exp(-waterDepth * 0.08); // Reduced from 0.15
+    var thicknessAttenuation = exp(-volumeThickness * 0.4); // Reduced from 0.8
 
     // Scattering-based interior illumination
-    var scatteringFactor = clamp(velocityMagnitude * 0.3 + turbulenceIntensity * 0.4, 0.1, 1.0);
-    var scatteredLight = totalLightPenetration * scatteringFactor * 0.25;
+    var scatteringFactor = clamp(velocityMagnitude * 0.5 + turbulenceIntensity * 0.6, 0.2, 1.5); // Increased values
+    var scatteredLight = totalLightPenetration * scatteringFactor * 0.5; // Increased from 0.25
 
     // Volumetric caustics simulation (simplified)
     var causticsPattern = sin(viewPos.x * 8.0 + velocityMagnitude * 5.0) * cos(viewPos.z * 6.0 + turbulenceIntensity * 4.0) * 0.5 + 0.5;
-    var causticIntensity = pow(causticsPattern, 3.0) * totalLightPenetration * 0.15;    // Deep water ambient illumination with controllable ambient
-    var deepAmbient = ambientLight * clamp(thickness * 0.4, 0.1, 0.6) * depthAttenuation;
+    var causticIntensity = pow(causticsPattern, 2.5) * totalLightPenetration * 0.3; // Increased from 0.15
+
+    // Deep water ambient illumination with controllable ambient
+    var deepAmbient = ambientLight * clamp(thickness * 0.6, 0.2, 0.8) * depthAttenuation; // Increased values
 
     // Color the interior lighting with controllable light colors
     var baseInteriorLightColor = mix(
@@ -556,7 +561,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     finalColor += rimLighting; // Enhanced rim lighting
     finalColor += interiorLighting; // New interior lighting
     finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);    // Add controllable ambient lighting
-    finalColor += ambientContribution * 0.05;
+    finalColor += ambientContribution * 0.2; // Increased from 0.05
 
     // Apply edge enhancement
     finalColor *= edgeFactor;
