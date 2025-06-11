@@ -3818,17 +3818,15 @@
           resetButton.style.transform = '';
         }, 150);
       }
-    }    // Initialize color presets when DOM is loaded    document.addEventListener('DOMContentLoaded', () => {
-    initializeColorPresets();
+    }    // Initialize color presets when DOM is loaded    document.addEventListener('DOMContentLoaded', () => {    initializeColorPresets();
     initializeMaterialPresets();
     initializeSliderTooltips();
     initializeSliderEnhancements();
     initializeSmartValueIndicators();
+    initializeGeneralCheckboxes();
     initializeEffectsToggles();
     initializeLightingControls();
     initializeEffectParameters();
-
-
     // If DOM is already loaded, initialize immediately
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
@@ -3837,6 +3835,7 @@
         initializeSliderTooltips();
         initializeSliderEnhancements();
         initializeSmartValueIndicators();
+        initializeGeneralCheckboxes();
         initializeEffectsToggles();
         initializeLightingControls();
         initializeEffectParameters();
@@ -3847,23 +3846,22 @@
       initializeSliderTooltips();
       initializeSliderEnhancements();
       initializeSmartValueIndicators();
+      initializeGeneralCheckboxes();
       initializeEffectsToggles();
       initializeLightingControls();
       initializeEffectParameters();
-    }
+    }// General Checkbox Functionality (for visual effects only)
+    function initializeGeneralCheckboxes() {
+      // Initialize individual effect toggles for visual effects only
+      const allCheckboxes = document.querySelectorAll('.checkbox-container input[type="checkbox"]');
 
-    // Effects Toggle Functionality
-    function initializeEffectsToggles() {
-      // Initialize individual effect toggles
-      const effectToggles = document.querySelectorAll('.checkbox-container input[type="checkbox"]');
-
-      effectToggles.forEach(toggle => {
+      allCheckboxes.forEach(toggle => {
         const container = toggle.closest('.checkbox-container');
         if (container) {
           // Set initial state
           container.classList.toggle('checked', toggle.checked);
 
-          // Handle changes
+          // Handle changes for visual effects only
           toggle.addEventListener('change', function () {
             container.classList.toggle('checked', this.checked);
 
@@ -3893,44 +3891,6 @@
           });
         }
       });
-
-      // Initialize bulk toggle controls
-      const enableAllBtn = document.getElementById('effects-enable-all');
-      const disableAllBtn = document.getElementById('effects-disable-all');
-
-      if (enableAllBtn) {
-        enableAllBtn.addEventListener('click', function () {
-          effectToggles.forEach(toggle => {
-            if (!toggle.checked) {
-              toggle.checked = true;
-              toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          });
-
-          // Visual feedback
-          this.style.transform = 'scale(0.95)';
-          setTimeout(() => {
-            this.style.transform = '';
-          }, 150);
-        });
-      }
-
-      if (disableAllBtn) {
-        disableAllBtn.addEventListener('click', function () {
-          effectToggles.forEach(toggle => {
-            if (toggle.checked) {
-              toggle.checked = false;
-              toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          });
-
-          // Visual feedback
-          this.style.transform = 'scale(0.95)';
-          setTimeout(() => {
-            this.style.transform = '';
-          }, 150);
-        });
-      }
 
       // Initialize debug mode controls
       const debugModeEnabled = document.getElementById('debug-mode-enabled');
@@ -4147,10 +4107,10 @@
         'enable-specular': 4,
         'enable-subsurface': 5,
         'enable-fresnel': 6,
-        'enable-reflection': 7,
-        'enable-refraction': 8,
+        'enable-reflection': 7, 'enable-refraction': 8,
         'enable-caustics': 9,
-        // Note: dispersion (index 10) is controlled by refraction toggle        'enable-absorption': 11,
+        // Note: dispersion (index 10) is controlled by refraction toggle
+        'enable-absorption': 11,
         'enable-depth-coloring': 12,
         'enable-velocity-coloring': 13,
         'enable-rim-lighting': 14,

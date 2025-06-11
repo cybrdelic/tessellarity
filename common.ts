@@ -41,15 +41,16 @@ export const effectsToggleViews = {
   enableSubsurface: new Uint32Array(effectsToggleValues, 20, 1),        // Subsurface scattering
   enableFresnel: new Uint32Array(effectsToggleValues, 24, 1),           // Fresnel reflection
   enableReflection: new Uint32Array(effectsToggleValues, 28, 1),        // Environment reflection
-
   // Advanced optical effects
   enableRefraction: new Uint32Array(effectsToggleValues, 32, 1),        // Refraction
   enableCaustics: new Uint32Array(effectsToggleValues, 36, 1),          // Caustics patterns
   enableDispersion: new Uint32Array(effectsToggleValues, 40, 1),        // Chromatic dispersion
   enableAbsorption: new Uint32Array(effectsToggleValues, 44, 1),        // Depth-based absorption
+
   // Color and depth effects
   enableDepthColoring: new Uint32Array(effectsToggleValues, 48, 1),     // Depth-based color variation
-  enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts  enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
+  enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts
+  enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
   enableColorAbsorption: new Uint32Array(effectsToggleValues, 60, 1),   // Depth-based wavelength color absorption
 };
 

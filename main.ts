@@ -204,12 +204,13 @@ async function main() {
 	effectsToggleViews.enableSpecular[0] = 1;
 	effectsToggleViews.enableSubsurface[0] = 1;
 	effectsToggleViews.enableFresnel[0] = 1;
-	effectsToggleViews.enableReflection[0] = 1;
-	effectsToggleViews.enableRefraction[0] = 1;
+	effectsToggleViews.enableReflection[0] = 1; effectsToggleViews.enableRefraction[0] = 1;
 	effectsToggleViews.enableCaustics[0] = 1;
-	effectsToggleViews.enableDispersion[0] = 1; effectsToggleViews.enableAbsorption[0] = 1;
+	effectsToggleViews.enableDispersion[0] = 1;
+	effectsToggleViews.enableAbsorption[0] = 1;
 	effectsToggleViews.enableDepthColoring[0] = 1;
 	effectsToggleViews.enableVelocityColoring[0] = 1;
+	effectsToggleViews.enableRimLighting[0] = 1;
 	effectsToggleViews.enableColorAbsorption[0] = 1;
 	device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
 
