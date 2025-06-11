@@ -216,6 +216,13 @@ fn getViewPosFromTexCoord(tex_coord: vec2f, iuv: vec2f) -> vec3f {
     return computeViewPosFromUVDepth(tex_coord, depth);
 }
 
+// Helper function to safely sample thickness with boundary clamping
+fn safeThicknessSample(coords: vec2f) -> f32 {
+    var texture_dims = textureDimensions(thickness_texture);
+    var clamped_coords = clamp(coords, vec2f(0.0), vec2f(f32(texture_dims.x - 1), f32(texture_dims.y - 1)));
+    return textureLoad(thickness_texture, vec2u(clamped_coords), 0).r;
+}
+
 @fragment
 fn fs(input: FragmentInput) -> @location(0) vec4f {
     var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
@@ -229,10 +236,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     if depth >= 1e4 || depth <= 0.0 {
         // Return fully transparent for non-water pixels
         return vec4f(0.0, 0.0, 0.0, 0.0);
-    }
+    }    var viewPos: vec3f = computeViewPosFromUVDepth(input.uv, depth);
+    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
 
-    var viewPos: vec3f = computeViewPosFromUVDepth(input.uv, depth);
-    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;    // Multi-sample surface normal calculation for smoother surface
+    // Multi-sample surface normal calculation for smoother surface
     var ddx: vec3f = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0)) - viewPos;
     var ddy: vec3f = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0)) - viewPos;
     var ddx2: vec3f = viewPos - getViewPosFromTexCoord(input.uv + vec2f(-uniforms.texel_size.x, 0.), input.iuv + vec2f(-1.0, 0.0));
@@ -355,25 +362,23 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         // Kolmogorov cascade
         var kolmogorovScale = pow(pow(kinematicViscosity, 3.0) / (velocityMagnitude * velocityMagnitude * velocityMagnitude + 1e-6), 0.25);
         cascadeEffect = effectParams.cascadeEffect / (1.0 + kolmogorovScale * 10.0);
-    }// Calculate surface variation data with multi-level smoothing
-    var thicknessL = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 0.0)), 0).r;
-    var thicknessR = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 0.0)), 0).r;
-    var thicknessU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, -1.0)), 0).r;
-    var thicknessD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, 1.0)), 0).r;
+    }    // Calculate surface variation data with multi-level smoothing using safe sampling
+    var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
+    var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
+    var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
+    var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
 
     // Add diagonal samples for better surface reconstruction
-    var thicknessLU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, -1.0)), 0).r;
-    var thicknessRU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, -1.0)), 0).r;
-    var thicknessLD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 1.0)), 0).r;
-    var thicknessRD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 1.0)), 0).r;    // Apply enhanced bilateral filtering with wider kernel for smoother surface
+    var thicknessLU = safeThicknessSample(input.iuv + vec2f(-1.0, -1.0));
+    var thicknessRU = safeThicknessSample(input.iuv + vec2f(1.0, -1.0));
+    var thicknessLD = safeThicknessSample(input.iuv + vec2f(-1.0, 1.0));
+    var thicknessRD = safeThicknessSample(input.iuv + vec2f(1.0, 1.0));// Apply enhanced bilateral filtering with wider kernel for smoother surface
     var thicknessSum = thickness * 8.0 + (thicknessL + thicknessR + thicknessU + thicknessD) * 4.0 + (thicknessLU + thicknessRU + thicknessLD + thicknessRD) * 2.0;
-    var smoothedThickness = thicknessSum / 32.0;
-
-    // Add wider-range smoothing for better surface continuity
-    var thicknessL2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-2.0, 0.0)), 0).r;
-    var thicknessR2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(2.0, 0.0)), 0).r;
-    var thicknessU2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, -2.0)), 0).r;
-    var thicknessD2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, 2.0)), 0).r;
+    var smoothedThickness = thicknessSum / 32.0;    // Add wider-range smoothing for better surface continuity using safe sampling
+    var thicknessL2 = safeThicknessSample(input.iuv + vec2f(-2.0, 0.0));
+    var thicknessR2 = safeThicknessSample(input.iuv + vec2f(2.0, 0.0));
+    var thicknessU2 = safeThicknessSample(input.iuv + vec2f(0.0, -2.0));
+    var thicknessD2 = safeThicknessSample(input.iuv + vec2f(0.0, 2.0));
 
     var wideSmoothedThickness = (smoothedThickness * 4.0 + thicknessL2 + thicknessR2 + thicknessU2 + thicknessD2) / 8.0;
 
@@ -476,7 +481,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var subsurface: f32 = 0.0;
     if effectsToggle.enableSubsurface != 0u {
         var depthFactor = clamp(abs(viewPos.z) * effectParams.subsurfaceDepth, 0.0, 1.0); // Use parameter
-        var baseSubsurfaceIntensity = mix(0.4, 0.15, depthFactor) * effectParams.subsurfaceScale; // Use parameter
+        var baseSubsurfaceIntensity = mix(0.8, 0.2, depthFactor) * effectParams.subsurfaceScale; // Increased from 0.4, 0.15 to 0.8, 0.2
         var adjustedSubsurfaceIntensity = baseSubsurfaceIntensity * lightingControls.subsurfaceIntensityMultiplier;
 
         // Calculate subsurface contribution from each light source
@@ -624,7 +629,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Apply light absorption to the base color (darkens with depth)
     baseWaterColor *= lightAttenuation;    // Calculate subsurface color after baseWaterColor is defined
-    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.0, 0.6, waterAppearance.transparency); // Increased from 0.5-0.25 to 0.5-0.6    // Environment reflection (Toggleable) - IMPROVED STABILITY
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.5, 0.8, waterAppearance.transparency); // Increased from 1.0, 0.6 to 1.5, 0.8    // Environment reflection (Toggleable) - IMPROVED STABILITY
     var reflectionColor: vec3f = vec3f(0.0);
     if effectsToggle.enableReflection != 0u {
         var reflectDir = reflect(rayDir, normal);

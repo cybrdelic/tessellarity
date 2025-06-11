@@ -23,17 +23,26 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var two_sigma: f32 = 2.0 * sigma * sigma;
 
     var sum = 0.;
-    var wsum = 0.;
+    var wsum = 0.;    // Get texture dimensions for boundary checking
+    var texture_dims = textureDimensions(texture);
 
-    // Ultra-smooth bilateral-like filtering for seamless surfaces
+    // Ultra-smooth bilateral-like filtering for seamless surfaces with boundary handling
     var center_thickness = thickness;
 
     for (var x: i32 = -filter_size; x <= filter_size; x++) {
         var coords: vec2f = vec2f(f32(x));
-        var sampled_thickness: f32 = textureLoad(texture, vec2u(input.iuv + uniforms.blur_dir * coords), 0).r;
+        var sample_pos = input.iuv + uniforms.blur_dir * coords;
+
+        // Clamp sample position to valid texture bounds
+        var clamped_pos = clamp(sample_pos, vec2f(0.0), vec2f(f32(texture_dims.x - 1), f32(texture_dims.y - 1)));
+        var sampled_thickness: f32 = textureLoad(texture, vec2u(clamped_pos), 0).r;
+
+        // Check if we're sampling outside bounds and adjust weight accordingly
+        var out_of_bounds = any(sample_pos != clamped_pos);
+        var boundary_penalty = select(1.0, 0.1, out_of_bounds); // Heavily reduce weight for out-of-bounds samples
 
         // Spatial weight (Gaussian)
-        var spatial_weight: f32 = exp(-coords.x * coords.x / two_sigma);
+        var spatial_weight: f32 = exp(-coords.x * coords.x / two_sigma) * boundary_penalty;
 
         // Range weight (preserve boundaries) - much reduced sensitivity for ultra-smooth surface
         var thickness_diff = abs(sampled_thickness - center_thickness);
