@@ -17,17 +17,15 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var thickness: f32 = textureLoad(texture, vec2u(input.iuv), 0).r;
     if thickness == 0. {
         return vec4f(0., 0., 0., 1.);
-    }
-
-    // Enhanced filter size for smoother surface reconstruction
-    var filter_size: i32 = 20; // Slightly reduced for better performance while maintaining quality
-    var sigma: f32 = f32(filter_size) / 2.5; // Wider Gaussian for smoother blending
+    }    // Enhanced filter size for smoother surface reconstruction
+    var filter_size: i32 = 30; // Increased for ultra-smooth blending
+    var sigma: f32 = f32(filter_size) / 2.0; // Wider Gaussian for maximum smoothness
     var two_sigma: f32 = 2.0 * sigma * sigma;
 
     var sum = 0.;
     var wsum = 0.;
 
-    // Enhanced bilateral-like filtering that preserves fluid boundaries
+    // Ultra-smooth bilateral-like filtering for seamless surfaces
     var center_thickness = thickness;
 
     for (var x: i32 = -filter_size; x <= filter_size; x++) {
@@ -37,9 +35,9 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         // Spatial weight (Gaussian)
         var spatial_weight: f32 = exp(-coords.x * coords.x / two_sigma);
 
-        // Range weight (preserve boundaries) - reduced sensitivity for smoother surface
+        // Range weight (preserve boundaries) - much reduced sensitivity for ultra-smooth surface
         var thickness_diff = abs(sampled_thickness - center_thickness);
-        var range_weight: f32 = exp(-thickness_diff * thickness_diff * 200.0); // Reduced from typical bilateral values
+        var range_weight: f32 = exp(-thickness_diff * thickness_diff * 50.0); // Much reduced from 200.0
 
         var final_weight = spatial_weight * range_weight;
 

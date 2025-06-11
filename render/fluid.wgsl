@@ -161,22 +161,24 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
     if length(ddy_large) < length(ddy) * 1.5 {
         ddy = mix(ddy, ddy_large * 0.5, 0.3);
-    }
-
-    // Apply Gaussian-like smoothing to gradients
-    var smoothingFactor = 0.85; // Reduce gradient sharpness
+    }    // Apply ultra-smooth Gaussian-like smoothing to gradients for continuous surface
+    var smoothingFactor = 0.65; // Much stronger smoothing to eliminate particle boundaries
     ddx *= smoothingFactor;
     ddy *= smoothingFactor;
 
-    var normal: vec3f = -normalize(cross(ddx, ddy));
+    // Additional cross-gradient smoothing for even smoother surface
+    var avgGradient = (ddx + ddy) * 0.5;
+    ddx = mix(ddx, avgGradient, 0.2);
+    ddy = mix(ddy, avgGradient, 0.2);
 
-    // Edge enhancement for better definition against white background
+    var normal: vec3f = -normalize(cross(ddx, ddy));    // Enhanced edge enhancement for smoother definition against backgrounds
     var edgeFactor = 1.0;
     var depthGradient = length(vec2f(
         abs(ddx.z),
         abs(ddy.z)
     ));
-    edgeFactor = mix(1.0, 2.0, clamp(depthGradient * 10.0, 0.0, 1.0));    rayDir = normalize(viewPos);
+    // Use much smoother edge enhancement curve
+    edgeFactor = mix(1.0, 1.5, clamp(depthGradient * 5.0, 0.0, 1.0));    rayDir = normalize(viewPos);
 
     // COMPREHENSIVE CONTROLLABLE LIGHTING SYSTEM
     // Initialize light directions with defaults or user-controlled values
@@ -269,76 +271,82 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var thicknessLU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, -1.0)), 0).r;
     var thicknessRU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, -1.0)), 0).r;
     var thicknessLD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 1.0)), 0).r;
-    var thicknessRD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 1.0)), 0).r;
+    var thicknessRD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 1.0)), 0).r;    // Apply enhanced bilateral filtering with wider kernel for smoother surface
+    var thicknessSum = thickness * 8.0 + (thicknessL + thicknessR + thicknessU + thicknessD) * 4.0 + (thicknessLU + thicknessRU + thicknessLD + thicknessRD) * 2.0;
+    var smoothedThickness = thicknessSum / 32.0;
 
-    // Apply bilateral filtering to smooth thickness while preserving edges
-    var thicknessSum = thickness * 4.0 + (thicknessL + thicknessR + thicknessU + thicknessD) * 2.0 + (thicknessLU + thicknessRU + thicknessLD + thicknessRD) * 1.0;
-    var smoothedThickness = thicknessSum / 16.0;
+    // Add wider-range smoothing for better surface continuity
+    var thicknessL2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-2.0, 0.0)), 0).r;
+    var thicknessR2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(2.0, 0.0)), 0).r;
+    var thicknessU2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, -2.0)), 0).r;
+    var thicknessD2 = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, 2.0)), 0).r;
 
-    // Use smoothed thickness for a more continuous surface
-    thickness = mix(thickness, smoothedThickness, 0.6);
+    var wideSmoothedThickness = (smoothedThickness * 4.0 + thicknessL2 + thicknessR2 + thicknessU2 + thicknessD2) / 8.0;
 
-    // Calculate surface gradients with reduced sensitivity for smoother transitions
-    var thicknessGradX = (thicknessR - thicknessL) * 0.3; // Reduced from 0.5
-    var thicknessGradY = (thicknessD - thicknessU) * 0.3; // Reduced from 0.5
+    // Use much stronger smoothing for more continuous surface
+    thickness = mix(thickness, mix(smoothedThickness, wideSmoothedThickness, 0.3), 0.85);
+
+    // Calculate surface gradients with much reduced sensitivity for ultra-smooth transitions
+    var thicknessGradX = (thicknessR - thicknessL) * 0.15; // Further reduced from 0.3
+    var thicknessGradY = (thicknessD - thicknessU) * 0.15; // Further reduced from 0.3
     var thicknessCurvatureX = (thicknessR + thicknessL - 2.0 * thickness) * 0.5;
     var thicknessCurvatureY = (thicknessD + thicknessU - 2.0 * thickness) * 0.5;
 
     // Initialize surface offset for debug visualization
-    var surfaceOffset = vec3f(0.0);    // Apply turbulent surface deformation with enhanced smoothing (Toggleable)
+    var surfaceOffset = vec3f(0.0);    // Apply very subtle turbulent surface deformation to maintain smoothness
     var turbulentNormal = normal;
     if effectsToggle.enableTurbulentNormals != 0u {
-        // Use REAL fluid simulation data, not simplified patterns
-        var turbulentStrength = max(turbulenceIntensity, 0.1) * waterAppearance.waveHeight * 0.5; // Reduced strength
+        // Use extremely subtle fluid simulation data for minimal surface variation
+        var turbulentStrength = max(turbulenceIntensity, 0.1) * waterAppearance.waveHeight * 0.2; // Much reduced strength
 
-        // Only apply effects where there's actual variation in the simulation
-        if turbulenceIntensity > 0.15 && velocityMagnitude > 0.02 { // Higher thresholds
+        // Only apply minimal effects where there's significant variation
+        if turbulenceIntensity > 0.25 && velocityMagnitude > 0.05 { // Much higher thresholds for activation
 
-            // Use only the natural variation in thickness and density with heavy smoothing
-            var thicknessVariation = (thickness - 1.0) * 0.3; // Reduced variation intensity
-            var densityVariation = (density - 1.0) * 0.3;     // Reduced variation intensity
+            // Use minimal variation in thickness and density with ultra-heavy smoothing
+            var thicknessVariation = (thickness - 1.0) * 0.1; // Much reduced variation intensity
+            var densityVariation = (density - 1.0) * 0.1;     // Much reduced variation intensity
 
-            // Create surface perturbations only from real fluid properties
+            // Create very subtle surface perturbations
             var realFluidOffset = vec3f(
-                thicknessVariation * turbulentStrength * 0.6,  // Further reduced
+                thicknessVariation * turbulentStrength * 0.3,  // Ultra-reduced
                 0.0,                                           // Keep Y minimal
-                densityVariation * turbulentStrength * 0.6     // Further reduced
+                densityVariation * turbulentStrength * 0.3     // Ultra-reduced
             );
 
-            // Scale by actual turbulence and velocity with smoother physics scaling
+            // Scale by physics with ultra-smooth scaling
             var reynoldsScaling = 1.0;
             if effectsToggle.enableReynoldsPhysics != 0u {
-                reynoldsScaling = 1.0 + turbulenceIntensity * cascadeEffect * 0.5; // Reduced scaling
+                reynoldsScaling = 1.0 + turbulenceIntensity * cascadeEffect * 0.2; // Ultra-reduced scaling
             }
-            realFluidOffset *= reynoldsScaling * velocityMagnitude * lightingControls.volumetricIntensity * 0.3; // Reduced impact
+            realFluidOffset *= reynoldsScaling * velocityMagnitude * lightingControls.volumetricIntensity * 0.1; // Ultra-reduced impact
 
-            // Add vorticity effect only if significant, with reduced strength
-            if vorticityMagnitude > 0.2 { // Higher threshold
-                var vorticityEffect = normalize(vorticity) * vorticityMagnitude * turbulentStrength * 0.3; // Reduced
+            // Minimal vorticity effect
+            if vorticityMagnitude > 0.5 { // Much higher threshold
+                var vorticityEffect = normalize(vorticity) * vorticityMagnitude * turbulentStrength * 0.1; // Ultra-reduced
                 realFluidOffset += vorticityEffect;
             }
 
             surfaceOffset = realFluidOffset;
 
-            // Apply the fluid-based perturbation with heavy smoothing
-            var perturbedNormal = normalize(normal + surfaceOffset * 0.4); // Reduced perturbation strength
+            // Apply minimal fluid-based perturbation with ultra-heavy smoothing
+            var perturbedNormal = normalize(normal + surfaceOffset * 0.15); // Much reduced perturbation strength
 
-            // Physics-based stability check with more conservative mixing
-            var stabilityThreshold = clamp(0.4 + velocityMagnitude * 0.2, 0.3, 0.9); // More stable
+            // Ultra-conservative stability check
+            var stabilityThreshold = clamp(0.6 + velocityMagnitude * 0.1, 0.5, 0.95); // Much more stable
             if dot(perturbedNormal, normal) < stabilityThreshold {
-                var mixFactor = clamp(turbulenceIntensity + velocityMagnitude, 0.1, 0.4); // Much more conservative
+                var mixFactor = clamp(turbulenceIntensity + velocityMagnitude, 0.05, 0.15); // Ultra-conservative mixing
                 turbulentNormal = mix(normal, perturbedNormal, mixFactor);
             } else {
-                // Even with good stability, blend conservatively
-                turbulentNormal = mix(normal, perturbedNormal, 0.2);
+                // Even with good stability, blend ultra-conservatively
+                turbulentNormal = mix(normal, perturbedNormal, 0.08);
             }
         }
     }
 
-    normal = turbulentNormal;    // Surface properties based on turbulence - enhanced for smoother, less particle-like appearance
-    var surfaceRoughness = clamp(velocityMagnitude * 0.1 + foamIntensity * 0.1 + turbulenceIntensity * 0.05, 0.0, 0.2); // Much reduced roughness
-    var baseSpecularPower = mix(2048.0, 256.0, surfaceRoughness); // Much higher specular power for smoother highlights
-    var specularIntensity = mix(2.0, 0.8, surfaceRoughness); // Higher intensity for better definition
+    normal = turbulentNormal;    // Surface properties optimized for ultra-smooth, continuous appearance
+    var surfaceRoughness = clamp(velocityMagnitude * 0.05 + foamIntensity * 0.05 + turbulenceIntensity * 0.02, 0.0, 0.1); // Ultra-low roughness
+    var baseSpecularPower = mix(4096.0, 512.0, surfaceRoughness); // Even higher specular power for glass-like smoothness
+    var specularIntensity = mix(3.0, 1.2, surfaceRoughness); // Higher intensity for better surface definition
 
     // Specular calculations with controllable lighting (Toggleable)
     var specular: f32 = 0.0;
@@ -576,23 +584,21 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var rimLighting: vec3f = vec3f(0.0);
     if effectsToggle.enableRimLighting != 0u {
         var viewDotNormal = abs(dot(normal, -rayDir));
-        var fresnel_rim = 1.0 - viewDotNormal;
+        var fresnel_rim = 1.0 - viewDotNormal;        // Multi-layered rim lighting for smooth edge definition
+        // Primary rim - ultra-smooth edge detection
+        var primaryRim = pow(fresnel_rim, 0.8) * 1.2; // Softer power and higher intensity
 
-        // Multi-layered rim lighting for different edge conditions
-        // Primary rim - sharp edge detection
-        var primaryRim = pow(fresnel_rim, 1.2) * 0.8; // Increased intensity and reduced power
+        // Secondary rim - ultra-soft glow for volume edges
+        var secondaryRim = pow(fresnel_rim, 2.0) * 1.4; // Softer and brighter
 
-        // Secondary rim - softer glow for volume edges
-        var secondaryRim = pow(fresnel_rim, 2.5) * 1.0; // Increased intensity
+        // Tertiary rim - gentle atmospheric glow
+        var tertiaryRim = pow(fresnel_rim, 3.5) * 1.6; // Softer curve, brighter
 
-        // Tertiary rim - subtle atmospheric glow
-        var tertiaryRim = pow(fresnel_rim, 4.0) * 1.2; // Increased intensity
+        // Thickness-based rim variation for smooth transitions
+        var thicknessRim = pow(fresnel_rim, 1.5) * clamp(1.0 - thickness * 0.15, 0.5, 1.0) * 0.8; // Smoother transitions
 
-        // Thickness-based rim variation
-        var thicknessRim = pow(fresnel_rim, 1.8) * clamp(1.0 - thickness * 0.2, 0.4, 1.0) * 0.6; // Brighter
-
-        // Velocity-influenced rim lighting (moving water catches more light)
-        var velocityRim = pow(fresnel_rim, 2.0) * clamp(velocityMagnitude * 1.2, 0.0, 0.8) * 0.5; // Brighter
+        // Velocity-influenced rim lighting (softer response)
+        var velocityRim = pow(fresnel_rim, 1.8) * clamp(velocityMagnitude * 0.8, 0.0, 1.0) * 0.7; // Smoother velocity response
 
         // Depth-influenced rim (deeper water has darker rims)
         var depthRimFactor = clamp(1.0 - abs(viewPos.z) * 0.08, 0.3, 1.0);        // Multi-light rim contributions with controllable lighting

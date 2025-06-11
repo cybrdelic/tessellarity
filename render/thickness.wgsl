@@ -58,14 +58,12 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var r2: f32 = dot(normalxy, normalxy);
     if r2 > 1.0 {
         discard;
-    }
-
-    // Use smoother falloff for better surface reconstruction
+    }    // Use ultra-smooth falloff for seamless surface reconstruction
     var thickness: f32 = sqrt(1.0 - r2);
 
-    // Apply smooth kernel for better blending between particles
-    var smoothKernel = pow(thickness, 1.5); // Smoother falloff
-    let particle_alpha = 0.12 * smoothKernel; // Increased opacity and smoother distribution
+    // Apply ultra-smooth kernel for perfect blending between particles
+    var smoothKernel = pow(thickness, 0.8); // Much smoother falloff for better blending
+    let particle_alpha = 0.18 * smoothKernel; // Increased opacity for better coverage
 
     return vec4f(vec3f(particle_alpha), 1.0);
 }
