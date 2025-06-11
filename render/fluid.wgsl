@@ -373,28 +373,28 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable) - IMPROVED WITH WAVELENGTH DEPENDENCE
     var lightAttenuation: vec3f = vec3f(1.0);
     if effectsToggle.enableAbsorption != 0u {
-        // Use mild realistic absorption that works with any water color
+        // Use much milder realistic absorption that works with any water color
         var baseWaterRGB = waterAppearance.color.rgb;
 
         // Very subtle absorption that preserves water color character
-        var waterAbsorptionCoeffs = vec3f(0.1, 0.08, 0.06); // Much milder than before
+        var waterAbsorptionCoeffs = vec3f(0.05, 0.04, 0.03); // Reduced from 0.1, 0.08, 0.06
 
         // Modulate absorption by water color saturation, not brightness
         var colorSaturation = length(baseWaterRGB - vec3f(dot(baseWaterRGB, vec3f(0.333))));
-        var absorptionScale = mix(0.3, 1.0, colorSaturation); // Less absorption for grey/white water
+        var absorptionScale = mix(0.2, 0.8, colorSaturation); // Reduced from 0.3-1.0 to 0.2-0.8
         waterAbsorptionCoeffs *= absorptionScale;
 
         // Calculate actual path length through water volume
-        var waterPathLength = thickness * uniforms.sphere_size * 0.2; // Reduced path length
+        var waterPathLength = thickness * uniforms.sphere_size * 0.1; // Reduced from 0.2 to 0.1
 
         // Account for density variations affecting optical path
         var opticalDensity = density;
-        var scatteringInfluence = velocityMagnitude * 0.05;
+        var scatteringInfluence = velocityMagnitude * 0.02; // Reduced from 0.05 to 0.02
         var effectivePathLength = waterPathLength * opticalDensity * (1.0 + scatteringInfluence);
 
         // Add suspended particle absorption (turbidity effects)
-        var particleConcentration = clamp(velocityMagnitude * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.5);
-        var particleAbsorptionCoeffs = vec3f(0.03, 0.03, 0.03) * particleConcentration;
+        var particleConcentration = clamp(velocityMagnitude * 0.08 + turbulenceIntensity * 0.05, 0.0, 0.3); // Reduced values
+        var particleAbsorptionCoeffs = vec3f(0.015, 0.015, 0.015) * particleConcentration; // Reduced from 0.03
 
         // Total absorption includes water + particles
         var totalAbsorptionCoeffs = waterAbsorptionCoeffs + particleAbsorptionCoeffs;
@@ -403,10 +403,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);
 
         // Ensure reasonable bounds for light attenuation
-        lightAttenuation = clamp(lightAttenuation, vec3f(0.2), vec3f(1.0));
-    }
-
-    // PHYSICS-BASED TRANSPARENCY using Beer's Law and Fresnel Transmission
+        lightAttenuation = clamp(lightAttenuation, vec3f(0.4), vec3f(1.0)); // Increased minimum from 0.2 to 0.4
+    }    // PHYSICS-BASED TRANSPARENCY using Beer's Law and Fresnel Transmission
     var physicsBasedAlpha = 1.0;
     var transmissionCoeff = vec3f(1.0);
 
@@ -428,43 +426,49 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         fresnelTransmission = 1.0 - fresnelReflectance;
     }
 
-    // Calculate optical path length through water volume
-    // Path length depends on viewing angle (Beer's Law with geometric correction)
-    var geometricThickness = thickness * uniforms.sphere_size * 0.15;
-    var opticalPathLength = geometricThickness / cosTheta; // Longer path at grazing angles
+    // Apply transmission coefficient calculation only if absorption is enabled
+    if effectsToggle.enableAbsorption != 0u {
+        // Calculate optical path length through water volume
+        // Path length depends on viewing angle (Beer's Law with geometric correction)
+        var geometricThickness = thickness * uniforms.sphere_size * 0.15;
+        var opticalPathLength = geometricThickness / cosTheta; // Longer path at grazing angles
 
-    // Wavelength-dependent absorption coefficients for pure water (per meter)
-    // These are realistic values scaled for our simulation
-    var pureWaterAbsorption = vec3f(
-        0.45,  // Red absorption (strongest)
-        0.15,  // Green absorption (moderate)
-        0.05   // Blue absorption (weakest)
-    );
+        // Wavelength-dependent absorption coefficients for pure water (per meter)
+        // These are realistic values scaled for our simulation
+        var pureWaterAbsorption = vec3f(
+            0.45,  // Red absorption (strongest)
+            0.15,  // Green absorption (moderate)
+            0.05   // Blue absorption (weakest)
+        );
 
-    // Modulate absorption by water color characteristics
-    var waterColorInfluence = waterAppearance.color.rgb;
-    var colorBasedAbsorption = pureWaterAbsorption * (2.0 - waterColorInfluence);
+        // Modulate absorption by water color characteristics
+        var waterColorInfluence = waterAppearance.color.rgb;
+        var colorBasedAbsorption = pureWaterAbsorption * (2.0 - waterColorInfluence);
 
-    // Add turbidity effects from suspended particles
-    var turbidityFactor = clamp(
-        velocityMagnitude * 0.2 + turbulenceIntensity * 0.15 + (1.0 - cavitationFactor) * 0.1, // Cavitation creates bubbles/particles
-        0.0, 0.8
-    );
+        // Add turbidity effects from suspended particles
+        var turbidityFactor = clamp(
+            velocityMagnitude * 0.2 + turbulenceIntensity * 0.15 + (1.0 - cavitationFactor) * 0.1, // Cavitation creates bubbles/particles
+            0.0, 0.8
+        );
 
-    var turbidityAbsorption = vec3f(0.1) * turbidityFactor;
-    var totalAbsorption = colorBasedAbsorption + turbidityAbsorption;
+        var turbidityAbsorption = vec3f(0.1) * turbidityFactor;
+        var totalAbsorption = colorBasedAbsorption + turbidityAbsorption;
 
-    // Account for density variations affecting light scattering
-    var densityScattering = clamp((density - 1.0) * 0.3, 0.0, 0.4);
-    totalAbsorption += vec3f(densityScattering);
+        // Account for density variations affecting light scattering
+        var densityScattering = clamp((density - 1.0) * 0.3, 0.0, 0.4);
+        totalAbsorption += vec3f(densityScattering);
 
-    // Apply Beer's Law: T = e^(-α * d)
-    transmissionCoeff = exp(-totalAbsorption * opticalPathLength);
-
-    // Calculate physics-based alpha from transmission
-    // Use luminance-weighted average for alpha calculation
-    var transmissionLuminance = dot(transmissionCoeff, vec3f(0.299, 0.587, 0.114));
-    physicsBasedAlpha = transmissionLuminance * fresnelTransmission;
+        // Apply Beer's Law: T = e^(-α * d)
+        transmissionCoeff = exp(-totalAbsorption * opticalPathLength);
+    }    // Calculate physics-based alpha from transmission
+    if effectsToggle.enableAbsorption != 0u {
+        // Use luminance-weighted average for alpha calculation
+        var transmissionLuminance = dot(transmissionCoeff, vec3f(0.299, 0.587, 0.114));
+        physicsBasedAlpha = transmissionLuminance * fresnelTransmission;
+    } else {
+        // Without absorption, use simple Fresnel-based transparency
+        physicsBasedAlpha = fresnelTransmission;
+    }
 
     // Add thickness-based opacity for volume rendering
     var volumeOpacity = clamp(thickness * 0.8, 0.0, 0.9);
@@ -707,13 +711,13 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Final alpha calculation
     var alpha = mix(waterAppearance.transparency, 1.0, thickness * 0.5);
-    alpha = clamp(alpha, 0.1, 1.0);
-
-    // Replace simple alpha with physics-based transparency
+    alpha = clamp(alpha, 0.1, 1.0);    // Replace simple alpha with physics-based transparency
     alpha = physicsBasedAlpha;
 
-    // Apply transmission coefficient to final color for proper transparency
-    finalColor *= transmissionCoeff;
+    // Apply transmission coefficient to final color for proper transparency (only if absorption is enabled)
+    if effectsToggle.enableAbsorption != 0u {
+        finalColor *= transmissionCoeff;
+    }
 
     // DEBUG MODE VISUALIZATION SYSTEM
     if debug.mode != 0u {
