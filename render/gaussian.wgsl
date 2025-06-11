@@ -3,7 +3,7 @@
 @group(0) @binding(2) var<uniform> uniforms: FilterUniforms;
 
 struct FragmentInput {
-    @location(0) uv: vec2f,  
+    @location(0) uv: vec2f,
     @location(1) iuv: vec2f
 }
 
@@ -15,26 +15,36 @@ struct FilterUniforms {
 fn fs(input: FragmentInput) -> @location(0) vec4f {
     // thickness は unfilterable か？
     var thickness: f32 = textureLoad(texture, vec2u(input.iuv), 0).r;
-    if (thickness == 0.) {
+    if thickness == 0. {
         return vec4f(0., 0., 0., 1.);
     }
 
-    // var filter_size: i32 = i32(uniforms.filter_size);
-    var filter_size: i32 = 30; // とりあえずべた書き
-    var sigma: f32 = f32(filter_size) / 3.0;
+    // Enhanced filter size for smoother surface reconstruction
+    var filter_size: i32 = 20; // Slightly reduced for better performance while maintaining quality
+    var sigma: f32 = f32(filter_size) / 2.5; // Wider Gaussian for smoother blending
     var two_sigma: f32 = 2.0 * sigma * sigma;
 
     var sum = 0.;
     var wsum = 0.;
 
+    // Enhanced bilateral-like filtering that preserves fluid boundaries
+    var center_thickness = thickness;
+
     for (var x: i32 = -filter_size; x <= filter_size; x++) {
         var coords: vec2f = vec2f(f32(x));
         var sampled_thickness: f32 = textureLoad(texture, vec2u(input.iuv + uniforms.blur_dir * coords), 0).r;
 
-        var w: f32 = exp(-coords.x * coords.x / two_sigma);
+        // Spatial weight (Gaussian)
+        var spatial_weight: f32 = exp(-coords.x * coords.x / two_sigma);
 
-        sum += sampled_thickness * w;
-        wsum += w;
+        // Range weight (preserve boundaries) - reduced sensitivity for smoother surface
+        var thickness_diff = abs(sampled_thickness - center_thickness);
+        var range_weight: f32 = exp(-thickness_diff * thickness_diff * 200.0); // Reduced from typical bilateral values
+
+        var final_weight = spatial_weight * range_weight;
+
+        sum += sampled_thickness * final_weight;
+        wsum += final_weight;
     }
 
     sum /= wsum;

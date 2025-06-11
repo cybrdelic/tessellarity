@@ -135,19 +135,38 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     var viewPos: vec3f = computeViewPosFromUVDepth(input.uv, depth);
-    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
-
+    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;    // Multi-sample surface normal calculation for smoother surface
     var ddx: vec3f = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0)) - viewPos;
     var ddy: vec3f = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0)) - viewPos;
     var ddx2: vec3f = viewPos - getViewPosFromTexCoord(input.uv + vec2f(-uniforms.texel_size.x, 0.), input.iuv + vec2f(-1.0, 0.0));
     var ddy2: vec3f = viewPos - getViewPosFromTexCoord(input.uv + vec2f(0., -uniforms.texel_size.y), input.iuv + vec2f(0.0, -1.0));
 
+    // Sample at larger distances for smoother gradients
+    var ddx_large: vec3f = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x * 2.0, 0.), input.iuv + vec2f(2.0, 0.0)) - viewPos;
+    var ddy_large: vec3f = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y * 2.0), input.iuv + vec2f(0.0, 2.0)) - viewPos;
+    var ddx2_large: vec3f = viewPos - getViewPosFromTexCoord(input.uv + vec2f(-uniforms.texel_size.x * 2.0, 0.), input.iuv + vec2f(-2.0, 0.0));
+    var ddy2_large: vec3f = viewPos - getViewPosFromTexCoord(input.uv + vec2f(0., -uniforms.texel_size.y * 2.0), input.iuv + vec2f(0.0, -2.0));
+
+    // Choose smoothest gradients
     if abs(ddx.z) > abs(ddx2.z) {
         ddx = ddx2;
     }
     if abs(ddy.z) > abs(ddy2.z) {
         ddy = ddy2;
     }
+
+    // Blend with larger-scale gradients for smoother surface
+    if length(ddx_large) < length(ddx) * 1.5 {
+        ddx = mix(ddx, ddx_large * 0.5, 0.3);
+    }
+    if length(ddy_large) < length(ddy) * 1.5 {
+        ddy = mix(ddy, ddy_large * 0.5, 0.3);
+    }
+
+    // Apply Gaussian-like smoothing to gradients
+    var smoothingFactor = 0.85; // Reduce gradient sharpness
+    ddx *= smoothingFactor;
+    ddy *= smoothingFactor;
 
     var normal: vec3f = -normalize(cross(ddx, ddy));
 
@@ -210,15 +229,13 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var totalPressure = hydrostaticPressure + dynamicPressure;
         var cavitationThreshold = 2337.0;
         cavitationFactor = clamp((cavitationThreshold - totalPressure) / cavitationThreshold, 0.0, 1.0);
-    }
-
-    // Foam and surface calculations (Toggleable)
+    }    // Foam and surface calculations with reduced intensity (Toggleable)
     var foamIntensity = 0.0;
     var foamInfluence = 0.0;
     if effectsToggle.enableFoam != 0u {
-        var turbulence = velocityMagnitude * 0.1;
-        foamIntensity = cavitationFactor * turbulence * 2.0;
-        foamInfluence = foamIntensity;
+        var turbulence = velocityMagnitude * 0.05; // Reduced from 0.1
+        foamIntensity = cavitationFactor * turbulence * 1.0; // Reduced from 2.0
+        foamInfluence = foamIntensity * 0.5; // Apply reduction factor
     }
 
     // === REYNOLDS NUMBER TURBULENCE PHYSICS === (Toggleable)
@@ -242,76 +259,86 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         // Kolmogorov cascade
         var kolmogorovScale = pow(pow(kinematicViscosity, 3.0) / (velocityMagnitude * velocityMagnitude * velocityMagnitude + 1e-6), 0.25);
         cascadeEffect = 1.0 / (1.0 + kolmogorovScale * 10.0);
-    }
-
-    // Calculate surface variation data that multiple effects can use
+    }    // Calculate surface variation data with multi-level smoothing
     var thicknessL = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 0.0)), 0).r;
     var thicknessR = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 0.0)), 0).r;
     var thicknessU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, -1.0)), 0).r;
     var thicknessD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, 1.0)), 0).r;
 
-    // Calculate surface gradients and curvature for multiple effects
-    var thicknessGradX = (thicknessR - thicknessL) * 0.5;
-    var thicknessGradY = (thicknessD - thicknessU) * 0.5;
-    var thicknessCurvatureX = thicknessR + thicknessL - 2.0 * thickness;
-    var thicknessCurvatureY = thicknessD + thicknessU - 2.0 * thickness;
+    // Add diagonal samples for better surface reconstruction
+    var thicknessLU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, -1.0)), 0).r;
+    var thicknessRU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, -1.0)), 0).r;
+    var thicknessLD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 1.0)), 0).r;
+    var thicknessRD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 1.0)), 0).r;
+
+    // Apply bilateral filtering to smooth thickness while preserving edges
+    var thicknessSum = thickness * 4.0 + (thicknessL + thicknessR + thicknessU + thicknessD) * 2.0 + (thicknessLU + thicknessRU + thicknessLD + thicknessRD) * 1.0;
+    var smoothedThickness = thicknessSum / 16.0;
+
+    // Use smoothed thickness for a more continuous surface
+    thickness = mix(thickness, smoothedThickness, 0.6);
+
+    // Calculate surface gradients with reduced sensitivity for smoother transitions
+    var thicknessGradX = (thicknessR - thicknessL) * 0.3; // Reduced from 0.5
+    var thicknessGradY = (thicknessD - thicknessU) * 0.3; // Reduced from 0.5
+    var thicknessCurvatureX = (thicknessR + thicknessL - 2.0 * thickness) * 0.5;
+    var thicknessCurvatureY = (thicknessD + thicknessU - 2.0 * thickness) * 0.5;
 
     // Initialize surface offset for debug visualization
-    var surfaceOffset = vec3f(0.0);
-
-    // Apply turbulent surface deformation (Toggleable)
+    var surfaceOffset = vec3f(0.0);    // Apply turbulent surface deformation with enhanced smoothing (Toggleable)
     var turbulentNormal = normal;
     if effectsToggle.enableTurbulentNormals != 0u {
         // Use REAL fluid simulation data, not simplified patterns
-        var turbulentStrength = max(turbulenceIntensity, 0.1) * waterAppearance.waveHeight; // Use wave height parameter
+        var turbulentStrength = max(turbulenceIntensity, 0.1) * waterAppearance.waveHeight * 0.5; // Reduced strength
 
         // Only apply effects where there's actual variation in the simulation
-        if turbulenceIntensity > 0.1 && velocityMagnitude > 0.01 {
+        if turbulenceIntensity > 0.15 && velocityMagnitude > 0.02 { // Higher thresholds
 
-            // Use only the natural variation in thickness and density
-            var thicknessVariation = thickness - 1.0; // Natural thickness variation
-            var densityVariation = density - 1.0;     // Natural density variation
+            // Use only the natural variation in thickness and density with heavy smoothing
+            var thicknessVariation = (thickness - 1.0) * 0.3; // Reduced variation intensity
+            var densityVariation = (density - 1.0) * 0.3;     // Reduced variation intensity
 
             // Create surface perturbations only from real fluid properties
             var realFluidOffset = vec3f(
-                thicknessVariation * turbulentStrength,  // Surface height varies with thickness
-                0.0,                                     // Keep Y minimal
-                densityVariation * turbulentStrength     // Surface responds to density changes
+                thicknessVariation * turbulentStrength * 0.6,  // Further reduced
+                0.0,                                           // Keep Y minimal
+                densityVariation * turbulentStrength * 0.6     // Further reduced
             );
 
-            // Scale by actual turbulence and velocity with proper physics scaling
+            // Scale by actual turbulence and velocity with smoother physics scaling
             var reynoldsScaling = 1.0;
             if effectsToggle.enableReynoldsPhysics != 0u {
-                reynoldsScaling = 1.0 + turbulenceIntensity * cascadeEffect;
+                reynoldsScaling = 1.0 + turbulenceIntensity * cascadeEffect * 0.5; // Reduced scaling
             }
-            realFluidOffset *= reynoldsScaling * velocityMagnitude * lightingControls.volumetricIntensity;
+            realFluidOffset *= reynoldsScaling * velocityMagnitude * lightingControls.volumetricIntensity * 0.3; // Reduced impact
 
-            // Add vorticity effect only if significant
-            if vorticityMagnitude > 0.1 {
-                var vorticityEffect = normalize(vorticity) * vorticityMagnitude * turbulentStrength;
+            // Add vorticity effect only if significant, with reduced strength
+            if vorticityMagnitude > 0.2 { // Higher threshold
+                var vorticityEffect = normalize(vorticity) * vorticityMagnitude * turbulentStrength * 0.3; // Reduced
                 realFluidOffset += vorticityEffect;
             }
 
             surfaceOffset = realFluidOffset;
 
-            // Apply the fluid-based perturbation
-            turbulentNormal = normalize(normal + surfaceOffset);
+            // Apply the fluid-based perturbation with heavy smoothing
+            var perturbedNormal = normalize(normal + surfaceOffset * 0.4); // Reduced perturbation strength
 
-            // Physics-based stability check using actual flow conditions
-            var stabilityThreshold = clamp(0.2 + velocityMagnitude * 0.3, 0.1, 0.8);
-            if dot(turbulentNormal, normal) < stabilityThreshold {
-                var mixFactor = clamp(turbulenceIntensity + velocityMagnitude, 0.3, 0.9);
-                turbulentNormal = mix(normal, turbulentNormal, mixFactor);
+            // Physics-based stability check with more conservative mixing
+            var stabilityThreshold = clamp(0.4 + velocityMagnitude * 0.2, 0.3, 0.9); // More stable
+            if dot(perturbedNormal, normal) < stabilityThreshold {
+                var mixFactor = clamp(turbulenceIntensity + velocityMagnitude, 0.1, 0.4); // Much more conservative
+                turbulentNormal = mix(normal, perturbedNormal, mixFactor);
+            } else {
+                // Even with good stability, blend conservatively
+                turbulentNormal = mix(normal, perturbedNormal, 0.2);
             }
         }
     }
 
-    normal = turbulentNormal;
-
-    // Surface properties based on turbulence - enhanced for more shine
-    var surfaceRoughness = clamp(velocityMagnitude * 0.2 + foamIntensity * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.4); // Reduced roughness values
-    var baseSpecularPower = mix(1024.0, 96.0, surfaceRoughness); // Increased specular power range
-    var specularIntensity = mix(1.5, 0.6, surfaceRoughness); // Increased specular intensity range
+    normal = turbulentNormal;    // Surface properties based on turbulence - enhanced for smoother, less particle-like appearance
+    var surfaceRoughness = clamp(velocityMagnitude * 0.1 + foamIntensity * 0.1 + turbulenceIntensity * 0.05, 0.0, 0.2); // Much reduced roughness
+    var baseSpecularPower = mix(2048.0, 256.0, surfaceRoughness); // Much higher specular power for smoother highlights
+    var specularIntensity = mix(2.0, 0.8, surfaceRoughness); // Higher intensity for better definition
 
     // Specular calculations with controllable lighting (Toggleable)
     var specular: f32 = 0.0;
@@ -400,31 +427,36 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var totalAbsorptionCoeffs = waterAbsorptionCoeffs + particleAbsorptionCoeffs;
 
         // Apply Beer-Lambert law: I = I₀ * e^(-α * d)
-        lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);
-
-        // Ensure reasonable bounds for light attenuation
+        lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);        // Ensure reasonable bounds for light attenuation
         lightAttenuation = clamp(lightAttenuation, vec3f(0.4), vec3f(1.0)); // Increased minimum from 0.2 to 0.4
-    }    // PHYSICS-BASED TRANSPARENCY using Beer's Law and Fresnel Transmission
-    var physicsBasedAlpha = 1.0;
-    var transmissionCoeff = vec3f(1.0);
+    }    // ULTRA-SUBTLE FRESNEL CALCULATIONS - Barely noticeable effect
+    var fresnel: f32 = 0.0;
+    if effectsToggle.enableFresnel != 0u {
+        // Simple, ultra-subtle Fresnel calculation
+        var viewDotNormal = max(dot(normal, -rayDir), 0.0);
 
-    // Calculate viewing angle for optical path length
-    var viewDotNormal = abs(dot(normal, -rayDir));
-    var cosTheta = max(viewDotNormal, 0.01); // Prevent division by zero
+        // Ultra-subtle Fresnel effect - much less aggressive
+        var fresnelEffect = pow(1.0 - viewDotNormal, 1.5); // Even gentler curve
+
+        // Apply user reflectivity control but keep it ultra-subtle
+        fresnel = fresnelEffect * clamp(waterAppearance.reflectivity, 0.0, 1.0) * 0.1; // Max 10% effect instead of 30%
+
+        // Clamp to prevent any extreme values
+        fresnel = clamp(fresnel, 0.0, 0.1); // Much lower maximum (10% instead of 30%)
+    }
+
+    // PHYSICS-BASED TRANSPARENCY - Completely separate from Fresnel
+    var physicsBasedAlpha = 1.0;
+    var transmissionCoeff = vec3f(1.0);    // Calculate viewing angle for optical path length
+    var viewDotNormal = max(dot(normal, -rayDir), 0.01); // Proper calculation without abs()
+    var cosTheta = viewDotNormal; // Use the same value
 
     // Real water optical properties
     var waterIOR = 1.333; // Index of refraction for water
     var airIOR = 1.0;     // Index of refraction for air
 
-    // Fresnel transmission coefficient (energy transmitted, not reflected)
-    var fresnelTransmission = 1.0;
-    if effectsToggle.enableFresnel != 0u {
-        // Schlick's approximation for transmission
-        var F0 = pow((airIOR - waterIOR) / (airIOR + waterIOR), 2.0);
-        var oneMinusCosTheta = 1.0 - cosTheta;
-        var fresnelReflectance = F0 + (1.0 - F0) * pow(oneMinusCosTheta, 5.0);
-        fresnelTransmission = 1.0 - fresnelReflectance;
-    }
+    // NO FRESNEL DEPENDENCY - Keep transmission simple and independent
+    var fresnelTransmission = 1.0; // Always 1.0, no Fresnel interference
 
     // Apply transmission coefficient calculation only if absorption is enabled
     if effectsToggle.enableAbsorption != 0u {
@@ -460,14 +492,14 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
         // Apply Beer's Law: T = e^(-α * d)
         transmissionCoeff = exp(-totalAbsorption * opticalPathLength);
-    }    // Calculate physics-based alpha from transmission
+    }    // Calculate physics-based alpha WITHOUT Fresnel interference
     if effectsToggle.enableAbsorption != 0u {
         // Use luminance-weighted average for alpha calculation
         var transmissionLuminance = dot(transmissionCoeff, vec3f(0.299, 0.587, 0.114));
-        physicsBasedAlpha = transmissionLuminance * fresnelTransmission;
+        physicsBasedAlpha = transmissionLuminance; // No Fresnel multiplication
     } else {
-        // Without absorption, use simple Fresnel-based transparency
-        physicsBasedAlpha = fresnelTransmission;
+        // Without absorption, use simple transparency based on thickness
+        physicsBasedAlpha = 1.0; // Start with full opacity
     }
 
     // Add thickness-based opacity for volume rendering
@@ -489,32 +521,25 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var baseWaterColor: vec3f = waterAppearance.color.rgb;
 
     // Apply light absorption to the base color (darkens with depth)
-    baseWaterColor *= lightAttenuation;
-
-    // Calculate subsurface color after baseWaterColor is defined
-    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.0, 0.6, waterAppearance.transparency); // Increased from 0.5-0.25 to 0.5-0.6
-
-    // Fresnel calculations (Toggleable) - IMPROVED WITH SCHLICK'S APPROXIMATION
-    var fresnel: f32 = 1.0;
-    if effectsToggle.enableFresnel != 0u {
-        var viewDotNormal = abs(dot(normal, -rayDir));
-
-        // Schlick's approximation with proper IOR for water (1.33)
-        // Pre-calculated F0 for water: ((1.0 - 1.33) / (1.0 + 1.33))^2 = 0.02037
-        var F0 = 0.02037; // F0 for water at normal incidence
-        var oneMinusCosTheta = 1.0 - viewDotNormal;
-        var fresnelSchlick = F0 + (1.0 - F0) * pow(oneMinusCosTheta, 5.0);
-
-        fresnel = fresnelSchlick * waterAppearance.reflectivity;
-    }
-
-    // Environment reflection (Toggleable)
+    baseWaterColor *= lightAttenuation;    // Calculate subsurface color after baseWaterColor is defined
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.0, 0.6, waterAppearance.transparency); // Increased from 0.5-0.25 to 0.5-0.6    // Environment reflection (Toggleable) - IMPROVED STABILITY
     var reflectionColor: vec3f = vec3f(0.0);
     if effectsToggle.enableReflection != 0u {
         var reflectDir = reflect(rayDir, normal);
         var worldReflectDir = (uniforms.inv_view_matrix * vec4f(reflectDir, 0.0)).xyz;
-        reflectionColor = textureSampleLevel(envmap_texture, texture_sampler, worldReflectDir, 0.0).rgb;
-        reflectionColor *= fresnel * edgeFactor;
+        var envReflection = textureSampleLevel(envmap_texture, texture_sampler, worldReflectDir, 0.0).rgb;
+
+        // Apply Fresnel only if enabled, otherwise use basic reflectivity
+        if effectsToggle.enableFresnel != 0u {
+            // Use a base reflectivity plus the Fresnel enhancement
+            var baseReflection = waterAppearance.reflectivity * 0.2; // Base reflection level
+            var fresnelEnhancement = fresnel; // Additional Fresnel boost
+            var totalReflectivity = clamp(baseReflection + fresnelEnhancement, 0.0, 0.5); // Max 50% total
+            reflectionColor = envReflection * totalReflectivity * edgeFactor;
+        } else {
+            // Simple reflectivity without Fresnel - slightly reduced
+            reflectionColor = envReflection * waterAppearance.reflectivity * 0.25 * edgeFactor; // Reduced from 0.3 to 0.25
+        }
     }
 
     // Depth-based coloring (Toggleable) - IMPROVED WITH REALISTIC UNDERWATER COLOR PROGRESSION
