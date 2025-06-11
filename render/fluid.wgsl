@@ -7,6 +7,7 @@
 @group(0) @binding(6) var<uniform> debug: DebugUniforms;
 @group(0) @binding(7) var<uniform> effectsToggle: EffectsToggle;
 @group(0) @binding(8) var<uniform> lightingControls: LightingControls;
+// @group(0) @binding(9) var<uniform> effectParams: EffectParameters;
 
 struct RenderUniforms {
     texel_size: vec2f,
@@ -49,13 +50,11 @@ struct EffectsToggle {
     enableRefraction: u32,
     enableCaustics: u32,
     enableDispersion: u32,
-    enableAbsorption: u32,
-
-    // Color and depth effects
+    enableAbsorption: u32,    // Color and depth effects
     enableDepthColoring: u32,
     enableVelocityColoring: u32,
     enableRimLighting: u32,
-    padding: u32,
+    enableColorAbsorption: u32,
 }
 
 struct LightingControls {
@@ -94,8 +93,105 @@ struct LightingControls {
     rimLightingPower: f32,
     lightingPadding1: f32,
     lightingPadding2: f32,
-    lightingPadding3: f32,
-    lightingPadding4: f32,
+    lightingPadding3: f32,    lightingPadding4: f32,
+}
+
+struct EffectParameters {
+    // Reynolds Physics Parameters
+    reynoldsScale: f32,
+    turbulenceStrength: f32,
+    viscosityFactor: f32,
+    cascadeEffect: f32,
+
+    // Cavitation Parameters
+    cavitationThreshold: f32,
+    cavitationStrength: f32,
+    pressureScale: f32,
+    cavitationFalloff: f32,
+
+    // Foam Parameters
+    foamIntensity: f32,
+    foamThreshold: f32,
+    foamDecay: f32,
+    foamCoverage: f32,
+
+    // Turbulent Normals Parameters
+    normalStrength: f32,
+    normalScale: f32,
+    normalSmoothness: f32,
+    normalStability: f32,
+
+    // Specular Parameters
+    specularPower: f32,
+    specularScale: f32,
+    specularRoughness: f32,
+    specularFresnel: f32,
+
+    // Subsurface Parameters
+    subsurfaceDepth: f32,
+    subsurfaceScale: f32,
+    subsurfaceColor: f32,
+    subsurfaceDistortion: f32,
+
+    // Fresnel Parameters
+    fresnelPower: f32,
+    fresnelScale: f32,
+    fresnelBias: f32,
+    fresnelContrast: f32,
+
+    // Reflection Parameters
+    reflectionStrength: f32,
+    reflectionBlur: f32,
+    reflectionDistortion: f32,
+    reflectionFade: f32,
+
+    // Refraction Parameters
+    refractionStrength: f32,
+    refractionIndex: f32,
+    refractionChromatic: f32,
+    refractionScale: f32,
+
+    // Caustics Parameters
+    causticsStrength: f32,
+    causticsScale: f32,
+    causticsSpeed: f32,
+    causticsContrast: f32,
+
+    // Absorption Parameters
+    absorptionStrength: f32,
+    absorptionDepth: f32,
+    absorptionColor: f32,
+    absorptionScattering: f32,
+
+    // Depth Coloring Parameters
+    depthColorStrength: f32,
+    depthColorScale: f32,
+    depthColorContrast: f32,
+    depthColorSaturation: f32,
+
+    // Velocity Coloring Parameters
+    velocityColorStrength: f32,
+    velocityColorScale: f32,
+    velocityColorContrast: f32,
+    velocityColorThreshold: f32,
+
+    // Rim Lighting Parameters
+    rimLightStrength: f32,
+    rimLightPower: f32,
+    rimLightScale: f32,
+    rimLightContrast: f32,
+
+    // Color Absorption Parameters
+    colorAbsorptionRed: f32,
+    colorAbsorptionGreen: f32,
+    colorAbsorptionBlue: f32,
+    colorAbsorptionDepth: f32,
+
+    // Padding for alignment
+    padding1: f32,
+    padding2: f32,
+    padding3: f32,
+    padding4: f32,
 }
 
 struct FragmentInput {
@@ -725,16 +821,47 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // Foam color mixing
-    var foamColor = vec3f(1.0, 1.0, 1.0) * foamInfluence;
-
-    // Combine all lighting components
+    var foamColor = vec3f(1.0, 1.0, 1.0) * foamInfluence;    // Combine all lighting components
     var finalColor: vec3f = baseWaterColor * depthColor * velocityColor;
     finalColor += subsurfaceColor;
     finalColor += reflectionColor;
     finalColor += vec3f(specular); // Convert scalar to vec3f
     finalColor += rimLighting; // Enhanced rim lighting
     finalColor += interiorLighting; // New interior lighting
-    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);    // Add controllable ambient lighting
+    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);    // WATER COLOR ABSORPTION (Toggleable) - Depth-based wavelength absorption creating color shifts
+    if effectsToggle.enableColorAbsorption != 0u {
+        // Calculate water depth for color absorption - much more gradual
+        var waterDepth = abs(viewPos.z);
+        var depthFactor = clamp(waterDepth * 0.3, 0.0, 1.0); // Much more gradual than 2.0
+
+        // Surface water color (what we have after lighting)
+        var surfaceWaterColor = finalColor;
+
+        // Create gradual wavelength-based absorption without overriding original color
+        var absorptionFactors = vec3f(
+            exp(-depthFactor * 0.8), // Red absorption - much gentler
+            exp(-depthFactor * 0.4), // Green absorption - gentler
+            exp(-depthFactor * 0.1)  // Blue absorption - minimal
+        );
+
+        // Apply wavelength absorption while preserving original water color character
+        var absorptionAffectedColor = surfaceWaterColor * absorptionFactors;
+
+        // Only add subtle color shift in very deep areas (preserve original color)
+        var baseColorShift = vec3f(1.0);
+        if depthFactor > 0.7 {
+            // Derive color shift from original water color, not hardcoded blue
+            var originalColorLuminance = dot(waterAppearance.color.rgb, vec3f(0.299, 0.587, 0.114));
+            var coolTint = mix(vec3f(1.0), waterAppearance.color.rgb * vec3f(0.8, 0.9, 1.1), 0.2);
+            baseColorShift = mix(vec3f(1.0), coolTint, (depthFactor - 0.7) * 0.5);
+        }
+
+        // Apply very subtle color shift only in deep areas
+        var colorShiftedResult = absorptionAffectedColor * baseColorShift;
+
+        // Blend gradually - preserve surface color in shallow areas
+        finalColor = mix(surfaceWaterColor, colorShiftedResult, depthFactor * 0.6);
+    }// Add controllable ambient lighting
     finalColor += ambientContribution * 0.2; // Increased from 0.05
 
     // Apply edge enhancement

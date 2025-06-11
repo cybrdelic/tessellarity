@@ -5,7 +5,7 @@ import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews } from './common'
+import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews } from './common'
 import { FluidRenderer } from './render/fluidRender'
 import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
 
@@ -182,11 +182,17 @@ async function main() {
 		size: effectsToggleValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
-
 	// Create lighting controls buffer
 	const lightingControlsBuffer = device.createBuffer({
 		label: 'lighting controls buffer',
 		size: lightingControlsValues.byteLength,
+		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+	});
+
+	// Create effect parameters buffer
+	const effectParametersBuffer = device.createBuffer({
+		label: 'effect parameters buffer',
+		size: effectParametersValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
 
@@ -201,10 +207,10 @@ async function main() {
 	effectsToggleViews.enableReflection[0] = 1;
 	effectsToggleViews.enableRefraction[0] = 1;
 	effectsToggleViews.enableCaustics[0] = 1;
-	effectsToggleViews.enableDispersion[0] = 1;
-	effectsToggleViews.enableAbsorption[0] = 1;
+	effectsToggleViews.enableDispersion[0] = 1; effectsToggleViews.enableAbsorption[0] = 1;
 	effectsToggleViews.enableDepthColoring[0] = 1;
 	effectsToggleViews.enableVelocityColoring[0] = 1;
+	effectsToggleViews.enableColorAbsorption[0] = 1;
 	device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
 
 	// Initialize lighting controls with default values
@@ -243,8 +249,100 @@ async function main() {
 	lightingControlsViews.lightingPadding2[0] = 0.0;     // Padding for alignment
 	lightingControlsViews.lightingPadding3[0] = 0.0;     // Padding for alignment
 	lightingControlsViews.lightingPadding4[0] = 0.0;     // Padding for alignment
-
 	device.queue.writeBuffer(lightingControlsBuffer, 0, lightingControlsValues);
+
+	// Initialize effect parameters with default values
+	// Reynolds Physics Parameters
+	effectParametersViews.reynoldsScale[0] = 1.0;
+	effectParametersViews.turbulenceStrength[0] = 1.0;
+	effectParametersViews.viscosityFactor[0] = 1.0;
+	effectParametersViews.cascadeEffect[0] = 1.0;
+
+	// Cavitation Parameters
+	effectParametersViews.cavitationThreshold[0] = 2337.0;
+	effectParametersViews.cavitationStrength[0] = 1.0;
+	effectParametersViews.pressureScale[0] = 1.0;
+	effectParametersViews.cavitationFalloff[0] = 1.0;
+
+	// Foam Parameters
+	effectParametersViews.foamIntensity[0] = 1.0;
+	effectParametersViews.foamThreshold[0] = 0.5;
+	effectParametersViews.foamDecay[0] = 0.8;
+	effectParametersViews.foamCoverage[0] = 0.5;
+
+	// Turbulent Normals Parameters
+	effectParametersViews.normalStrength[0] = 0.2;
+	effectParametersViews.normalScale[0] = 1.0;
+	effectParametersViews.normalSmoothness[0] = 0.85;
+	effectParametersViews.normalStability[0] = 0.6;
+
+	// Specular Parameters
+	effectParametersViews.specularPower[0] = 4096.0;
+	effectParametersViews.specularScale[0] = 3.0;
+	effectParametersViews.specularRoughness[0] = 0.05;
+	effectParametersViews.specularFresnel[0] = 2.0;
+
+	// Subsurface Parameters
+	effectParametersViews.subsurfaceDepth[0] = 0.4;
+	effectParametersViews.subsurfaceScale[0] = 1.0;
+	effectParametersViews.subsurfaceColor[0] = 1.0;
+	effectParametersViews.subsurfaceDistortion[0] = 0.5;
+
+	// Fresnel Parameters
+	effectParametersViews.fresnelPower[0] = 1.5;
+	effectParametersViews.fresnelScale[0] = 0.1;
+	effectParametersViews.fresnelBias[0] = 0.0;
+	effectParametersViews.fresnelContrast[0] = 1.0;
+
+	// Reflection Parameters
+	effectParametersViews.reflectionStrength[0] = 1.0;
+	effectParametersViews.reflectionBlur[0] = 0.0;
+	effectParametersViews.reflectionDistortion[0] = 1.0;
+	effectParametersViews.reflectionFade[0] = 1.0;
+
+	// Refraction Parameters
+	effectParametersViews.refractionStrength[0] = 1.0;
+	effectParametersViews.refractionIndex[0] = 1.333;
+	effectParametersViews.refractionChromatic[0] = 0.0;
+	effectParametersViews.refractionScale[0] = 1.0;
+
+	// Caustics Parameters
+	effectParametersViews.causticsStrength[0] = 0.2;
+	effectParametersViews.causticsScale[0] = 10.0;
+	effectParametersViews.causticsSpeed[0] = 1.0;
+	effectParametersViews.causticsContrast[0] = 1.0;
+
+	// Absorption Parameters
+	effectParametersViews.absorptionStrength[0] = 1.0;
+	effectParametersViews.absorptionDepth[0] = 0.15;
+	effectParametersViews.absorptionColor[0] = 1.0;
+	effectParametersViews.absorptionScattering[0] = 0.2;
+
+	// Depth Coloring Parameters
+	effectParametersViews.depthColorStrength[0] = 1.0;
+	effectParametersViews.depthColorScale[0] = 0.2;
+	effectParametersViews.depthColorContrast[0] = 1.0;
+	effectParametersViews.depthColorSaturation[0] = 1.0;
+
+	// Velocity Coloring Parameters
+	effectParametersViews.velocityColorStrength[0] = 0.5;
+	effectParametersViews.velocityColorScale[0] = 0.5;
+	effectParametersViews.velocityColorContrast[0] = 1.0;
+	effectParametersViews.velocityColorThreshold[0] = 0.05;
+
+	// Rim Lighting Parameters
+	effectParametersViews.rimLightStrength[0] = 1.2;
+	effectParametersViews.rimLightPower[0] = 0.8;
+	effectParametersViews.rimLightScale[0] = 1.0;
+	effectParametersViews.rimLightContrast[0] = 1.0;
+
+	// Color Absorption Parameters
+	effectParametersViews.colorAbsorptionRed[0] = 0.45;
+	effectParametersViews.colorAbsorptionGreen[0] = 0.15;
+	effectParametersViews.colorAbsorptionBlue[0] = 0.05;
+	effectParametersViews.colorAbsorptionDepth[0] = 0.1;
+
+	device.queue.writeBuffer(effectParametersBuffer, 0, effectParametersValues);
 
 	// Initialize debug mode (disabled by default)
 	debugModeViews.mode[0] = DebugVisualizationMode.NONE;
@@ -323,8 +421,7 @@ async function main() {
 	const boidsRadius = 0.3;
 	const boidsDiameter = 2 * boidsRadius;
 	const boidsZoomRate = 0.8;
-	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device);
-	const mlsmpmRenderer = new FluidRenderer(
+	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device); const mlsmpmRenderer = new FluidRenderer(
 		device,
 		canvas,
 		presentationFormat,
@@ -336,7 +433,8 @@ async function main() {
 		waterAppearanceBuffer,
 		debugModeBuffer,
 		effectsToggleBuffer,
-		lightingControlsBuffer
+		lightingControlsBuffer,
+		effectParametersBuffer
 	);
 	const sphRenderer = new FluidRenderer(
 		device,
@@ -350,7 +448,8 @@ async function main() {
 		waterAppearanceBuffer,
 		debugModeBuffer,
 		effectsToggleBuffer,
-		lightingControlsBuffer
+		lightingControlsBuffer,
+		effectParametersBuffer
 	);
 	const boidsRenderer = new FluidRenderer(
 		device,
@@ -364,7 +463,8 @@ async function main() {
 		waterAppearanceBuffer,
 		debugModeBuffer,
 		effectsToggleBuffer,
-		lightingControlsBuffer
+		lightingControlsBuffer,
+		effectParametersBuffer
 	);
 
 	console.log("simulator initialization done")
@@ -774,15 +874,14 @@ async function main() {
 		if (e.code === 'KeyD' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
 			debugModeEnabled.click();
 		}
-	});
-	// Expose global function for effects toggle updates
+	});	// Expose global function for effects toggle updates
 	(window as any).updateEffectsToggle = (index: number, enabled: boolean) => {
 		// Update the specific effect in the effects toggle buffer
 		const effectKeys = [
 			'enableReynoldsPhysics', 'enableCavitation', 'enableFoam', 'enableTurbulentNormals',
 			'enableSpecular', 'enableSubsurface', 'enableFresnel', 'enableReflection',
 			'enableRefraction', 'enableCaustics', 'enableDispersion', 'enableAbsorption',
-			'enableDepthColoring', 'enableVelocityColoring', 'enableRimLighting'
+			'enableDepthColoring', 'enableVelocityColoring', 'enableRimLighting', 'enableColorAbsorption'
 		];
 
 		if (index >= 0 && index < effectKeys.length) {
@@ -881,11 +980,26 @@ async function main() {
 			// Update all renderer instances with the current lighting controls buffer
 			mlsmpmRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
 			sphRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
-			boidsRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
-
-			console.log(`Updated lighting parameter ${parameter} to ${value}`);
+			boidsRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]); console.log(`Updated lighting parameter ${parameter} to ${value}`);
 		} catch (error) {
 			console.error(`Error updating lighting parameter ${parameter}:`, error);
+		}
+	};
+
+	// Global function to update effect parameters
+	(window as any).updateEffectParameters = function (parameterIndex: number, value: number) {
+		try {
+			// Update the parameter in the effect parameters buffer
+			const parameterOffset = parameterIndex * 4; // Each parameter is 4 bytes (f32)
+			const parameterView = new Float32Array(effectParametersValues, parameterOffset, 1);
+			parameterView[0] = value;
+
+			// Write the updated buffer to GPU
+			device.queue.writeBuffer(effectParametersBuffer, 0, effectParametersValues);
+
+			console.log(`Updated effect parameter ${parameterIndex} to ${value}`);
+		} catch (error) {
+			console.error(`Error updating effect parameter ${parameterIndex}:`, error);
 		}
 	};
 }

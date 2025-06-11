@@ -47,11 +47,10 @@ export const effectsToggleViews = {
   enableCaustics: new Uint32Array(effectsToggleValues, 36, 1),          // Caustics patterns
   enableDispersion: new Uint32Array(effectsToggleValues, 40, 1),        // Chromatic dispersion
   enableAbsorption: new Uint32Array(effectsToggleValues, 44, 1),        // Depth-based absorption
-
   // Color and depth effects
   enableDepthColoring: new Uint32Array(effectsToggleValues, 48, 1),     // Depth-based color variation
   enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts  enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
-  padding: new Uint32Array(effectsToggleValues, 60, 1),                 // Alignment padding
+  enableColorAbsorption: new Uint32Array(effectsToggleValues, 60, 1),   // Depth-based wavelength color absorption
 };
 
 // Comprehensive lighting controls buffer
@@ -98,4 +97,104 @@ export const lightingControlsViews = {
   lightingPadding6: new Float32Array(lightingControlsValues, 164, 1),   // Alignment padding 6
   lightingPadding7: new Float32Array(lightingControlsValues, 168, 1),   // Alignment padding 7
   lightingPadding8: new Float32Array(lightingControlsValues, 172, 1),   // Alignment padding 8
+};
+
+// Effect parameters buffer - individual parameter controls for each effect
+export const effectParametersValues = new ArrayBuffer(256); // 64 parameters * 4 bytes each (f32)
+export const effectParametersViews = {
+  // Reynolds Physics Parameters
+  reynoldsScale: new Float32Array(effectParametersValues, 0, 1),        // Reynolds number scaling factor
+  turbulenceStrength: new Float32Array(effectParametersValues, 4, 1),   // Turbulence intensity multiplier
+  viscosityFactor: new Float32Array(effectParametersValues, 8, 1),      // Kinematic viscosity adjustment
+  cascadeEffect: new Float32Array(effectParametersValues, 12, 1),       // Kolmogorov cascade strength
+
+  // Cavitation Parameters
+  cavitationThreshold: new Float32Array(effectParametersValues, 16, 1), // Cavitation pressure threshold
+  cavitationStrength: new Float32Array(effectParametersValues, 20, 1),  // Cavitation intensity multiplier
+  pressureScale: new Float32Array(effectParametersValues, 24, 1),       // Pressure calculation scaling
+  cavitationFalloff: new Float32Array(effectParametersValues, 28, 1),   // Cavitation distance falloff
+
+  // Foam Parameters
+  foamIntensity: new Float32Array(effectParametersValues, 32, 1),       // Foam generation intensity
+  foamThreshold: new Float32Array(effectParametersValues, 36, 1),       // Foam generation threshold
+  foamDecay: new Float32Array(effectParametersValues, 40, 1),           // Foam decay rate
+  foamCoverage: new Float32Array(effectParametersValues, 44, 1),        // Foam surface coverage
+
+  // Turbulent Normals Parameters
+  normalStrength: new Float32Array(effectParametersValues, 48, 1),      // Normal perturbation strength
+  normalScale: new Float32Array(effectParametersValues, 52, 1),         // Normal variation scale
+  normalSmoothness: new Float32Array(effectParametersValues, 56, 1),    // Normal smoothing factor
+  normalStability: new Float32Array(effectParametersValues, 60, 1),     // Normal stability threshold
+
+  // Specular Parameters
+  specularPower: new Float32Array(effectParametersValues, 64, 1),       // Specular highlight power
+  specularScale: new Float32Array(effectParametersValues, 68, 1),       // Specular intensity scale
+  specularRoughness: new Float32Array(effectParametersValues, 72, 1),   // Surface roughness factor
+  specularFresnel: new Float32Array(effectParametersValues, 76, 1),     // Fresnel effect on specular
+
+  // Subsurface Parameters
+  subsurfaceDepth: new Float32Array(effectParametersValues, 80, 1),     // Subsurface penetration depth
+  subsurfaceScale: new Float32Array(effectParametersValues, 84, 1),     // Subsurface scattering scale
+  subsurfaceColor: new Float32Array(effectParametersValues, 88, 1),     // Subsurface color influence
+  subsurfaceDistortion: new Float32Array(effectParametersValues, 92, 1), // Light distortion factor
+
+  // Fresnel Parameters
+  fresnelPower: new Float32Array(effectParametersValues, 96, 1),        // Fresnel curve power
+  fresnelScale: new Float32Array(effectParametersValues, 100, 1),       // Fresnel effect scale
+  fresnelBias: new Float32Array(effectParametersValues, 104, 1),        // Fresnel bias adjustment
+  fresnelContrast: new Float32Array(effectParametersValues, 108, 1),    // Fresnel contrast enhancement
+
+  // Reflection Parameters
+  reflectionStrength: new Float32Array(effectParametersValues, 112, 1), // Environment reflection strength
+  reflectionBlur: new Float32Array(effectParametersValues, 116, 1),     // Reflection blur amount
+  reflectionDistortion: new Float32Array(effectParametersValues, 120, 1), // Surface distortion on reflections
+  reflectionFade: new Float32Array(effectParametersValues, 124, 1),     // Distance-based reflection fade
+
+  // Refraction Parameters
+  refractionStrength: new Float32Array(effectParametersValues, 128, 1), // Refraction distortion strength
+  refractionIndex: new Float32Array(effectParametersValues, 132, 1),    // Index of refraction
+  refractionChromatic: new Float32Array(effectParametersValues, 136, 1), // Chromatic aberration amount
+  refractionScale: new Float32Array(effectParametersValues, 140, 1),    // Refraction effect scale
+
+  // Caustics Parameters
+  causticsStrength: new Float32Array(effectParametersValues, 144, 1),   // Caustics pattern strength
+  causticsScale: new Float32Array(effectParametersValues, 148, 1),      // Caustics pattern scale
+  causticsSpeed: new Float32Array(effectParametersValues, 152, 1),      // Caustics animation speed
+  causticsContrast: new Float32Array(effectParametersValues, 156, 1),   // Caustics contrast
+
+  // Absorption Parameters
+  absorptionStrength: new Float32Array(effectParametersValues, 160, 1), // Light absorption strength
+  absorptionDepth: new Float32Array(effectParametersValues, 164, 1),    // Absorption depth scale
+  absorptionColor: new Float32Array(effectParametersValues, 168, 1),    // Color absorption influence
+  absorptionScattering: new Float32Array(effectParametersValues, 172, 1), // Scattering effect on absorption
+
+  // Depth Coloring Parameters
+  depthColorStrength: new Float32Array(effectParametersValues, 176, 1), // Depth color variation strength
+  depthColorScale: new Float32Array(effectParametersValues, 180, 1),    // Depth color transition scale
+  depthColorContrast: new Float32Array(effectParametersValues, 184, 1), // Depth color contrast
+  depthColorSaturation: new Float32Array(effectParametersValues, 188, 1), // Depth color saturation
+
+  // Velocity Coloring Parameters
+  velocityColorStrength: new Float32Array(effectParametersValues, 192, 1), // Velocity color intensity
+  velocityColorScale: new Float32Array(effectParametersValues, 196, 1),  // Velocity color scaling
+  velocityColorContrast: new Float32Array(effectParametersValues, 200, 1), // Velocity color contrast
+  velocityColorThreshold: new Float32Array(effectParametersValues, 204, 1), // Velocity threshold for coloring
+
+  // Rim Lighting Parameters
+  rimLightStrength: new Float32Array(effectParametersValues, 208, 1),   // Rim light intensity
+  rimLightPower: new Float32Array(effectParametersValues, 212, 1),      // Rim light falloff power
+  rimLightScale: new Float32Array(effectParametersValues, 216, 1),      // Rim light scale factor
+  rimLightContrast: new Float32Array(effectParametersValues, 220, 1),   // Rim light contrast
+
+  // Color Absorption Parameters
+  colorAbsorptionRed: new Float32Array(effectParametersValues, 224, 1), // Red wavelength absorption
+  colorAbsorptionGreen: new Float32Array(effectParametersValues, 228, 1), // Green wavelength absorption
+  colorAbsorptionBlue: new Float32Array(effectParametersValues, 232, 1), // Blue wavelength absorption
+  colorAbsorptionDepth: new Float32Array(effectParametersValues, 236, 1), // Color absorption depth scale
+
+  // Padding for alignment
+  padding1: new Float32Array(effectParametersValues, 240, 1),
+  padding2: new Float32Array(effectParametersValues, 244, 1),
+  padding3: new Float32Array(effectParametersValues, 248, 1),
+  padding4: new Float32Array(effectParametersValues, 252, 1),
 };

@@ -1530,6 +1530,46 @@
       background: none !important;
       -webkit-text-fill-color: var(--accent-warning) !important;
     }
+
+    /* Parameter Category Styles */
+    .parameter-category {
+      margin-bottom: var(--space-xl);
+      border: 1px solid var(--glass-border-light);
+      border-radius: var(--radius-md);
+      background: var(--glass-bg-light);
+      backdrop-filter: var(--glass-backdrop);
+      -webkit-backdrop-filter: var(--glass-backdrop);
+      overflow: hidden;
+    }
+
+    .parameter-category-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md);
+      background: var(--glass-bg-dark);
+      border-bottom: 1px solid var(--glass-border-light);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .parameter-category-header i {
+      color: var(--accent-color);
+      font-size: 1rem;
+    }
+
+    .parameter-sliders {
+      padding: var(--space-md);
+    }
+
+    .parameter-sliders .slider-container {
+      margin-bottom: var(--space-md);
+    }
+
+    .parameter-sliders .slider-container:last-child {
+      margin-bottom: 0;
+    }
   </style>
 </head>
 
@@ -2293,12 +2333,19 @@
           <div
             style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-sm); font-weight: 600;">
             Coloring Effects</div>
-
           <div class="checkbox-container" id="absorption-toggle">
             <input type="checkbox" id="enable-absorption" checked>
             <div>
               <div class="radio-option-label">Light Absorption</div>
               <div class="radio-option-description">Depth-based color attenuation</div>
+            </div>
+          </div>
+
+          <div class="checkbox-container" id="color-absorption-toggle">
+            <input type="checkbox" id="enable-color-absorption" checked>
+            <div>
+              <div class="radio-option-label">Color Absorption</div>
+              <div class="radio-option-description">Realistic wavelength-based color shifts</div>
             </div>
           </div>
 
@@ -2412,15 +2459,647 @@
             <span>Subtle</span>
             <span>Full</span>
           </div>
-        </div>
-
-        <!-- Debug Export Button -->
+        </div> <!-- Debug Export Button -->
         <button id="debug-export" class="header-btn"
           style="width: 100%; margin-top: 1rem; background: var(--accent-warning); color: #000;">
           <i class="fas fa-download"></i>
           <span>Export Debug Screenshot</span>
         </button>
       </div>
+    </div>
+
+    <!-- Effect Parameters Controls -->
+    <div class="control-group">
+      <label class="control-label">
+        <i class="fas fa-sliders-h" style="margin-right: 0.5rem; color: var(--accent-color);"></i>
+        Effect Parameters
+      </label>
+      <div class="control-description">Fine-tune individual effect parameters for precise control over each visual
+        effect</div>
+
+      <!-- Reynolds Physics Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-wave-square"></i>
+          <span>Reynolds Physics</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Reynolds Scale</span>
+                <span class="slider-value" id="reynolds-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('reynolds-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="reynolds-scale" min="0.1" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Turbulence Strength</span>
+                <span class="slider-value" id="turbulence-strength-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('turbulence-strength', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="turbulence-strength" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Viscosity Factor</span>
+                <span class="slider-value" id="viscosity-factor-value">0.001</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('viscosity-factor', 0.001)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="viscosity-factor" min="0.0001" max="0.01" step="0.0001" value="0.001" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Cascade Effect</span>
+                <span class="slider-value" id="cascade-effect-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('cascade-effect', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="cascade-effect" min="0.1" max="2.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Cavitation Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-circle-notch"></i>
+          <span>Cavitation</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Cavitation Threshold</span>
+                <span class="slider-value" id="cavitation-threshold-value">0.5</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('cavitation-threshold', 0.5)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="cavitation-threshold" min="0.1" max="1.0" step="0.05" value="0.5" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Cavitation Strength</span>
+                <span class="slider-value" id="cavitation-strength-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('cavitation-strength', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="cavitation-strength" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Pressure Scale</span>
+                <span class="slider-value" id="pressure-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('pressure-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="pressure-scale" min="0.1" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Cavitation Falloff</span>
+                <span class="slider-value" id="cavitation-falloff-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('cavitation-falloff', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="cavitation-falloff" min="0.1" max="3.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Foam Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-cloud"></i>
+          <span>Foam</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Foam Intensity</span>
+                <span class="slider-value" id="foam-intensity-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('foam-intensity', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="foam-intensity" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Foam Threshold</span>
+                <span class="slider-value" id="foam-threshold-value">0.5</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('foam-threshold', 0.5)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="foam-threshold" min="0.0" max="1.0" step="0.05" value="0.5" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Foam Decay</span>
+                <span class="slider-value" id="foam-decay-value">0.95</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('foam-decay', 0.95)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="foam-decay" min="0.8" max="1.0" step="0.01" value="0.95" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Foam Coverage</span>
+                <span class="slider-value" id="foam-coverage-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('foam-coverage', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="foam-coverage" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Turbulent Normals Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-water"></i>
+          <span>Turbulent Normals</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Normal Strength</span>
+                <span class="slider-value" id="normal-strength-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('normal-strength', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="normal-strength" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Normal Scale</span>
+                <span class="slider-value" id="normal-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('normal-scale', 1.0)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="normal-scale" min="0.1" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Normal Smoothness</span>
+                <span class="slider-value" id="normal-smoothness-value">0.8</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('normal-smoothness', 0.8)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="normal-smoothness" min="0.0" max="1.0" step="0.05" value="0.8" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Normal Stability</span>
+                <span class="slider-value" id="normal-stability-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('normal-stability', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="normal-stability" min="0.1" max="2.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Specular Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-sun"></i>
+          <span>Specular</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Specular Power</span>
+                <span class="slider-value" id="specular-power-value">64.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('specular-power', 64.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="specular-power" min="1.0" max="128.0" step="1.0" value="64.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Specular Scale</span>
+                <span class="slider-value" id="specular-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('specular-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="specular-scale" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Specular Roughness</span>
+                <span class="slider-value" id="specular-roughness-value">0.1</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('specular-roughness', 0.1)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="specular-roughness" min="0.0" max="1.0" step="0.05" value="0.1" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Specular Fresnel</span>
+                <span class="slider-value" id="specular-fresnel-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('specular-fresnel', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="specular-fresnel" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Subsurface Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-eye-dropper"></i>
+          <span>Subsurface</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Subsurface Depth</span>
+                <span class="slider-value" id="subsurface-depth-value">0.5</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('subsurface-depth', 0.5)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="subsurface-depth" min="0.0" max="2.0" step="0.1" value="0.5" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Subsurface Scale</span>
+                <span class="slider-value" id="subsurface-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('subsurface-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="subsurface-scale" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Subsurface Color</span>
+                <span class="slider-value" id="subsurface-color-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('subsurface-color', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="subsurface-color" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Subsurface Distortion</span>
+                <span class="slider-value" id="subsurface-distortion-value">0.2</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('subsurface-distortion', 0.2)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="subsurface-distortion" min="0.0" max="1.0" step="0.05" value="0.2" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Fresnel Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-adjust"></i>
+          <span>Fresnel</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Fresnel Power</span>
+                <span class="slider-value" id="fresnel-power-value">3.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('fresnel-power', 3.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="fresnel-power" min="1.0" max="10.0" step="0.5" value="3.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Fresnel Scale</span>
+                <span class="slider-value" id="fresnel-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('fresnel-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="fresnel-scale" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Fresnel Bias</span>
+                <span class="slider-value" id="fresnel-bias-value">0.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('fresnel-bias', 0.0)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="fresnel-bias" min="0.0" max="1.0" step="0.05" value="0.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Fresnel Contrast</span>
+                <span class="slider-value" id="fresnel-contrast-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('fresnel-contrast', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="fresnel-contrast" min="0.1" max="3.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Reflection Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-mirror"></i>
+          <span>Reflection</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Reflection Strength</span>
+                <span class="slider-value" id="reflection-strength-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('reflection-strength', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="reflection-strength" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Reflection Blur</span>
+                <span class="slider-value" id="reflection-blur-value">0.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('reflection-blur', 0.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="reflection-blur" min="0.0" max="1.0" step="0.05" value="0.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Reflection Distortion</span>
+                <span class="slider-value" id="reflection-distortion-value">0.1</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('reflection-distortion', 0.1)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="reflection-distortion" min="0.0" max="0.5" step="0.01" value="0.1" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Reflection Fade</span>
+                <span class="slider-value" id="reflection-fade-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('reflection-fade', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="reflection-fade" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Refraction Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-prism"></i>
+          <span>Refraction</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Refraction Strength</span>
+                <span class="slider-value" id="refraction-strength-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('refraction-strength', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="refraction-strength" min="0.0" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Refraction Index</span>
+                <span class="slider-value" id="refraction-index-value">1.333</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('refraction-index', 1.333)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="refraction-index" min="1.0" max="2.0" step="0.01" value="1.333" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Chromatic Dispersion</span>
+                <span class="slider-value" id="refraction-chromatic-value">0.02</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('refraction-chromatic', 0.02)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="refraction-chromatic" min="0.0" max="0.1" step="0.005" value="0.02" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Refraction Scale</span>
+                <span class="slider-value" id="refraction-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('refraction-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="refraction-scale" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Caustics Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-sparkles"></i>
+          <span>Caustics</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Caustics Strength</span>
+                <span class="slider-value" id="caustics-strength-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('caustics-strength', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="caustics-strength" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Caustics Scale</span>
+                <span class="slider-value" id="caustics-scale-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('caustics-scale', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="caustics-scale" min="0.1" max="5.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Caustics Speed</span>
+                <span class="slider-value" id="caustics-speed-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('caustics-speed', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="caustics-speed" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Caustics Contrast</span>
+                <span class="slider-value" id="caustics-contrast-value">1.0</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('caustics-contrast', 1.0)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="caustics-contrast" min="0.1" max="3.0" step="0.1" value="1.0" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Add reset all parameters button -->
+      <button id="reset-all-parameters" class="header-btn"
+        style="width: 100%; margin-top: 1rem; background: var(--accent-secondary); color: #fff;">
+        <i class="fas fa-undo-alt"></i>
+        <span>Reset All Parameters</span>
+      </button>
     </div>
   </div> <!-- Instructions Panel -->
   <div id="instructions-panel" class="instructions-panel">
@@ -3139,16 +3818,16 @@
           resetButton.style.transform = '';
         }, 150);
       }
-    }    // Initialize color presets when DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-      initializeColorPresets();
-      initializeMaterialPresets();
-      initializeSliderTooltips();
-      initializeSliderEnhancements();
-      initializeSmartValueIndicators();
-      initializeEffectsToggles();
-      initializeLightingControls();
-    });
+    }    // Initialize color presets when DOM is loaded    document.addEventListener('DOMContentLoaded', () => {
+    initializeColorPresets();
+    initializeMaterialPresets();
+    initializeSliderTooltips();
+    initializeSliderEnhancements();
+    initializeSmartValueIndicators();
+    initializeEffectsToggles();
+    initializeLightingControls();
+    initializeEffectParameters();
+
 
     // If DOM is already loaded, initialize immediately
     if (document.readyState === 'loading') {
@@ -3160,6 +3839,7 @@
         initializeSmartValueIndicators();
         initializeEffectsToggles();
         initializeLightingControls();
+        initializeEffectParameters();
       });
     } else {
       initializeColorPresets();
@@ -3169,6 +3849,7 @@
       initializeSmartValueIndicators();
       initializeEffectsToggles();
       initializeLightingControls();
+      initializeEffectParameters();
     }
 
     // Effects Toggle Functionality
@@ -3469,11 +4150,11 @@
         'enable-reflection': 7,
         'enable-refraction': 8,
         'enable-caustics': 9,
-        // Note: dispersion (index 10) is controlled by refraction toggle
-        'enable-absorption': 11,
+        // Note: dispersion (index 10) is controlled by refraction toggle        'enable-absorption': 11,
         'enable-depth-coloring': 12,
         'enable-velocity-coloring': 13,
-        'enable-rim-lighting': 14
+        'enable-rim-lighting': 14,
+        'enable-color-absorption': 15
       };
 
       // Add event listeners for each effect toggle
@@ -3616,14 +4297,118 @@
       // This will be called by the UI and should update the effects buffer
       // The actual implementation will be in main.ts
       console.log(`Updating effect ${index} to ${enabled ? 'enabled' : 'disabled'}`);
-    };
-
-    // Global function to expose lighting controls updates to main.ts
+    };    // Global function to expose lighting controls updates to main.ts
     window.updateLightingControls = function (parameter, value) {
       // This will be called by the UI and should update the lighting buffer
       // The actual implementation will be in main.ts
       console.log(`Updating lighting parameter ${parameter} to ${value}`);
     };
+
+    // Global function to expose effect parameters updates to main.ts
+    window.updateEffectParameters = function (parameterIndex, value) {
+      // This will be called by the UI and should update the effect parameters buffer
+      // The actual implementation will be in main.ts
+      console.log(`Updating effect parameter ${parameterIndex} to ${value}`);
+    };
+
+    // Global function to reset effect parameter
+    window.resetEffectParameter = function (parameterId, defaultValue) {
+      const slider = document.getElementById(parameterId);
+      const valueDisplay = document.getElementById(parameterId + '-value');
+      if (slider && valueDisplay) {
+        slider.value = defaultValue;
+        valueDisplay.textContent = formatParameterValue(defaultValue);
+
+        // Find parameter index from ID
+        const parameterIndex = getParameterIndexFromId(parameterId);
+        if (parameterIndex !== -1 && window.updateEffectParameters) {
+          window.updateEffectParameters(parameterIndex, defaultValue);
+        }
+      }
+    };
+
+    // Helper function to format parameter values
+    function formatParameterValue(value) {
+      const num = parseFloat(value);
+      if (num < 0.01 && num > 0) {
+        return num.toFixed(4);
+      } else if (num < 1) {
+        return num.toFixed(3);
+      } else if (num < 10) {
+        return num.toFixed(2);
+      } else {
+        return num.toFixed(1);
+      }
+    }
+
+    // Helper function to get parameter index from slider ID
+    function getParameterIndexFromId(parameterId) {
+      const parameterMap = {
+        // Reynolds Physics (0-3)
+        'reynolds-scale': 0,
+        'turbulence-strength': 1,
+        'viscosity-factor': 2,
+        'cascade-effect': 3,
+
+        // Cavitation (4-7)
+        'cavitation-threshold': 4,
+        'cavitation-strength': 5,
+        'pressure-scale': 6,
+        'cavitation-falloff': 7,
+
+        // Foam (8-11)
+        'foam-intensity': 8,
+        'foam-threshold': 9,
+        'foam-decay': 10,
+        'foam-coverage': 11,
+
+        // Turbulent Normals (12-15)
+        'normal-strength': 12,
+        'normal-scale': 13,
+        'normal-smoothness': 14,
+        'normal-stability': 15,
+
+        // Specular (16-19)
+        'specular-power': 16,
+        'specular-scale': 17,
+        'specular-roughness': 18,
+        'specular-fresnel': 19,
+
+        // Subsurface (20-23)
+        'subsurface-depth': 20,
+        'subsurface-scale': 21,
+        'subsurface-color': 22,
+        'subsurface-distortion': 23,
+
+        // Fresnel (24-27)
+        'fresnel-power': 24,
+        'fresnel-scale': 25,
+        'fresnel-bias': 26,
+        'fresnel-contrast': 27,
+
+        // Reflection (28-31)
+        'reflection-strength': 28,
+        'reflection-blur': 29,
+        'reflection-distortion': 30,
+        'reflection-fade': 31,
+
+        // Refraction (32-35)
+        'refraction-strength': 32,
+        'refraction-index': 33,
+        'refraction-chromatic': 34,
+        'refraction-scale': 35,
+
+        // Caustics (36-39)
+        'caustics-strength': 36,
+        'caustics-scale': 37,
+        'caustics-speed': 38,
+        'caustics-contrast': 39,
+
+        // Additional parameters would continue here...
+      };
+
+      return parameterMap[parameterId] !== undefined ? parameterMap[parameterId] : -1;
+    }
 
     // Initialize Lighting Controls
     function initializeLightingControls() {
@@ -3994,6 +4779,73 @@
         g: parseInt(result[2], 16),
         b: parseInt(result[3], 16)
       } : null;
+    }
+
+    // Initialize Effect Parameters Controls
+    function initializeEffectParameters() {
+      console.log('Initializing effect parameters...');
+
+      // Get all parameter sliders
+      const parameterSliders = [
+        // Reynolds Physics
+        'reynolds-scale', 'turbulence-strength', 'viscosity-factor', 'cascade-effect',
+        // Cavitation
+        'cavitation-threshold', 'cavitation-strength', 'pressure-scale', 'cavitation-falloff',
+        // Foam
+        'foam-intensity', 'foam-threshold', 'foam-decay', 'foam-coverage',
+        // Turbulent Normals
+        'normal-strength', 'normal-scale', 'normal-smoothness', 'normal-stability',
+        // Specular
+        'specular-power', 'specular-scale', 'specular-roughness', 'specular-fresnel',
+        // Subsurface
+        'subsurface-depth', 'subsurface-scale', 'subsurface-color', 'subsurface-distortion',
+        // Fresnel
+        'fresnel-power', 'fresnel-scale', 'fresnel-bias', 'fresnel-contrast',
+        // Reflection
+        'reflection-strength', 'reflection-blur', 'reflection-distortion', 'reflection-fade',
+        // Refraction
+        'refraction-strength', 'refraction-index', 'refraction-chromatic', 'refraction-scale',
+        // Caustics
+        'caustics-strength', 'caustics-scale', 'caustics-speed', 'caustics-contrast'
+      ];
+
+      parameterSliders.forEach(parameterId => {
+        const slider = document.getElementById(parameterId);
+        const valueDisplay = document.getElementById(parameterId + '-value');
+
+        if (slider && valueDisplay) {
+          // Initialize value display
+          valueDisplay.textContent = formatParameterValue(slider.value);
+
+          // Add event listener
+          slider.addEventListener('input', function () {
+            const value = parseFloat(this.value);
+            valueDisplay.textContent = formatParameterValue(value);
+
+            // Get parameter index and update
+            const parameterIndex = getParameterIndexFromId(parameterId);
+            if (parameterIndex !== -1 && window.updateEffectParameters) {
+              window.updateEffectParameters(parameterIndex, value);
+            }
+          });
+        }
+      });
+
+      // Reset all parameters button
+      const resetAllButton = document.getElementById('reset-all-parameters');
+      if (resetAllButton) {
+        resetAllButton.addEventListener('click', function () {
+          parameterSliders.forEach(parameterId => {
+            const slider = document.getElementById(parameterId);
+            if (slider) {
+              const defaultValue = parseFloat(slider.getAttribute('value')) || parseFloat(slider.defaultValue);
+              window.resetEffectParameter(parameterId, defaultValue);
+            }
+          });
+        });
+      }
+
+      console.log('Effect parameters initialized successfully');
     }
 
     // Initialize lighting controls when page loads
