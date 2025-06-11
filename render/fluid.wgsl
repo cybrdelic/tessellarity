@@ -7,7 +7,7 @@
 @group(0) @binding(6) var<uniform> debug: DebugUniforms;
 @group(0) @binding(7) var<uniform> effectsToggle: EffectsToggle;
 @group(0) @binding(8) var<uniform> lightingControls: LightingControls;
-// @group(0) @binding(9) var<uniform> effectParams: EffectParameters;
+@group(0) @binding(9) var<uniform> effectParams: EffectParameters;
 
 struct RenderUniforms {
     texel_size: vec2f,
@@ -93,7 +93,8 @@ struct LightingControls {
     rimLightingPower: f32,
     lightingPadding1: f32,
     lightingPadding2: f32,
-    lightingPadding3: f32,    lightingPadding4: f32,
+    lightingPadding3: f32,
+    lightingPadding4: f32,
 }
 
 struct EffectParameters {
@@ -329,10 +330,9 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         cavitationFactor = clamp((cavitationThreshold - totalPressure) / cavitationThreshold, 0.0, 1.0);
     }    // Foam and surface calculations with reduced intensity (Toggleable)
     var foamIntensity = 0.0;
-    var foamInfluence = 0.0;
-    if effectsToggle.enableFoam != 0u {
+    var foamInfluence = 0.0;    if effectsToggle.enableFoam != 0u {
         var turbulence = velocityMagnitude * 0.05; // Reduced from 0.1
-        foamIntensity = cavitationFactor * turbulence * 1.0; // Reduced from 2.0
+        foamIntensity = cavitationFactor * turbulence * effectParams.foamIntensity; // Use parameter
         foamInfluence = foamIntensity * 0.5; // Apply reduction factor
     }
 
@@ -340,14 +340,12 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var turbulenceIntensity = 0.0;
     var vorticity = vec3f(0.0);
     var vorticityMagnitude = 0.0;
-    var cascadeEffect = 1.0;
-
-    if effectsToggle.enableReynoldsPhysics != 0u {
-        var kinematicViscosity = 0.001;
+    var cascadeEffect = 1.0;    if effectsToggle.enableReynoldsPhysics != 0u {
+        var kinematicViscosity = 0.001 * effectParams.viscosityFactor;
         var characteristicLength = uniforms.sphere_size;
         var reynoldsNumber = velocityMagnitude * characteristicLength / kinematicViscosity;
         var turbulenceOnset = 4000.0;
-        turbulenceIntensity = clamp((reynoldsNumber - turbulenceOnset) / turbulenceOnset, 0.0, 1.0);
+        turbulenceIntensity = clamp((reynoldsNumber - turbulenceOnset) / turbulenceOnset, 0.0, 1.0) * effectParams.turbulenceStrength;
 
         // Create turbulent vorticity from velocity gradients
         var velocityGradient = ddx + ddy;
@@ -356,8 +354,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
         // Kolmogorov cascade
         var kolmogorovScale = pow(pow(kinematicViscosity, 3.0) / (velocityMagnitude * velocityMagnitude * velocityMagnitude + 1e-6), 0.25);
-        cascadeEffect = 1.0 / (1.0 + kolmogorovScale * 10.0);
-    }    // Calculate surface variation data with multi-level smoothing
+        cascadeEffect = effectParams.cascadeEffect / (1.0 + kolmogorovScale * 10.0);
+    }// Calculate surface variation data with multi-level smoothing
     var thicknessL = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 0.0)), 0).r;
     var thicknessR = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 0.0)), 0).r;
     var thicknessU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, -1.0)), 0).r;
@@ -441,8 +439,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     normal = turbulentNormal;    // Surface properties optimized for ultra-smooth, continuous appearance
     var surfaceRoughness = clamp(velocityMagnitude * 0.05 + foamIntensity * 0.05 + turbulenceIntensity * 0.02, 0.0, 0.1); // Ultra-low roughness
-    var baseSpecularPower = mix(4096.0, 512.0, surfaceRoughness); // Even higher specular power for glass-like smoothness
-    var specularIntensity = mix(3.0, 1.2, surfaceRoughness); // Higher intensity for better surface definition
+    var baseSpecularPower = mix(effectParams.specularPower, 512.0, surfaceRoughness); // Use parameter for specular power
+    var specularIntensity = mix(effectParams.specularScale, 1.2, surfaceRoughness); // Use parameter for specular scale
 
     // Specular calculations with controllable lighting (Toggleable)
     var specular: f32 = 0.0;
@@ -477,8 +475,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }    // Enhanced subsurface scattering with controllable lighting (Toggleable)
     var subsurface: f32 = 0.0;
     if effectsToggle.enableSubsurface != 0u {
-        var depthFactor = clamp(abs(viewPos.z) * 0.12, 0.0, 1.0);
-        var baseSubsurfaceIntensity = mix(0.4, 0.15, depthFactor);
+        var depthFactor = clamp(abs(viewPos.z) * effectParams.subsurfaceDepth, 0.0, 1.0); // Use parameter
+        var baseSubsurfaceIntensity = mix(0.4, 0.15, depthFactor) * effectParams.subsurfaceScale; // Use parameter
         var adjustedSubsurfaceIntensity = baseSubsurfaceIntensity * lightingControls.subsurfaceIntensityMultiplier;
 
         // Calculate subsurface contribution from each light source
@@ -539,14 +537,14 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         // Simple, ultra-subtle Fresnel calculation
         var viewDotNormal = max(dot(normal, -rayDir), 0.0);
 
-        // Ultra-subtle Fresnel effect - much less aggressive
-        var fresnelEffect = pow(1.0 - viewDotNormal, 1.5); // Even gentler curve
+        // Ultra-subtle Fresnel effect - use parameter for power
+        var fresnelEffect = pow(1.0 - viewDotNormal, effectParams.fresnelPower); // Use parameter
 
-        // Apply user reflectivity control but keep it ultra-subtle
-        fresnel = fresnelEffect * clamp(waterAppearance.reflectivity, 0.0, 1.0) * 0.1; // Max 10% effect instead of 30%
+        // Apply user reflectivity control with parameter scale
+        fresnel = fresnelEffect * clamp(waterAppearance.reflectivity, 0.0, 1.0) * effectParams.fresnelScale;
 
-        // Clamp to prevent any extreme values
-        fresnel = clamp(fresnel, 0.0, 0.1); // Much lower maximum (10% instead of 30%)
+        // Apply bias and clamp to prevent extreme values
+        fresnel = clamp(fresnel + effectParams.fresnelBias, 0.0, 0.5); // Use parameter for bias
     }
 
     // PHYSICS-BASED TRANSPARENCY - Completely separate from Fresnel
@@ -638,11 +636,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
             // Use a base reflectivity plus the Fresnel enhancement
             var baseReflection = waterAppearance.reflectivity * 0.2; // Base reflection level
             var fresnelEnhancement = fresnel; // Additional Fresnel boost
-            var totalReflectivity = clamp(baseReflection + fresnelEnhancement, 0.0, 0.5); // Max 50% total
+            var totalReflectivity = clamp(baseReflection + fresnelEnhancement, 0.0, 0.5) * effectParams.reflectionStrength; // Use parameter
             reflectionColor = envReflection * totalReflectivity * edgeFactor;
         } else {
-            // Simple reflectivity without Fresnel - slightly reduced
-            reflectionColor = envReflection * waterAppearance.reflectivity * 0.25 * edgeFactor; // Reduced from 0.3 to 0.25
+            // Simple reflectivity without Fresnel - use parameter
+            reflectionColor = envReflection * waterAppearance.reflectivity * 0.25 * edgeFactor * effectParams.reflectionStrength;
         }
     }
 
@@ -770,12 +768,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var scatteredLight = totalLightPenetration * scatteringFactor * 0.5; // Increased from 0.25
 
     // REAL caustics based on surface variation (no artificial patterns)
-    var causticIntensity = 0.0;
-    if effectsToggle.enableCaustics != 0u {
+    var causticIntensity = 0.0;    if effectsToggle.enableCaustics != 0u {
         // Use actual surface curvature for caustic focusing effects
         var surfaceCurvature = abs(thicknessCurvatureX) + abs(thicknessCurvatureY);
-        var curvatureFocus = clamp(surfaceCurvature * 10.0, 0.0, 1.0);
-        causticIntensity = curvatureFocus * totalLightPenetration * 0.2;
+        var curvatureFocus = clamp(surfaceCurvature * effectParams.causticsScale, 0.0, 1.0); // Use parameter
+        causticIntensity = curvatureFocus * totalLightPenetration * effectParams.causticsStrength; // Use parameter
     } else {
         // Fallback: use surface roughness variation
         var roughnessVariation = clamp(surfaceRoughness * 2.0, 0.0, 1.0);

@@ -348,7 +348,7 @@ export class FluidRenderer {
                 { binding: 6, resource: { buffer: debugModeBuffer } },
                 { binding: 7, resource: { buffer: effectsToggleBuffer } },
                 { binding: 8, resource: { buffer: lightingControlsBuffer } },
-                // { binding: 9, resource: { buffer: effectParametersBuffer } },
+                { binding: 9, resource: { buffer: effectParametersBuffer } },
             ],
         })
 
@@ -555,7 +555,7 @@ export class FluidRenderer {
                 { binding: 6, resource: { buffer: this.debugModeBuffer } },
                 { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
                 { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
-                // { binding: 9, resource: { buffer: this.effectParametersBuffer } },
+                { binding: 9, resource: { buffer: this.effectParametersBuffer } },
             ],
         });
     }    /**
