@@ -406,6 +406,81 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         lightAttenuation = clamp(lightAttenuation, vec3f(0.2), vec3f(1.0));
     }
 
+    // PHYSICS-BASED TRANSPARENCY using Beer's Law and Fresnel Transmission
+    var physicsBasedAlpha = 1.0;
+    var transmissionCoeff = vec3f(1.0);
+
+    // Calculate viewing angle for optical path length
+    var viewDotNormal = abs(dot(normal, -rayDir));
+    var cosTheta = max(viewDotNormal, 0.01); // Prevent division by zero
+
+    // Real water optical properties
+    var waterIOR = 1.333; // Index of refraction for water
+    var airIOR = 1.0;     // Index of refraction for air
+
+    // Fresnel transmission coefficient (energy transmitted, not reflected)
+    var fresnelTransmission = 1.0;
+    if effectsToggle.enableFresnel != 0u {
+        // Schlick's approximation for transmission
+        var F0 = pow((airIOR - waterIOR) / (airIOR + waterIOR), 2.0);
+        var oneMinusCosTheta = 1.0 - cosTheta;
+        var fresnelReflectance = F0 + (1.0 - F0) * pow(oneMinusCosTheta, 5.0);
+        fresnelTransmission = 1.0 - fresnelReflectance;
+    }
+
+    // Calculate optical path length through water volume
+    // Path length depends on viewing angle (Beer's Law with geometric correction)
+    var geometricThickness = thickness * uniforms.sphere_size * 0.15;
+    var opticalPathLength = geometricThickness / cosTheta; // Longer path at grazing angles
+
+    // Wavelength-dependent absorption coefficients for pure water (per meter)
+    // These are realistic values scaled for our simulation
+    var pureWaterAbsorption = vec3f(
+        0.45,  // Red absorption (strongest)
+        0.15,  // Green absorption (moderate)
+        0.05   // Blue absorption (weakest)
+    );
+
+    // Modulate absorption by water color characteristics
+    var waterColorInfluence = waterAppearance.color.rgb;
+    var colorBasedAbsorption = pureWaterAbsorption * (2.0 - waterColorInfluence);
+
+    // Add turbidity effects from suspended particles
+    var turbidityFactor = clamp(
+        velocityMagnitude * 0.2 + turbulenceIntensity * 0.15 + (1.0 - cavitationFactor) * 0.1, // Cavitation creates bubbles/particles
+        0.0, 0.8
+    );
+
+    var turbidityAbsorption = vec3f(0.1) * turbidityFactor;
+    var totalAbsorption = colorBasedAbsorption + turbidityAbsorption;
+
+    // Account for density variations affecting light scattering
+    var densityScattering = clamp((density - 1.0) * 0.3, 0.0, 0.4);
+    totalAbsorption += vec3f(densityScattering);
+
+    // Apply Beer's Law: T = e^(-α * d)
+    transmissionCoeff = exp(-totalAbsorption * opticalPathLength);
+
+    // Calculate physics-based alpha from transmission
+    // Use luminance-weighted average for alpha calculation
+    var transmissionLuminance = dot(transmissionCoeff, vec3f(0.299, 0.587, 0.114));
+    physicsBasedAlpha = transmissionLuminance * fresnelTransmission;
+
+    // Add thickness-based opacity for volume rendering
+    var volumeOpacity = clamp(thickness * 0.8, 0.0, 0.9);
+    physicsBasedAlpha = mix(physicsBasedAlpha, 1.0, volumeOpacity);
+
+    // Foam increases opacity
+    physicsBasedAlpha = mix(physicsBasedAlpha, 1.0, foamInfluence * 0.6);
+
+    // Apply depth-based opacity increase (deeper water appears more opaque)
+    var depthOpacity = clamp(abs(viewPos.z) * 0.05, 0.0, 0.3);
+    physicsBasedAlpha = mix(physicsBasedAlpha, 1.0, depthOpacity);
+
+    // Ensure minimum visibility and apply user transparency control
+    physicsBasedAlpha = clamp(physicsBasedAlpha, 0.1, 1.0);
+    physicsBasedAlpha = mix(waterAppearance.transparency, physicsBasedAlpha, 0.7); // Blend with user control
+
     // Apply base water color with proper mixing ratios
     var baseWaterColor: vec3f = waterAppearance.color.rgb;
 
@@ -633,6 +708,12 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // Final alpha calculation
     var alpha = mix(waterAppearance.transparency, 1.0, thickness * 0.5);
     alpha = clamp(alpha, 0.1, 1.0);
+
+    // Replace simple alpha with physics-based transparency
+    alpha = physicsBasedAlpha;
+
+    // Apply transmission coefficient to final color for proper transparency
+    finalColor *= transmissionCoeff;
 
     // DEBUG MODE VISUALIZATION SYSTEM
     if debug.mode != 0u {

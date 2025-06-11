@@ -2916,6 +2916,36 @@
       }
     }
 
+    function showColorPresetFeedback(name, color) {
+      const feedback = document.createElement('div');
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <div style="width: 16px; height: 16px; background: ${color}; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);"></div>
+          <span>${name} Applied</span>
+        </div>
+      `;
+      feedback.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--glass-bg-light);
+        backdrop-filter: var(--glass-backdrop);
+        -webkit-backdrop-filter: var(--glass-backdrop);
+        border: 1px solid var(--glass-border);
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        z-index: 9999;
+        pointer-events: none;
+        animation: slideInFadeOut 2.5s ease-out forwards;
+        border-radius: 0;
+      `;
+
+      document.body.appendChild(feedback);
+      setTimeout(() => feedback.remove(), 2500);
+    }
+
     // Material Preset Functionality
     function initializeMaterialPresets() {
       const materialPresets = document.querySelectorAll('.material-preset');
