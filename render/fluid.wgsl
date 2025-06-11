@@ -244,38 +244,69 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         cascadeEffect = 1.0 / (1.0 + kolmogorovScale * 10.0);
     }
 
+    // Calculate surface variation data that multiple effects can use
+    var thicknessL = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(-1.0, 0.0)), 0).r;
+    var thicknessR = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(1.0, 0.0)), 0).r;
+    var thicknessU = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, -1.0)), 0).r;
+    var thicknessD = textureLoad(thickness_texture, vec2u(input.iuv + vec2f(0.0, 1.0)), 0).r;
+
+    // Calculate surface gradients and curvature for multiple effects
+    var thicknessGradX = (thicknessR - thicknessL) * 0.5;
+    var thicknessGradY = (thicknessD - thicknessU) * 0.5;
+    var thicknessCurvatureX = thicknessR + thicknessL - 2.0 * thickness;
+    var thicknessCurvatureY = thicknessD + thicknessU - 2.0 * thickness;
+
+    // Initialize surface offset for debug visualization
+    var surfaceOffset = vec3f(0.0);
+
     // Apply turbulent surface deformation (Toggleable)
     var turbulentNormal = normal;
     if effectsToggle.enableTurbulentNormals != 0u {
-        var turbulentDeformation = vorticity * 0.02 * turbulenceIntensity * cascadeEffect; // Reduced from 0.05
-        turbulentNormal = normal + turbulentDeformation;
+        // Use REAL fluid simulation data, not simplified patterns
+        var turbulentStrength = max(turbulenceIntensity, 0.1) * waterAppearance.waveHeight; // Use wave height parameter
 
-        // Simplified high-frequency details based on flow simulation
-        var highFreqTurbulence = vec3f(
-            sin(viewPos.x * 15.0 + vorticityMagnitude * 10.0) * turbulenceIntensity * 0.01,
-            0.0,
-            cos(viewPos.z * 15.0 + cascadeEffect * 8.0) * turbulenceIntensity * 0.01
-        );
-        turbulentNormal += highFreqTurbulence;
+        // Only apply effects where there's actual variation in the simulation
+        if turbulenceIntensity > 0.1 && velocityMagnitude > 0.01 {
 
-        // Add pressure-based surface deformation for more variation
-        var pressureDeformation = vec3f(
-            (density - 1.0) * 0.02 * sin(viewPos.x * 20.0),
-            0.0,
-            (density - 1.0) * 0.02 * cos(viewPos.z * 20.0)
-        );
-        turbulentNormal += pressureDeformation;
+            // Use only the natural variation in thickness and density
+            var thicknessVariation = thickness - 1.0; // Natural thickness variation
+            var densityVariation = density - 1.0;     // Natural density variation
 
-        // Add velocity-based surface ripples
-        var velocityRipples = vec3f(
-            velocityX * 0.01 * sin(viewPos.z * 25.0),
-            0.0,
-            velocityZ * 0.01 * cos(viewPos.x * 25.0)
-        );
-        turbulentNormal += velocityRipples;
+            // Create surface perturbations only from real fluid properties
+            var realFluidOffset = vec3f(
+                thicknessVariation * turbulentStrength,  // Surface height varies with thickness
+                0.0,                                     // Keep Y minimal
+                densityVariation * turbulentStrength     // Surface responds to density changes
+            );
+
+            // Scale by actual turbulence and velocity with proper physics scaling
+            var reynoldsScaling = 1.0;
+            if effectsToggle.enableReynoldsPhysics != 0u {
+                reynoldsScaling = 1.0 + turbulenceIntensity * cascadeEffect;
+            }
+            realFluidOffset *= reynoldsScaling * velocityMagnitude * lightingControls.volumetricIntensity;
+
+            // Add vorticity effect only if significant
+            if vorticityMagnitude > 0.1 {
+                var vorticityEffect = normalize(vorticity) * vorticityMagnitude * turbulentStrength;
+                realFluidOffset += vorticityEffect;
+            }
+
+            surfaceOffset = realFluidOffset;
+
+            // Apply the fluid-based perturbation
+            turbulentNormal = normalize(normal + surfaceOffset);
+
+            // Physics-based stability check using actual flow conditions
+            var stabilityThreshold = clamp(0.2 + velocityMagnitude * 0.3, 0.1, 0.8);
+            if dot(turbulentNormal, normal) < stabilityThreshold {
+                var mixFactor = clamp(turbulenceIntensity + velocityMagnitude, 0.3, 0.9);
+                turbulentNormal = mix(normal, turbulentNormal, mixFactor);
+            }
+        }
     }
 
-    normal = normalize(turbulentNormal);
+    normal = turbulentNormal;
 
     // Surface properties based on turbulence - enhanced for more shine
     var surfaceRoughness = clamp(velocityMagnitude * 0.2 + foamIntensity * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.4); // Reduced roughness values
@@ -339,27 +370,31 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         subsurface = mainSubsurface + fillSubsurface + rimSubsurface;
     }
 
-    // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable)
+    // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable) - IMPROVED WITH WAVELENGTH DEPENDENCE
     var lightAttenuation: vec3f = vec3f(1.0);
     if effectsToggle.enableAbsorption != 0u {
-        // Light absorption coefficients - much reduced for brighter appearance
-        var waterAbsorptionCoeffs = vec3f(
-            0.05,   // Red light absorption coefficient (reduced from 0.15)
-            0.04,   // Green light absorption coefficient (reduced from 0.12)
-            0.03    // Blue light absorption coefficient (reduced from 0.10)
-        );
+        // Use mild realistic absorption that works with any water color
+        var baseWaterRGB = waterAppearance.color.rgb;
+
+        // Very subtle absorption that preserves water color character
+        var waterAbsorptionCoeffs = vec3f(0.1, 0.08, 0.06); // Much milder than before
+
+        // Modulate absorption by water color saturation, not brightness
+        var colorSaturation = length(baseWaterRGB - vec3f(dot(baseWaterRGB, vec3f(0.333))));
+        var absorptionScale = mix(0.3, 1.0, colorSaturation); // Less absorption for grey/white water
+        waterAbsorptionCoeffs *= absorptionScale;
 
         // Calculate actual path length through water volume
-        var waterPathLength = thickness * uniforms.sphere_size * 0.3; // Reduced from 0.5
+        var waterPathLength = thickness * uniforms.sphere_size * 0.2; // Reduced path length
 
         // Account for density variations affecting optical path
         var opticalDensity = density;
-        var scatteringInfluence = velocityMagnitude * 0.05; // Reduced from 0.1
+        var scatteringInfluence = velocityMagnitude * 0.05;
         var effectivePathLength = waterPathLength * opticalDensity * (1.0 + scatteringInfluence);
 
         // Add suspended particle absorption (turbidity effects)
-        var particleConcentration = clamp(velocityMagnitude * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.5); // Reduced
-        var particleAbsorptionCoeffs = vec3f(0.03, 0.03, 0.03) * particleConcentration; // Reduced from 0.1
+        var particleConcentration = clamp(velocityMagnitude * 0.15 + turbulenceIntensity * 0.1, 0.0, 0.5);
+        var particleAbsorptionCoeffs = vec3f(0.03, 0.03, 0.03) * particleConcentration;
 
         // Total absorption includes water + particles
         var totalAbsorptionCoeffs = waterAbsorptionCoeffs + particleAbsorptionCoeffs;
@@ -368,7 +403,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);
 
         // Ensure reasonable bounds for light attenuation
-        lightAttenuation = clamp(lightAttenuation, vec3f(0.3), vec3f(1.0)); // Increased minimum from 0.1
+        lightAttenuation = clamp(lightAttenuation, vec3f(0.2), vec3f(1.0));
     }
 
     // Apply base water color with proper mixing ratios
@@ -380,11 +415,18 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // Calculate subsurface color after baseWaterColor is defined
     var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.0, 0.6, waterAppearance.transparency); // Increased from 0.5-0.25 to 0.5-0.6
 
-    // Fresnel calculations (Toggleable)
+    // Fresnel calculations (Toggleable) - IMPROVED WITH SCHLICK'S APPROXIMATION
     var fresnel: f32 = 1.0;
     if effectsToggle.enableFresnel != 0u {
         var viewDotNormal = abs(dot(normal, -rayDir));
-        fresnel = pow(1.0 - viewDotNormal, 3.0) * waterAppearance.reflectivity;
+
+        // Schlick's approximation with proper IOR for water (1.33)
+        // Pre-calculated F0 for water: ((1.0 - 1.33) / (1.0 + 1.33))^2 = 0.02037
+        var F0 = 0.02037; // F0 for water at normal incidence
+        var oneMinusCosTheta = 1.0 - viewDotNormal;
+        var fresnelSchlick = F0 + (1.0 - F0) * pow(oneMinusCosTheta, 5.0);
+
+        fresnel = fresnelSchlick * waterAppearance.reflectivity;
     }
 
     // Environment reflection (Toggleable)
@@ -396,13 +438,26 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         reflectionColor *= fresnel * edgeFactor;
     }
 
-    // Depth-based coloring (Toggleable)
+    // Depth-based coloring (Toggleable) - IMPROVED WITH REALISTIC UNDERWATER COLOR PROGRESSION
     var depthColor: vec3f = vec3f(1.0);
     if effectsToggle.enableDepthColoring != 0u {
-        var depthFactor = clamp(abs(viewPos.z) * 0.1, 0.0, 1.0);
-        // Use water appearance color for depth tinting instead of hardcoded values
-        var deepWaterTint = waterAppearance.color.rgb * 0.3; // Darken the base water color
-        depthColor = mix(vec3f(1.0, 1.0, 1.0), deepWaterTint, depthFactor);
+        var waterDepthMeters = abs(viewPos.z) * uniforms.sphere_size * 0.1;
+
+        // Realistic underwater color progression - wavelength-dependent attenuation
+        var redFalloff = exp(-waterDepthMeters * 0.5);    // Red disappears quickly (5-10m)
+        var greenFalloff = exp(-waterDepthMeters * 0.15); // Green fades moderately (20-30m)
+        var blueFalloff = exp(-waterDepthMeters * 0.05);  // Blue persists longest (50-100m+)
+
+        depthColor = vec3f(redFalloff, greenFalloff, blueFalloff);
+
+        // Derive deep water tint from actual water color, not hardcoded blue
+        var baseWaterRGB = waterAppearance.color.rgb;
+        var deepWaterTint = mix(
+            vec3f(1.0),
+            baseWaterRGB * vec3f(0.3, 0.8, 1.2), // Emphasize cooler tones of actual water color
+            clamp(waterDepthMeters * 0.2, 0.0, 0.8)
+        );
+        depthColor *= deepWaterTint;
     }
 
     // Velocity-based coloring (Toggleable)
@@ -508,9 +563,18 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var scatteringFactor = clamp(velocityMagnitude * 0.5 + turbulenceIntensity * 0.6, 0.2, 1.5); // Increased values
     var scatteredLight = totalLightPenetration * scatteringFactor * 0.5; // Increased from 0.25
 
-    // Volumetric caustics simulation (simplified)
-    var causticsPattern = sin(viewPos.x * 8.0 + velocityMagnitude * 5.0) * cos(viewPos.z * 6.0 + turbulenceIntensity * 4.0) * 0.5 + 0.5;
-    var causticIntensity = pow(causticsPattern, 2.5) * totalLightPenetration * 0.3; // Increased from 0.15
+    // REAL caustics based on surface variation (no artificial patterns)
+    var causticIntensity = 0.0;
+    if effectsToggle.enableCaustics != 0u {
+        // Use actual surface curvature for caustic focusing effects
+        var surfaceCurvature = abs(thicknessCurvatureX) + abs(thicknessCurvatureY);
+        var curvatureFocus = clamp(surfaceCurvature * 10.0, 0.0, 1.0);
+        causticIntensity = curvatureFocus * totalLightPenetration * 0.2;
+    } else {
+        // Fallback: use surface roughness variation
+        var roughnessVariation = clamp(surfaceRoughness * 2.0, 0.0, 1.0);
+        causticIntensity = roughnessVariation * totalLightPenetration * 0.1;
+    }
 
     // Deep water ambient illumination with controllable ambient
     var deepAmbient = ambientLight * clamp(thickness * 0.6, 0.2, 0.8) * depthAttenuation; // Increased values
@@ -609,27 +673,27 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
                 return vec4f(vec3f(pressureFromDensity), 1.0);
             }
             case 7u: { // CURVATURE
-                // Use actual surface curvature from cross product magnitude
-                let actualCurvature = length(cross(ddx, ddy)) / (length(ddx) * length(ddy) + 0.001);
-                return vec4f(vec3f(actualCurvature * debug.intensity), 1.0);
+                // Use actual surface curvature from turbulent normals calculation
+                let actualCurvature = (abs(thicknessCurvatureX) + abs(thicknessCurvatureY)) * debug.intensity;
+                return vec4f(vec3f(actualCurvature), 1.0);
             }
             case 8u: { // FRESNEL
                 return vec4f(vec3f(fresnel), 1.0);
             }
             case 9u: { // CAUSTICS
-                // Basic caustics visualization
-                let causticsVisualization = surfaceRoughness * debug.intensity;
-                return vec4f(vec3f(causticsVisualization), 1.0);
+                // Show real caustic intensity from surface curvature
+                let realCausticsVisualization = causticIntensity * debug.intensity;
+                return vec4f(vec3f(realCausticsVisualization), 1.0);
             }
             case 10u: { // REFRACTION
-                // Show surface normal deviation
-                let refractionVisualization = length(normal) * debug.intensity;
-                return vec4f(vec3f(refractionVisualization), 1.0);
+                // Show actual surface normal variation
+                let normalVariation = length(surfaceOffset) * debug.intensity;
+                return vec4f(vec3f(normalVariation), 1.0);
             }
-            case 11u: { // COMBINED VARIATION
-                // Visualize combined effects to diagnose uniformity
-                let combinedVariation = velocityMagnitude * 0.3 + turbulenceIntensity * 0.3 + surfaceRoughness * 0.2 + (fresnel - 0.5) * 0.2;
-                return vec4f(vec3f(combinedVariation * debug.intensity), 1.0);
+            case 11u: { // SURFACE GRADIENTS
+                // Visualize actual thickness gradients causing the lines
+                let gradientMagnitude = sqrt(thicknessGradX * thicknessGradX + thicknessGradY * thicknessGradY) * debug.intensity;
+                return vec4f(vec3f(gradientMagnitude), 1.0);
             }
             default: { // ERROR COLOR
                 return vec4f(1.0, 0.0, 1.0, 1.0); // Error color (magenta)
