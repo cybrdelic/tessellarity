@@ -502,41 +502,42 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         }
 
         subsurface = mainSubsurface + fillSubsurface + rimSubsurface;
-    }
-
-    // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable) - IMPROVED WITH WAVELENGTH DEPENDENCE
+    }    // PHYSICS-BASED LIGHT ABSORPTION using Beer-Lambert Law (Toggleable) - SMOOTHED TO PREVENT PARTICLE ARTIFACTS
     var lightAttenuation: vec3f = vec3f(1.0);
     if effectsToggle.enableAbsorption != 0u {
         // Use much milder realistic absorption that works with any water color
         var baseWaterRGB = waterAppearance.color.rgb;
 
         // Very subtle absorption that preserves water color character
-        var waterAbsorptionCoeffs = vec3f(0.05, 0.04, 0.03); // Reduced from 0.1, 0.08, 0.06
+        var waterAbsorptionCoeffs = vec3f(0.03, 0.025, 0.02); // Further reduced to prevent artifacts
 
         // Modulate absorption by water color saturation, not brightness
         var colorSaturation = length(baseWaterRGB - vec3f(dot(baseWaterRGB, vec3f(0.333))));
-        var absorptionScale = mix(0.2, 0.8, colorSaturation); // Reduced from 0.3-1.0 to 0.2-0.8
+        var absorptionScale = mix(0.15, 0.6, colorSaturation); // Further reduced range
         waterAbsorptionCoeffs *= absorptionScale;
 
-        // Calculate actual path length through water volume
-        var waterPathLength = thickness * uniforms.sphere_size * 0.1; // Reduced from 0.2 to 0.1
+        // Use smoothed thickness to prevent particle boundaries from showing
+        var smoothedPathLength = thickness * uniforms.sphere_size * 0.05; // Much reduced
 
-        // Account for density variations affecting optical path
-        var opticalDensity = density;
-        var scatteringInfluence = velocityMagnitude * 0.02; // Reduced from 0.05 to 0.02
-        var effectivePathLength = waterPathLength * opticalDensity * (1.0 + scatteringInfluence);
+        // Smooth density variations to prevent discrete jumps
+        var smoothedDensity = mix(1.0, density, 0.3); // Heavily blend with baseline
 
-        // Add suspended particle absorption (turbidity effects)
-        var particleConcentration = clamp(velocityMagnitude * 0.08 + turbulenceIntensity * 0.05, 0.0, 0.3); // Reduced values
-        var particleAbsorptionCoeffs = vec3f(0.015, 0.015, 0.015) * particleConcentration; // Reduced from 0.03
+        // Remove velocity-based scattering influence that causes artifacts
+        var effectivePathLength = smoothedPathLength * smoothedDensity;
+
+        // Greatly reduce particle concentration effects that cause artifacts
+        var smoothedParticleConcentration = clamp(velocityMagnitude * 0.02 + turbulenceIntensity * 0.01, 0.0, 0.1);
+        var particleAbsorptionCoeffs = vec3f(0.005, 0.005, 0.005) * smoothedParticleConcentration;
 
         // Total absorption includes water + particles
         var totalAbsorptionCoeffs = waterAbsorptionCoeffs + particleAbsorptionCoeffs;
 
-        // Apply Beer-Lambert law: I = I₀ * e^(-α * d)
-        lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);        // Ensure reasonable bounds for light attenuation
-        lightAttenuation = clamp(lightAttenuation, vec3f(0.4), vec3f(1.0)); // Increased minimum from 0.2 to 0.4
-    }    // ULTRA-SUBTLE FRESNEL CALCULATIONS - Barely noticeable effect
+        // Apply Beer-Lambert law with much smoother result: I = I₀ * e^(-α * d)
+        lightAttenuation = exp(-totalAbsorptionCoeffs * effectivePathLength);
+
+        // Ensure very conservative bounds to prevent visible artifacts
+        lightAttenuation = clamp(lightAttenuation, vec3f(0.6), vec3f(1.0)); // Much higher minimum
+    }// ULTRA-SUBTLE FRESNEL CALCULATIONS - Barely noticeable effect
     var fresnel: f32 = 0.0;
     if effectsToggle.enableFresnel != 0u {
         // Simple, ultra-subtle Fresnel calculation
@@ -563,43 +564,44 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var airIOR = 1.0;     // Index of refraction for air
 
     // NO FRESNEL DEPENDENCY - Keep transmission simple and independent
-    var fresnelTransmission = 1.0; // Always 1.0, no Fresnel interference
-
-    // Apply transmission coefficient calculation only if absorption is enabled
+    var fresnelTransmission = 1.0; // Always 1.0, no Fresnel interference    // Apply transmission coefficient calculation only if absorption is enabled
     if effectsToggle.enableAbsorption != 0u {
-        // Calculate optical path length through water volume
+        // Calculate optical path length through water volume with heavy smoothing
         // Path length depends on viewing angle (Beer's Law with geometric correction)
-        var geometricThickness = thickness * uniforms.sphere_size * 0.15;
+        var geometricThickness = thickness * uniforms.sphere_size * 0.08; // Reduced further
         var opticalPathLength = geometricThickness / cosTheta; // Longer path at grazing angles
 
         // Wavelength-dependent absorption coefficients for pure water (per meter)
-        // These are realistic values scaled for our simulation
+        // These are realistic values scaled for our simulation - reduced to prevent artifacts
         var pureWaterAbsorption = vec3f(
-            0.45,  // Red absorption (strongest)
-            0.15,  // Green absorption (moderate)
-            0.05   // Blue absorption (weakest)
+            0.2,   // Red absorption - much reduced
+            0.08,  // Green absorption - much reduced
+            0.03   // Blue absorption - much reduced
         );
 
-        // Modulate absorption by water color characteristics
+        // Modulate absorption by water color characteristics with heavy smoothing
         var waterColorInfluence = waterAppearance.color.rgb;
-        var colorBasedAbsorption = pureWaterAbsorption * (2.0 - waterColorInfluence);
+        var colorBasedAbsorption = pureWaterAbsorption * mix(vec3f(1.0), (2.0 - waterColorInfluence), 0.3); // Heavily smoothed
 
-        // Add turbidity effects from suspended particles
-        var turbidityFactor = clamp(
-            velocityMagnitude * 0.2 + turbulenceIntensity * 0.15 + (1.0 - cavitationFactor) * 0.1, // Cavitation creates bubbles/particles
-            0.0, 0.8
+        // Greatly reduce turbidity effects to prevent particle artifacts
+        var smoothedTurbidityFactor = clamp(
+            velocityMagnitude * 0.05 + turbulenceIntensity * 0.03 + (1.0 - cavitationFactor) * 0.02,
+            0.0, 0.2
         );
 
-        var turbidityAbsorption = vec3f(0.1) * turbidityFactor;
+        var turbidityAbsorption = vec3f(0.02) * smoothedTurbidityFactor; // Much reduced
         var totalAbsorption = colorBasedAbsorption + turbidityAbsorption;
 
-        // Account for density variations affecting light scattering
-        var densityScattering = clamp((density - 1.0) * 0.3, 0.0, 0.4);
-        totalAbsorption += vec3f(densityScattering);
+        // Smooth density variations to prevent discrete absorption changes
+        var smoothedDensityScattering = clamp((mix(1.0, density, 0.2) - 1.0) * 0.1, 0.0, 0.1); // Heavily smoothed
+        totalAbsorption += vec3f(smoothedDensityScattering);
 
-        // Apply Beer's Law: T = e^(-α * d)
+        // Apply Beer's Law: T = e^(-α * d) with conservative limits
         transmissionCoeff = exp(-totalAbsorption * opticalPathLength);
-    }    // Calculate physics-based alpha WITHOUT Fresnel interference
+
+        // Ensure very conservative bounds to prevent artifacts
+        transmissionCoeff = clamp(transmissionCoeff, vec3f(0.7), vec3f(1.0)); // Much higher minimum
+    }// Calculate physics-based alpha WITHOUT Fresnel interference
     if effectsToggle.enableAbsorption != 0u {
         // Use luminance-weighted average for alpha calculation
         var transmissionLuminance = dot(transmissionCoeff, vec3f(0.299, 0.587, 0.114));
@@ -813,13 +815,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // Combine interior lighting components
-    interiorLighting = interiorLightColor * (scatteredLight * depthAttenuation + causticIntensity * thicknessAttenuation + deepAmbient);
-
-    // Add particle-based light scattering in turbulent areas
-    if turbulenceIntensity > 0.1 {
-        var particleScattering = turbulenceIntensity * totalLightPenetration * 0.1;
-        var particleColor = mix(waterAppearance.color.rgb, waterAppearance.color.rgb * vec3f(1.1, 1.05, 1.0), 0.3);
-        interiorLighting += particleColor * particleScattering * thicknessAttenuation;
+    interiorLighting = interiorLightColor * (scatteredLight * depthAttenuation + causticIntensity * thicknessAttenuation + deepAmbient);    // Add particle-based light scattering in turbulent areas - SMOOTHED TO PREVENT ARTIFACTS
+    if turbulenceIntensity > 0.2 { // Higher threshold to reduce frequency
+        var smoothedParticleScattering = turbulenceIntensity * totalLightPenetration * 0.02; // Much reduced
+        var particleColor = mix(waterAppearance.color.rgb, waterAppearance.color.rgb * vec3f(1.02, 1.01, 1.0), 0.1); // Much more subtle
+        interiorLighting += particleColor * smoothedParticleScattering * thicknessAttenuation;
     }
 
     // Foam color mixing
@@ -830,39 +830,38 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     finalColor += vec3f(specular); // Convert scalar to vec3f
     finalColor += rimLighting; // Enhanced rim lighting
     finalColor += interiorLighting; // New interior lighting
-    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);    // WATER COLOR ABSORPTION (Toggleable) - Depth-based wavelength absorption creating color shifts
+    finalColor = mix(finalColor, foamColor, foamInfluence * 0.8);    // WATER COLOR ABSORPTION (Toggleable) - SMOOTHED TO PREVENT PARTICLE ARTIFACTS
     if effectsToggle.enableColorAbsorption != 0u {
-        // Calculate water depth for color absorption - much more gradual
+        // Calculate water depth for color absorption - much more gradual and smoothed
         var waterDepth = abs(viewPos.z);
-        var depthFactor = clamp(waterDepth * 0.3, 0.0, 1.0); // Much more gradual than 2.0
+        var depthFactor = clamp(waterDepth * 0.15, 0.0, 1.0); // Much more gradual
 
         // Surface water color (what we have after lighting)
         var surfaceWaterColor = finalColor;
 
-        // Create gradual wavelength-based absorption without overriding original color
+        // Create ultra-gradual wavelength-based absorption to prevent discrete changes
         var absorptionFactors = vec3f(
-            exp(-depthFactor * 0.8), // Red absorption - much gentler
-            exp(-depthFactor * 0.4), // Green absorption - gentler
-            exp(-depthFactor * 0.1)  // Blue absorption - minimal
+            exp(-depthFactor * 0.4), // Red absorption - much gentler
+            exp(-depthFactor * 0.2), // Green absorption - much gentler
+            exp(-depthFactor * 0.05) // Blue absorption - ultra-minimal
         );
 
         // Apply wavelength absorption while preserving original water color character
         var absorptionAffectedColor = surfaceWaterColor * absorptionFactors;
 
-        // Only add subtle color shift in very deep areas (preserve original color)
+        // Only add ultra-subtle color shift in very deep areas
         var baseColorShift = vec3f(1.0);
-        if depthFactor > 0.7 {
+        if depthFactor > 0.8 { // Much higher threshold
             // Derive color shift from original water color, not hardcoded blue
-            var originalColorLuminance = dot(waterAppearance.color.rgb, vec3f(0.299, 0.587, 0.114));
-            var coolTint = mix(vec3f(1.0), waterAppearance.color.rgb * vec3f(0.8, 0.9, 1.1), 0.2);
-            baseColorShift = mix(vec3f(1.0), coolTint, (depthFactor - 0.7) * 0.5);
+            var coolTint = mix(vec3f(1.0), waterAppearance.color.rgb * vec3f(0.9, 0.95, 1.05), 0.1); // Much more subtle
+            baseColorShift = mix(vec3f(1.0), coolTint, (depthFactor - 0.8) * 0.25); // Much reduced effect
         }
 
-        // Apply very subtle color shift only in deep areas
+        // Apply ultra-subtle color shift only in deep areas
         var colorShiftedResult = absorptionAffectedColor * baseColorShift;
 
-        // Blend gradually - preserve surface color in shallow areas
-        finalColor = mix(surfaceWaterColor, colorShiftedResult, depthFactor * 0.6);
+        // Blend very gradually - heavily preserve surface color
+        finalColor = mix(surfaceWaterColor, colorShiftedResult, depthFactor * 0.3); // Much reduced blending
     }// Add controllable ambient lighting
     finalColor += ambientContribution * 0.2; // Increased from 0.05
 
