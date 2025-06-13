@@ -1,6 +1,13 @@
 // Color modification effects - independent color calculations
 // All color effects are self-contained and composable
 
+// Configuration constants
+const DEPTH_COLOR_TINT_MULTIPLIER = vec3f(0.3, 0.8, 1.2);
+const COOL_WATER_TINT_MULTIPLIER = vec3f(0.9, 0.95, 1.05);
+const DEFAULT_WATER_COLOR = vec3f(0.2, 0.6, 0.8);
+const FOAM_COLOR = vec3f(1.0, 1.0, 1.0);
+const FOAM_OPACITY = 0.8;
+
 // Depth-based color modification
 fn calculateDepthColoring(surface: SurfaceData, waterColor: vec3f, sphereSize: f32, depthColorStrength: f32) -> vec3f {
     if depthColorStrength <= 0.0 {
@@ -19,7 +26,7 @@ fn calculateDepthColoring(surface: SurfaceData, waterColor: vec3f, sphereSize: f
     // Deep water tint based on actual water color
     var deepWaterTint = mix(
         vec3f(1.0),
-        waterColor * vec3f(0.3, 0.8, 1.2),
+        waterColor * DEPTH_COLOR_TINT_MULTIPLIER,
         clamp(waterDepthMeters * 0.2, 0.0, 0.8)
     );
 
@@ -60,7 +67,7 @@ fn calculateColorAbsorption(surface: SurfaceData, baseColor: vec3f, waterColor: 
     // Color shift in deep areas
     var baseColorShift = vec3f(1.0);
     if depthFactor > 0.8 {
-        var coolTint = mix(vec3f(1.0), waterColor * vec3f(0.9, 0.95, 1.05), 0.1);
+        var coolTint = mix(vec3f(1.0), waterColor * COOL_WATER_TINT_MULTIPLIER, 0.1);
         baseColorShift = mix(vec3f(1.0), coolTint, (depthFactor - 0.8) * 0.25);
     }
 
@@ -70,7 +77,18 @@ fn calculateColorAbsorption(surface: SurfaceData, baseColor: vec3f, waterColor: 
     return mix(baseColor, colorShiftedResult, blendFactor);
 }
 
-// Foam color blending
+// Foam color blending - centralized foam appearance
 fn calculateFoamColor(baseColor: vec3f, foam: f32, foamColor: vec3f) -> vec3f {
-    return mix(baseColor, foamColor, foam * 0.8);
+    if length(foamColor) < 0.01 {
+        return mix(baseColor, FOAM_COLOR, foam * FOAM_OPACITY);
+    }
+    return mix(baseColor, foamColor, foam * FOAM_OPACITY);
+}
+
+// Safe water color fallback
+fn getSafeWaterColor(inputColor: vec3f) -> vec3f {
+    if length(inputColor) < 0.01 {
+        return DEFAULT_WATER_COLOR;
+    }
+    return inputColor;
 }

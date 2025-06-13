@@ -66,3 +66,53 @@ struct PhysicsData {
     cavitation: f32,
     vorticity: vec3f,
 }
+
+// Configuration for runtime parameter overrides
+struct FluidConfig {
+    // Lighting overrides
+    enableLightingOverrides: u32,
+    mainLightOverride: vec4f,      // xyz = direction, w = intensity
+    fillLightOverride: vec4f,      // xyz = direction, w = intensity
+    rimLightOverride: vec4f,       // xyz = direction, w = intensity
+
+    // Water appearance overrides
+    waterColorOverride: vec4f,     // xyz = color, w = transparency
+    reflectivityOverride: f32,
+
+    // Absorption overrides
+    absorptionOverride: vec4f,     // xyz = RGB coefficients, w = strength
+
+    // Physics overrides
+    viscosityScale: f32,
+    turbulenceScale: f32,
+
+    // Padding for alignment
+    padding1: f32,
+    padding2: f32,
+}
+
+// Effect composition parameters for independent effect mixing
+struct CompositionParams {
+    // Effect blend modes
+    lightingBlendMode: u32,        // How to blend different lighting effects
+    opticalBlendMode: u32,         // How to blend optical effects
+    colorBlendMode: u32,           // How to blend color effects
+
+    // Global effect multipliers
+    lightingGlobalMultiplier: f32,
+    opticalGlobalMultiplier: f32,
+    colorGlobalMultiplier: f32,
+    physicsGlobalMultiplier: f32,
+
+    // Composition weights
+    baseColorWeight: f32,
+    specularWeight: f32,
+    subsurfaceWeight: f32,
+    reflectionWeight: f32,
+
+    // Padding
+    padding1: f32,
+    padding2: f32,
+    padding3: f32,
+    padding4: f32,
+}

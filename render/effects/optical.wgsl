@@ -1,6 +1,13 @@
 // Pure optical effects - independent calculations
 // All functions are self-contained with clear inputs and outputs
 
+// Configuration constants - centralized defaults
+const PURE_WATER_ABSORPTION_RGB = vec3f(0.03, 0.025, 0.02);
+const DEEP_WATER_ABSORPTION_RGB = vec3f(0.2, 0.08, 0.03);
+const AIR_IOR = 1.0;
+const WATER_IOR = 1.33;
+const LUMINANCE_WEIGHTS = vec3f(0.299, 0.587, 0.114);
+
 // Fresnel calculation
 fn calculateFresnel(surface: SurfaceData, fresnelPower: f32, fresnelScale: f32, fresnelBias: f32, reflectivity: f32) -> f32 {
     var fresnelEffect = pow(1.0 - surface.viewDotNormal, fresnelPower);
@@ -24,8 +31,8 @@ fn calculateReflection(surface: SurfaceData, lighting: LightingEnvironment, envm
 
 // Light absorption using Beer-Lambert Law
 fn calculateAbsorption(surface: SurfaceData, waterColor: vec3f, absorptionStrength: f32, absorptionDepth: f32) -> vec3f {
-    // Realistic water absorption coefficients
-    var waterAbsorptionCoeffs = vec3f(0.03, 0.025, 0.02) * absorptionStrength;
+    // Use centralized absorption coefficients
+    var waterAbsorptionCoeffs = PURE_WATER_ABSORPTION_RGB * absorptionStrength;
 
     // Modulate by water color saturation
     var colorSaturation = length(waterColor - vec3f(dot(waterColor, vec3f(0.333))));
@@ -47,15 +54,12 @@ fn calculateTransmission(surface: SurfaceData, waterColor: vec3f, absorptionStre
         return vec3f(1.0);
     }
 
-    var waterIOR = 1.333;
-    var airIOR = 1.0;
-
     // Calculate optical path length
     var geometricThickness = surface.thickness * 0.08;
     var opticalPathLength = geometricThickness / surface.viewDotNormal;
 
-    // Pure water absorption
-    var pureWaterAbsorption = vec3f(0.2, 0.08, 0.03) * absorptionStrength;
+    // Use centralized absorption coefficients
+    var pureWaterAbsorption = DEEP_WATER_ABSORPTION_RGB * absorptionStrength;
     var colorBasedAbsorption = pureWaterAbsorption * mix(vec3f(1.0), (2.0 - waterColor), 0.3);
 
     // Apply Beer's Law

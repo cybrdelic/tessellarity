@@ -27,6 +27,58 @@ export const debugModeViews = {
   padding: new Float32Array(debugModeValues, 12, 1),  // Alignment padding
 };
 
+// Fluid configuration override buffer - centralized parameter management
+export const fluidConfigValues = new ArrayBuffer(112); // Configurable override parameters (aligned to 16 bytes)
+export const fluidConfigViews = {
+  // Lighting overrides
+  enableLightingOverrides: new Uint32Array(fluidConfigValues, 0, 1),
+  mainLightOverride: new Float32Array(fluidConfigValues, 16, 4),     // xyz = direction, w = intensity (16-byte aligned)
+  fillLightOverride: new Float32Array(fluidConfigValues, 32, 4),     // xyz = direction, w = intensity
+  rimLightOverride: new Float32Array(fluidConfigValues, 48, 4),      // xyz = direction, w = intensity
+
+  // Water appearance overrides
+  waterColorOverride: new Float32Array(fluidConfigValues, 64, 4),    // xyz = color, w = transparency
+  reflectivityOverride: new Float32Array(fluidConfigValues, 80, 1),
+
+  // Absorption overrides (start at next 16-byte boundary)
+  absorptionOverride: new Float32Array(fluidConfigValues, 96, 4),    // xyz = RGB coefficients, w = strength
+
+  // Physics overrides - these will be in the next struct in WGSL
+  viscosityScale: new Float32Array(fluidConfigValues, 84, 1),
+  turbulenceScale: new Float32Array(fluidConfigValues, 88, 1),
+
+  // Padding for alignment
+  padding1: new Float32Array(fluidConfigValues, 92, 1),
+  padding2: new Float32Array(fluidConfigValues, 108, 1),
+};
+
+// Effect composition parameters - how effects blend together
+export const compositionParamsValues = new ArrayBuffer(64); // Effect blending control
+export const compositionParamsViews = {
+  // Effect blend modes
+  lightingBlendMode: new Uint32Array(compositionParamsValues, 0, 1),    // How to blend different lighting effects
+  opticalBlendMode: new Uint32Array(compositionParamsValues, 4, 1),     // How to blend optical effects
+  colorBlendMode: new Uint32Array(compositionParamsValues, 8, 1),       // How to blend color effects
+
+  // Global effect multipliers
+  lightingGlobalMultiplier: new Float32Array(compositionParamsValues, 12, 1),
+  opticalGlobalMultiplier: new Float32Array(compositionParamsValues, 16, 1),
+  colorGlobalMultiplier: new Float32Array(compositionParamsValues, 20, 1),
+  physicsGlobalMultiplier: new Float32Array(compositionParamsValues, 24, 1),
+
+  // Composition weights
+  baseColorWeight: new Float32Array(compositionParamsValues, 28, 1),
+  specularWeight: new Float32Array(compositionParamsValues, 32, 1),
+  subsurfaceWeight: new Float32Array(compositionParamsValues, 36, 1),
+  reflectionWeight: new Float32Array(compositionParamsValues, 40, 1),
+
+  // Padding
+  padding1: new Float32Array(compositionParamsValues, 44, 1),
+  padding2: new Float32Array(compositionParamsValues, 48, 1),
+  padding3: new Float32Array(compositionParamsValues, 52, 1),
+  padding4: new Float32Array(compositionParamsValues, 56, 1),
+};
+
 // Effects toggle buffer - individual effect controls
 export const effectsToggleValues = new ArrayBuffer(64); // 16 toggles * 4 bytes each (u32)
 export const effectsToggleViews = {
@@ -199,3 +251,35 @@ export const effectParametersViews = {
   padding3: new Float32Array(effectParametersValues, 248, 1),
   padding4: new Float32Array(effectParametersValues, 252, 1),
 };
+
+// Initialize composition defaults for clean effect blending
+export function initializeCompositionDefaults() {
+  compositionParamsViews.lightingBlendMode[0] = 0; // Additive
+  compositionParamsViews.opticalBlendMode[0] = 0;  // Additive
+  compositionParamsViews.colorBlendMode[0] = 0;    // Multiplicative
+
+  compositionParamsViews.lightingGlobalMultiplier[0] = 1.0;
+  compositionParamsViews.opticalGlobalMultiplier[0] = 1.0;
+  compositionParamsViews.colorGlobalMultiplier[0] = 1.0;
+  compositionParamsViews.physicsGlobalMultiplier[0] = 1.0;
+
+  compositionParamsViews.baseColorWeight[0] = 1.0;
+  compositionParamsViews.specularWeight[0] = 1.0;
+  compositionParamsViews.subsurfaceWeight[0] = 1.0;
+  compositionParamsViews.reflectionWeight[0] = 1.0;
+}
+
+// Initialize fluid configuration defaults
+export function initializeFluidConfigDefaults() {
+  fluidConfigViews.enableLightingOverrides[0] = 0; // Disabled by default
+  fluidConfigViews.reflectivityOverride[0] = 0.3;
+  fluidConfigViews.viscosityScale[0] = 1.0;
+  fluidConfigViews.turbulenceScale[0] = 1.0;
+
+  // Default safe fallback colors (will only be used if main controls fail)
+  fluidConfigViews.waterColorOverride.set([0.2, 0.6, 0.8, 0.8], 0);
+  fluidConfigViews.mainLightOverride.set([0.3, -0.7, -0.6, 1.0], 0);
+  fluidConfigViews.fillLightOverride.set([-0.5, -0.3, 0.8, 0.0], 0);
+  fluidConfigViews.rimLightOverride.set([0.8, 0.2, -0.4, 0.0], 0);
+  fluidConfigViews.absorptionOverride.set([0.03, 0.025, 0.02, 1.0], 0);
+}

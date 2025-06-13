@@ -1,6 +1,69 @@
 // Pure lighting calculations - completely independent
 // All lighting functions are self-contained and only depend on their inputs
 
+// Include configuration constants
+const DEFAULT_MAIN_LIGHT_DIR = vec3f(0.3, -0.7, -0.6);
+const DEFAULT_FILL_LIGHT_DIR = vec3f(-0.5, -0.3, 0.8);
+const DEFAULT_RIM_LIGHT_DIR = vec3f(0.8, 0.2, -0.4);
+const DEFAULT_MAIN_LIGHT_COLOR = vec3f(1.0, 1.0, 1.0);
+const DEFAULT_FILL_LIGHT_COLOR = vec3f(1.0, 1.0, 1.0);
+const DEFAULT_RIM_LIGHT_COLOR = vec3f(1.0, 1.0, 1.0);
+const DEFAULT_MAIN_LIGHT_INTENSITY = 1.0;
+const DEFAULT_FILL_LIGHT_INTENSITY = 0.0;
+const DEFAULT_RIM_LIGHT_INTENSITY = 0.0;
+const DEPTH_ATTENUATION_SCALE = 0.08;
+const THICKNESS_ATTENUATION_SCALE = 0.4;
+
+// Create lighting environment with configurable defaults - COMPLETELY INDEPENDENT
+fn createLightingEnvironment(lightingControls: LightingControls, uniforms: RenderUniforms,
+    envmap_texture: texture_cube<f32>, texture_sampler: sampler) -> LightingEnvironment {
+    var lighting: LightingEnvironment;
+
+    // Main light with configurable fallback
+    if lightingControls.mainLightEnabled != 0u {
+        lighting.mainLightDir = normalize((uniforms.view_matrix * vec4f(lightingControls.mainLightDirection, 0.)).xyz);
+        lighting.mainLightColor = lightingControls.mainLightColor;
+        lighting.mainLightIntensity = lightingControls.mainLightIntensity;
+    } else {
+        lighting.mainLightDir = normalize((uniforms.view_matrix * vec4f(DEFAULT_MAIN_LIGHT_DIR, 0.)).xyz);
+        lighting.mainLightColor = DEFAULT_MAIN_LIGHT_COLOR;
+        lighting.mainLightIntensity = DEFAULT_MAIN_LIGHT_INTENSITY;
+    }
+
+    // Fill light with configurable fallback
+    if lightingControls.fillLightEnabled != 0u {
+        lighting.fillLightDir = normalize((uniforms.view_matrix * vec4f(lightingControls.fillLightDirection, 0.)).xyz);
+        lighting.fillLightColor = lightingControls.fillLightColor;
+        lighting.fillLightIntensity = lightingControls.fillLightIntensity;
+    } else {
+        lighting.fillLightDir = normalize((uniforms.view_matrix * vec4f(DEFAULT_FILL_LIGHT_DIR, 0.)).xyz);
+        lighting.fillLightColor = DEFAULT_FILL_LIGHT_COLOR;
+        lighting.fillLightIntensity = DEFAULT_FILL_LIGHT_INTENSITY;
+    }
+
+    // Rim light with configurable fallback
+    if lightingControls.rimLightEnabled != 0u {
+        lighting.rimLightDir = normalize((uniforms.view_matrix * vec4f(lightingControls.rimLightDirection, 0.)).xyz);
+        lighting.rimLightColor = lightingControls.rimLightColor;
+        lighting.rimLightIntensity = lightingControls.rimLightIntensity;
+    } else {
+        lighting.rimLightDir = normalize((uniforms.view_matrix * vec4f(DEFAULT_RIM_LIGHT_DIR, 0.)).xyz);
+        lighting.rimLightColor = DEFAULT_RIM_LIGHT_COLOR;
+        lighting.rimLightIntensity = DEFAULT_RIM_LIGHT_INTENSITY;
+    }
+
+    // Ambient and background
+    lighting.ambientColor = lightingControls.ambientColor;
+    lighting.ambientIntensity = lightingControls.ambientIntensity;
+
+    // Background color from environment - consistent sampling
+    var rayDir = normalize(vec3f(0.0, 0.0, -1.0));
+    var worldRayDir = (uniforms.inv_view_matrix * vec4f(rayDir, 0.0)).xyz;
+    lighting.backgroundColor = textureSampleLevel(envmap_texture, texture_sampler, worldRayDir, 0.0).rgb;
+
+    return lighting;
+}
+
 // Specular lighting calculation
 fn calculateSpecular(surface: SurfaceData, lighting: LightingEnvironment, specularPower: f32, specularIntensity: f32) -> f32 {
     var specular = 0.0;

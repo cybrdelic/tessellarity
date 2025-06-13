@@ -1,6 +1,12 @@
 // Pure physics calculations - independent of rendering
 // All physics effects are self-contained and can be calculated independently
 
+// Physics configuration constants
+const REYNOLDS_TURBULENCE_ONSET = 4000.0;
+const KINEMATIC_VISCOSITY_SCALE = 0.001;
+const HYDROSTATIC_PRESSURE_SCALE = 9.81;
+const WATER_DENSITY = 1000.0;
+
 // Calculate Reynolds number and turbulence
 fn calculateReynoldsPhysics(velocity: vec3f, characteristicLength: f32, viscosity: f32,
     reynoldsScale: f32, turbulenceStrength: f32) -> PhysicsData {
@@ -9,9 +15,9 @@ fn calculateReynoldsPhysics(velocity: vec3f, characteristicLength: f32, viscosit
     physics.velocity = velocity;
     physics.velocityMagnitude = length(velocity);
 
-    var kinematicViscosity = viscosity * 0.001;
+    var kinematicViscosity = viscosity * KINEMATIC_VISCOSITY_SCALE;
     var reynoldsNumber = physics.velocityMagnitude * characteristicLength / kinematicViscosity;
-    var turbulenceOnset = 4000.0;
+    var turbulenceOnset = REYNOLDS_TURBULENCE_ONSET;
 
     physics.turbulence = clamp((reynoldsNumber - turbulenceOnset) / turbulenceOnset, 0.0, 1.0) * turbulenceStrength;
 
@@ -25,7 +31,7 @@ fn calculateReynoldsPhysics(velocity: vec3f, characteristicLength: f32, viscosit
 
 // Calculate cavitation effects
 fn calculateCavitation(surface: SurfaceData, physics: PhysicsData, cavitationThreshold: f32, cavitationStrength: f32) -> f32 {
-    var hydrostaticPressure = surface.depth * 9.81 * 1000.0;
+    var hydrostaticPressure = surface.depth * HYDROSTATIC_PRESSURE_SCALE * WATER_DENSITY;
     var dynamicPressure = physics.velocityMagnitude * physics.velocityMagnitude * 500.0;
     var totalPressure = hydrostaticPressure + dynamicPressure;
 
