@@ -281,11 +281,9 @@ async function main() {
 	effectParametersViews.specularPower[0] = 4096.0;
 	effectParametersViews.specularScale[0] = 3.0;
 	effectParametersViews.specularRoughness[0] = 0.05;
-	effectParametersViews.specularFresnel[0] = 2.0;
-
-	// Subsurface Parameters
+	effectParametersViews.specularFresnel[0] = 2.0;	// Subsurface Parameters
 	effectParametersViews.subsurfaceDepth[0] = 0.4;
-	effectParametersViews.subsurfaceScale[0] = 1.0;
+	effectParametersViews.subsurfaceScale[0] = 1.0; // Restored to 1.0 for natural water translucency
 	effectParametersViews.subsurfaceColor[0] = 1.0;
 	effectParametersViews.subsurfaceDistortion[0] = 0.5;
 

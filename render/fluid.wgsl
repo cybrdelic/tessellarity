@@ -310,12 +310,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Use main light for primary calculations
     var lightDir = mainLightDir;
-    var H: vec3f = normalize(lightDir - rayDir);
-
-    // Calculate controllable ambient lighting
+    var H: vec3f = normalize(lightDir - rayDir);    // Calculate controllable ambient lighting
     var baseAmbientFromEnv = dot(bgColor, vec3f(0.299, 0.587, 0.114));
-    var ambientLight = baseAmbientFromEnv * lightingControls.ambientIntensity * 0.5; // Increased from 0.15 to 0.5
-    var ambientContribution = lightingControls.ambientColor * ambientLight * 2.0; // Added 2.0 multiplier
+    var ambientLight = baseAmbientFromEnv * lightingControls.ambientIntensity * 0.25; // Increased for more natural ambient lighting
+    var ambientContribution = lightingControls.ambientColor * ambientLight * 1.5; // Increased multiplier for better ambient balance
 
     // Calculate velocity magnitude and physics variables ONCE
     // Use separate X and Z velocity components for better variation
@@ -481,7 +479,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var subsurface: f32 = 0.0;
     if effectsToggle.enableSubsurface != 0u {
         var depthFactor = clamp(abs(viewPos.z) * effectParams.subsurfaceDepth, 0.0, 1.0); // Use parameter
-        var baseSubsurfaceIntensity = mix(0.8, 0.2, depthFactor) * effectParams.subsurfaceScale; // Increased from 0.4, 0.15 to 0.8, 0.2
+        var baseSubsurfaceIntensity = mix(0.6, 0.2, depthFactor) * effectParams.subsurfaceScale; // Restored natural subsurface values for realistic translucency
         var adjustedSubsurfaceIntensity = baseSubsurfaceIntensity * lightingControls.subsurfaceIntensityMultiplier;
 
         // Calculate subsurface contribution from each light source
@@ -631,7 +629,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // Apply light absorption to the base color (darkens with depth)
     baseWaterColor *= lightAttenuation;    // Calculate subsurface color after baseWaterColor is defined
-    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.5, 0.8, waterAppearance.transparency); // Increased from 1.0, 0.6 to 1.5, 0.8    // Environment reflection (Toggleable) - IMPROVED STABILITY
+    var subsurfaceColor: vec3f = baseWaterColor * subsurface * mix(1.2, 0.6, waterAppearance.transparency); // Restored natural subsurface color contribution// Environment reflection (Toggleable) - IMPROVED STABILITY
     var reflectionColor: vec3f = vec3f(0.0);
     if effectsToggle.enableReflection != 0u {
         var reflectDir = reflect(rayDir, normal);
@@ -705,18 +703,16 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var depthRimFactor = clamp(1.0 - abs(viewPos.z) * 0.08, 0.3, 1.0);        // Multi-light rim contributions with controllable lighting
         var mainRimContribution = 0.0;
         var fillRimContribution = 0.0;
-        var rimRimContribution = 0.0;
-
-        if lightingControls.mainLightEnabled != 0u {
-            mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 1.0 * lightingControls.mainLightIntensity; // Increased from 0.7
+        var rimRimContribution = 0.0;        if lightingControls.mainLightEnabled != 0u {
+            mainRimContribution = (primaryRim + secondaryRim) * max(0.0, dot(normal, -mainLightDir)) * 0.9 * lightingControls.mainLightIntensity; // Restored natural rim lighting intensity
         }
 
         if lightingControls.fillLightEnabled != 0u {
-            fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.7 * lightingControls.fillLightIntensity; // Increased from 0.4
+            fillRimContribution = thicknessRim * max(0.0, dot(normal, -fillLightDir)) * 0.6 * lightingControls.fillLightIntensity; // Restored balanced fill rim lighting
         }
 
         if lightingControls.rimLightEnabled != 0u {
-            rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.8 * lightingControls.rimLightIntensity; // Increased from 0.5
+            rimRimContribution = (tertiaryRim + velocityRim) * max(0.0, dot(normal, -rimLightDir)) * 0.7 * lightingControls.rimLightIntensity; // Restored natural rim contribution
         }
 
         // Combine all rim components with environmental influence
@@ -752,27 +748,23 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var volumeThickness = thickness * uniforms.sphere_size * 0.5;    // Multi-directional light penetration with controllable lighting
     var lightPenetrationMain = 0.0;
     var lightPenetrationFill = 0.0;
-    var lightPenetrationRim = 0.0;
-
-    if lightingControls.mainLightEnabled != 0u {
-        lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 1.0 * lightingControls.mainLightIntensity; // Increased from 0.6
+    var lightPenetrationRim = 0.0;    if lightingControls.mainLightEnabled != 0u {
+        lightPenetrationMain = max(0.0, -dot(normal, mainLightDir)) * 0.8 * lightingControls.mainLightIntensity; // Restored natural light penetration
     }
     if lightingControls.fillLightEnabled != 0u {
-        lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.6 * lightingControls.fillLightIntensity; // Increased from 0.3
+        lightPenetrationFill = max(0.0, -dot(normal, fillLightDir)) * 0.5 * lightingControls.fillLightIntensity; // Restored balanced fill light penetration
     }
     if lightingControls.rimLightEnabled != 0u {
-        lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.4 * lightingControls.rimLightIntensity; // Increased from 0.2
+        lightPenetrationRim = max(0.0, -dot(normal, rimLightDir)) * 0.3 * lightingControls.rimLightIntensity; // Restored rim light penetration
     }
 
     var totalLightPenetration = lightPenetrationMain + lightPenetrationFill + lightPenetrationRim;
 
     // Depth-based light attenuation (exponential falloff)
     var depthAttenuation = exp(-waterDepth * 0.08); // Reduced from 0.15
-    var thicknessAttenuation = exp(-volumeThickness * 0.4); // Reduced from 0.8
-
-    // Scattering-based interior illumination
-    var scatteringFactor = clamp(velocityMagnitude * 0.5 + turbulenceIntensity * 0.6, 0.2, 1.5); // Increased values
-    var scatteredLight = totalLightPenetration * scatteringFactor * 0.5; // Increased from 0.25
+    var thicknessAttenuation = exp(-volumeThickness * 0.4); // Reduced from 0.8    // Scattering-based interior illumination
+    var scatteringFactor = clamp(velocityMagnitude * 0.4 + turbulenceIntensity * 0.5, 0.15, 1.2); // Restored natural scattering for realistic water volume
+    var scatteredLight = totalLightPenetration * scatteringFactor * 0.35; // Restored natural scattered light intensity
 
     // REAL caustics based on surface variation (no artificial patterns)
     var causticIntensity = 0.0;    if effectsToggle.enableCaustics != 0u {
@@ -784,10 +776,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         // Fallback: use surface roughness variation
         var roughnessVariation = clamp(surfaceRoughness * 2.0, 0.0, 1.0);
         causticIntensity = roughnessVariation * totalLightPenetration * 0.1;
-    }
-
-    // Deep water ambient illumination with controllable ambient
-    var deepAmbient = ambientLight * clamp(thickness * 0.6, 0.2, 0.8) * depthAttenuation; // Increased values
+    }    // Deep water ambient illumination with controllable ambient
+    var deepAmbient = ambientLight * clamp(thickness * 0.5, 0.15, 0.7) * depthAttenuation; // Restored natural deep ambient lighting
 
     // Color the interior lighting with controllable light colors
     var baseInteriorLightColor = mix(
@@ -858,12 +848,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         }
 
         // Apply ultra-subtle color shift only in deep areas
-        var colorShiftedResult = absorptionAffectedColor * baseColorShift;
-
-        // Blend very gradually - heavily preserve surface color
+        var colorShiftedResult = absorptionAffectedColor * baseColorShift;        // Blend very gradually - heavily preserve surface color
         finalColor = mix(surfaceWaterColor, colorShiftedResult, depthFactor * 0.3); // Much reduced blending
-    }// Add controllable ambient lighting
-    finalColor += ambientContribution * 0.2; // Increased from 0.05
+    }    // Add controllable ambient lighting
+    finalColor += ambientContribution * 0.08; // Restored natural ambient contribution for realistic water lighting
 
     // Apply edge enhancement
     finalColor *= edgeFactor;
