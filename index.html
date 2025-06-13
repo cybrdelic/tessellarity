@@ -2364,12 +2364,52 @@
               <div class="radio-option-description">Color based on water motion</div>
             </div>
           </div>
-
           <div class="checkbox-container" id="rim-lighting-toggle">
             <input type="checkbox" id="enable-rim-lighting" checked>
             <div>
               <div class="radio-option-label">Rim Lighting</div>
               <div class="radio-option-description">Edge highlighting effects</div>
+            </div>
+          </div>
+          <div class="checkbox-container" id="variance-light-transport-toggle">
+            <input type="checkbox" id="enable-variance-light-transport">
+            <div>
+              <div class="radio-option-label">Variance Light Transport</div>
+              <div class="radio-option-description">Reduces lighting noise for smoother rendering</div>
+            </div>
+          </div>
+
+          <!-- Variance Light Transport Parameters -->
+          <div class="parameter-group" id="variance-parameters"
+            style="margin-left: var(--space-lg); margin-top: var(--space-sm);">
+            <div class="parameter-item">
+              <div class="parameter-label">
+                <span>Variance Strength</span>
+                <span class="parameter-value" id="variance-strength-value">3.0</span>
+              </div>
+              <input type="range" id="variance-strength" min="0.1" max="5.0" step="0.1" value="3.0"
+                class="parameter-slider">
+              <button class="slider-reset" onclick="resetEffectParameter('variance-strength', 0.5)">↺</button>
+            </div>
+
+            <div class="parameter-item">
+              <div class="parameter-label">
+                <span>Sampling Radius</span>
+                <span class="parameter-value" id="variance-radius-value">3.0</span>
+              </div>
+              <input type="range" id="variance-radius" min="0.5" max="4.0" step="0.1" value="3.0"
+                class="parameter-slider">
+              <button class="slider-reset" onclick="resetEffectParameter('variance-radius', 1.0)">↺</button>
+            </div>
+
+            <div class="parameter-item">
+              <div class="parameter-label">
+                <span>Activation Threshold</span>
+                <span class="parameter-value" id="variance-threshold-value">0.02</span>
+              </div>
+              <input type="range" id="variance-threshold" min="0.01" max="0.5" step="0.01" value="0.02"
+                class="parameter-slider">
+              <button class="slider-reset" onclick="resetEffectParameter('variance-threshold', 0.1)">↺</button>
             </div>
           </div>
         </div>
@@ -4112,9 +4152,9 @@
         // Note: dispersion (index 10) is controlled by refraction toggle
         'enable-absorption': 11,
         'enable-depth-coloring': 12,
-        'enable-velocity-coloring': 13,
-        'enable-rim-lighting': 14,
-        'enable-color-absorption': 15
+        'enable-velocity-coloring': 13, 'enable-rim-lighting': 14,
+        'enable-color-absorption': 15,
+        'enable-variance-light-transport': 16
       };
 
       // Add event listeners for each effect toggle
@@ -4194,12 +4234,12 @@
           showEffectsBulkFeedback('All effects disabled', false);
         });
       }
-    }
 
-    function addEffectToggleFeedback(container, isEnabled) {
-      // Add ripple effect
-      const ripple = document.createElement('div');
-      ripple.style.cssText = `
+
+      function addEffectToggleFeedback(container, isEnabled) {
+        // Add ripple effect
+        const ripple = document.createElement('div');
+        ripple.style.cssText = `
         position: absolute;
         border-radius: 50%;
         background: ${isEnabled ? 'rgba(48, 209, 88, 0.3)' : 'rgba(255, 59, 48, 0.3)'};
@@ -4208,30 +4248,30 @@
         pointer-events: none;
       `;
 
-      const rect = container.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      ripple.style.width = ripple.style.height = size + 'px';
-      ripple.style.left = '0px';
-      ripple.style.top = '0px';
+        const rect = container.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = '0px';
+        ripple.style.top = '0px';
 
-      container.style.position = 'relative';
-      container.appendChild(ripple);
+        container.style.position = 'relative';
+        container.appendChild(ripple);
 
-      setTimeout(() => {
-        ripple.remove();
-      }, 600);
-    }
+        setTimeout(() => {
+          ripple.remove();
+        }, 600);
+      }
 
-    function showEffectsBulkFeedback(message, isEnabled) {
-      const feedback = document.createElement('div');
-      feedback.innerHTML = `
+      function showEffectsBulkFeedback(message, isEnabled) {
+        const feedback = document.createElement('div');
+        feedback.innerHTML = `
         <div style="display: flex; align-items: center; gap: var(--space-sm);">
           <i class="fas ${isEnabled ? 'fa-check-circle' : 'fa-times-circle'}"
              style="color: ${isEnabled ? 'var(--accent-success)' : 'var(--accent-danger)'};"></i>
           <span>${message}</span>
         </div>
       `;
-      feedback.style.cssText = `
+        feedback.style.cssText = `
         position: fixed;
         top: 80px;
         right: 20px;
@@ -4250,42 +4290,127 @@
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
       `;
 
-      document.body.appendChild(feedback);
-      setTimeout(() => feedback.remove(), 2500);
-    }    // Global function to expose effects updates to main.ts
-    window.updateEffectsToggle = function (index, enabled) {
-      // This will be called by the UI and should update the effects buffer
-      // The actual implementation will be in main.ts
-      console.log(`Updating effect ${index} to ${enabled ? 'enabled' : 'disabled'}`);
-    };    // Global function to expose lighting controls updates to main.ts
-    window.updateLightingControls = function (parameter, value) {
-      // This will be called by the UI and should update the lighting buffer
-      // The actual implementation will be in main.ts
-      console.log(`Updating lighting parameter ${parameter} to ${value}`);
-    };
+        document.body.appendChild(feedback);
+        setTimeout(() => feedback.remove(), 2500);
+      }    // Global function to expose effects updates to main.ts
+      window.updateEffectsToggle = function (index, enabled) {
+        // This will be called by the UI and should update the effects buffer
+        // The actual implementation will be in main.ts
+        console.log(`Updating effect ${index} to ${enabled ? 'enabled' : 'disabled'}`);
+      };    // Global function to expose lighting controls updates to main.ts
+      window.updateLightingControls = function (parameter, value) {
+        // This will be called by the UI and should update the lighting buffer
+        // The actual implementation will be in main.ts
+        console.log(`Updating lighting parameter ${parameter} to ${value}`);
+      };
 
-    // Global function to expose effect parameters updates to main.ts
-    window.updateEffectParameters = function (parameterIndex, value) {
-      // This will be called by the UI and should update the effect parameters buffer
-      // The actual implementation will be in main.ts
-      console.log(`Updating effect parameter ${parameterIndex} to ${value}`);
-    };
+      // Global function to expose effect parameters updates to main.ts
+      window.updateEffectParameters = function (parameterIndex, value) {
+        // This will be called by the UI and should update the effect parameters buffer
+        // The actual implementation will be in main.ts
+        console.log(`Updating effect parameter ${parameterIndex} to ${value}`);
+      };
 
-    // Global function to reset effect parameter
-    window.resetEffectParameter = function (parameterId, defaultValue) {
-      const slider = document.getElementById(parameterId);
-      const valueDisplay = document.getElementById(parameterId + '-value');
-      if (slider && valueDisplay) {
-        slider.value = defaultValue;
-        valueDisplay.textContent = formatParameterValue(defaultValue);
+      // Global function to reset effect parameter
+      window.resetEffectParameter = function (parameterId, defaultValue) {
+        const slider = document.getElementById(parameterId);
+        const valueDisplay = document.getElementById(parameterId + '-value');
+        if (slider && valueDisplay) {
+          slider.value = defaultValue;
+          valueDisplay.textContent = formatParameterValue(defaultValue);
 
-        // Find parameter index from ID
-        const parameterIndex = getParameterIndexFromId(parameterId);
-        if (parameterIndex !== -1 && window.updateEffectParameters) {
-          window.updateEffectParameters(parameterIndex, defaultValue);
+          // Find parameter index from ID
+          const parameterIndex = getParameterIndexFromId(parameterId);
+          if (parameterIndex !== -1 && window.updateEffectParameters) {
+            window.updateEffectParameters(parameterIndex, defaultValue);
+          }
+        }
+      };
+
+      // Helper function to format parameter values
+      function formatParameterValue(value) {
+        const num = parseFloat(value);
+        if (num < 0.01 && num > 0) {
+          return num.toFixed(4);
+        } else if (num < 1) {
+          return num.toFixed(3);
+        } else if (num < 10) {
+          return num.toFixed(2);
+        } else {
+          return num.toFixed(1);
         }
       }
-    };
+
+      // Helper function to get parameter index from slider ID
+      function getParameterIndexFromId(parameterId) {
+        const parameterMap = {
+          // Reynolds Physics (0-3)
+          'reynolds-scale': 0,
+          'turbulence-strength': 1,
+          'viscosity-factor': 2,
+          'cascade-effect': 3,
+
+          // Cavitation (4-7)
+          'cavitation-threshold': 4,
+          'cavitation-strength': 5,
+          'pressure-scale': 6,
+          'cavitation-falloff': 7,
+
+          // Foam (8-11)
+          'foam-intensity': 8,
+          'foam-threshold': 9,
+          'foam-decay': 10,
+          'foam-coverage': 11,
+
+          // Turbulent Normals (12-15)
+          'normal-strength': 12,
+          'normal-scale': 13,
+          'normal-smoothness': 14,
+          'normal-stability': 15,
+
+          // Specular (16-19)
+          'specular-power': 16,
+          'specular-scale': 17,
+          'specular-roughness': 18,
+          'specular-fresnel': 19,
+
+          // Subsurface (20-23)
+          'subsurface-depth': 20,
+          'subsurface-scale': 21,
+          'subsurface-color': 22,
+          'subsurface-distortion': 23,
+
+          // Fresnel (24-27)
+          'fresnel-power': 24,
+          'fresnel-scale': 25,
+          'fresnel-bias': 26,
+          'fresnel-contrast': 27,
+
+          // Reflection (28-31)
+          'reflection-strength': 28,
+          'reflection-blur': 29,
+          'reflection-distortion': 30,
+          'reflection-fade': 31,
+
+          // Refraction (32-35)
+          'refraction-strength': 32,
+          'refraction-index': 33,
+          'refraction-chromatic': 34,
+          'refraction-scale': 35,          // Caustics (36-39)
+          'caustics-strength': 36,
+          'caustics-scale': 37,
+          'caustics-speed': 38,
+          'caustics-contrast': 39,
+
+          // Variance Light Transport (60-63) - Adding at indices beyond existing parameters
+          'variance-strength': 61,
+          'variance-radius': 62,
+          'variance-threshold': 63,
+
+          // Additional parameters would continue here...
+        }; return parameterMap[parameterId] !== undefined ? parameterMap[parameterId] : -1;
+      }
+    }
 
     // Helper function to format parameter values
     function formatParameterValue(value) {
@@ -4762,11 +4887,12 @@
         // Fresnel
         'fresnel-power', 'fresnel-scale', 'fresnel-bias', 'fresnel-contrast',
         // Reflection
-        'reflection-strength', 'reflection-blur', 'reflection-distortion', 'reflection-fade',
-        // Refraction
+        'reflection-strength', 'reflection-blur', 'reflection-distortion', 'reflection-fade',        // Refraction
         'refraction-strength', 'refraction-index', 'refraction-chromatic', 'refraction-scale',
         // Caustics
-        'caustics-strength', 'caustics-scale', 'caustics-speed', 'caustics-contrast'
+        'caustics-strength', 'caustics-scale', 'caustics-speed', 'caustics-contrast',
+        // Variance Light Transport
+        'variance-strength', 'variance-radius', 'variance-threshold'
       ];
 
       parameterSliders.forEach(parameterId => {

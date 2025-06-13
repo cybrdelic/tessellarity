@@ -12,7 +12,7 @@ struct VertexOutput {
     @location(0) uv: vec2f,
 }
 
-struct FragmentInput {
+struct ThicknessMapFragmentInput {
     @location(0) uv: vec2f,
 }
 
@@ -49,7 +49,7 @@ fn vs(
 }
 
 @fragment
-fn fs(input: FragmentInput) -> @location(0) vec4f {
+fn fs(input: ThicknessMapFragmentInput) -> @location(0) vec4f {
     var normalxy: vec2f = input.uv * 2.0 - 1.0;
     var r2: f32 = dot(normalxy, normalxy);
     if r2 > 1.0 {

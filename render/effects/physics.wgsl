@@ -1,11 +1,6 @@
 // Pure physics calculations - independent of rendering
 // All physics effects are self-contained and can be calculated independently
-
-// Physics configuration constants
-const REYNOLDS_TURBULENCE_ONSET = 4000.0;
-const KINEMATIC_VISCOSITY_SCALE = 0.001;
-const HYDROSTATIC_PRESSURE_SCALE = 9.81;
-const WATER_DENSITY = 1000.0;
+// Constants are defined in config.wgsl
 
 // Calculate Reynolds number and turbulence
 fn calculateReynoldsPhysics(velocity: vec3f, characteristicLength: f32, viscosity: f32,

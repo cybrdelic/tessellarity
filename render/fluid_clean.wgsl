@@ -152,7 +152,7 @@ struct EffectParameters {
     padding4: f32,
 }
 
-struct FragmentInput {
+struct FluidCleanFragmentInput {
     @location(0) uv: vec2f,
     @location(1) iuv: vec2f,
 }
@@ -212,7 +212,7 @@ fn safeThicknessSample(coords: vec2f) -> f32 {
     return textureLoad(thickness_texture, vec2u(clamped_coords), 0).r;
 }
 
-fn createSurfaceData(input: FragmentInput) -> SurfaceData {
+fn createSurfaceData(input: FluidCleanFragmentInput) -> SurfaceData {
     var surface: SurfaceData;
 
     var depth = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
@@ -436,7 +436,7 @@ fn calculateAbsorption(surface: SurfaceData, waterColor: vec3f, absorptionStreng
     return clamp(attenuation, vec3f(0.6), vec3f(1.0));
 }
 
-fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, input: FragmentInput, causticsStrength: f32, causticsScale: f32) -> f32 {
+fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, input: FluidCleanFragmentInput, causticsStrength: f32, causticsScale: f32) -> f32 {
     if causticsStrength <= 0.0 { return 0.0; }
 
     var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
@@ -505,7 +505,7 @@ fn calculateColorAbsorption(surface: SurfaceData, baseColor: vec3f, waterColor: 
 
 // === MAIN FRAGMENT SHADER ===
 @fragment
-fn fs(input: FragmentInput) -> @location(0) vec4f {
+fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
     var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
 
     // Early return for non-water pixels
@@ -528,7 +528,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var velocity = vec3f(length(ddx), length(vec3f(ddx.y, ddy.y, 0.0)), length(ddy));
 
         physics = calculateReynoldsPhysics(velocity, uniforms.sphere_size, effectParams.viscosityFactor,
-                                         effectParams.reynoldsScale, effectParams.turbulenceStrength);
+            effectParams.reynoldsScale, effectParams.turbulenceStrength);
 
         if effectsToggle.enableTurbulentNormals != 0u && physics.turbulence > 0.25 {
             var surfaceOffset = vec3f(
@@ -559,7 +559,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableFresnel != 0u {
         fresnel = calculateFresnel(surface, effectParams.fresnelPower, effectParams.fresnelScale,
-                                 effectParams.fresnelBias, waterAppearance.reflectivity);
+            effectParams.fresnelBias, waterAppearance.reflectivity);
     }
 
     if effectsToggle.enableAbsorption != 0u {
@@ -578,7 +578,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableSpecular != 0u {
         specular = calculateSpecular(surface, lighting, effectParams.specularPower,
-                                   effectParams.specularScale * lightingControls.specularIntensityMultiplier);
+            effectParams.specularScale * lightingControls.specularIntensityMultiplier);
         specular *= (1.0 - foam * 0.7);
     }
 

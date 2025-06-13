@@ -62,6 +62,12 @@ const DEBUG_DEPTH_SCALE = 0.1;
 const DEBUG_THICKNESS_SCALE = 0.2;
 const DEBUG_DENSITY_SCALE = 0.1;
 
+// === VARIANCE LIGHT TRANSPORT CONSTANTS ===
+const DEFAULT_VARIANCE_SAMPLES = 9.0;
+const DEFAULT_VARIANCE_STRENGTH = 0.5;
+const DEFAULT_VARIANCE_RADIUS = 1.0;
+const DEFAULT_VARIANCE_THRESHOLD = 0.1;
+
 // Configuration struct for runtime adjustable parameters
 struct FluidConfig {
     // Lighting overrides

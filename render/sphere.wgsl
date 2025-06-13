@@ -5,7 +5,7 @@ struct VertexOutput {
     @location(2) speed: f32,
 }
 
-struct FragmentInput {
+struct SphereFragmentInput {
     @location(0) uv: vec2f,
     @location(1) view_position: vec3f,
     @location(2) speed: f32,
@@ -85,7 +85,7 @@ fn value_to_color(value: f32) -> vec3<f32> {
 }
 
 @fragment
-fn fs(input: FragmentInput) -> FragmentOutput {
+fn fs(input: SphereFragmentInput) -> FragmentOutput {
     var out: FragmentOutput;
 
     var normalxy: vec2f = input.uv * 2.0 - 1.0;

@@ -2,7 +2,7 @@
 @group(0) @binding(1) var texture: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> uniforms: FilterUniforms;
 
-struct FragmentInput {
+struct BilateralNewFragmentInput {
     @location(0) uv: vec2f,
     @location(1) iuv: vec2f,
 }
@@ -16,7 +16,7 @@ struct FilterUniforms {
 }
 
 @fragment
-fn fs(input: FragmentInput) -> @location(0) vec4f {
+fn fs(input: BilateralNewFragmentInput) -> @location(0) vec4f {
     // 正かどうかを確かめる
     var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
 

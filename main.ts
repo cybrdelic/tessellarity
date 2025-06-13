@@ -5,7 +5,7 @@ import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews } from './common'
+import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews, compositionParamsValues, compositionParamsViews, initializeCompositionDefaults } from './common'
 import { FluidRenderer } from './render/fluidRender'
 import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
 
@@ -196,6 +196,13 @@ async function main() {
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
 
+	// Create composition parameters buffer
+	const compositionParamsBuffer = device.createBuffer({
+		label: 'composition parameters buffer',
+		size: compositionParamsValues.byteLength,
+		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+	});
+
 	// Initialize effects toggle (all enabled by default)
 	effectsToggleViews.enableReynoldsPhysics[0] = 1;
 	effectsToggleViews.enableCavitation[0] = 1;
@@ -207,11 +214,11 @@ async function main() {
 	effectsToggleViews.enableReflection[0] = 1; effectsToggleViews.enableRefraction[0] = 1;
 	effectsToggleViews.enableCaustics[0] = 1;
 	effectsToggleViews.enableDispersion[0] = 1;
-	effectsToggleViews.enableAbsorption[0] = 1;
-	effectsToggleViews.enableDepthColoring[0] = 1;
+	effectsToggleViews.enableAbsorption[0] = 1; effectsToggleViews.enableDepthColoring[0] = 1;
 	effectsToggleViews.enableVelocityColoring[0] = 1;
 	effectsToggleViews.enableRimLighting[0] = 1;
 	effectsToggleViews.enableColorAbsorption[0] = 1;
+	effectsToggleViews.enableVarianceLightTransport[0] = 0; // Start disabled for testing
 	device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
 
 	// Initialize lighting controls with default values
@@ -334,14 +341,21 @@ async function main() {
 	effectParametersViews.rimLightPower[0] = 0.8;
 	effectParametersViews.rimLightScale[0] = 1.0;
 	effectParametersViews.rimLightContrast[0] = 1.0;
-
 	// Color Absorption Parameters
 	effectParametersViews.colorAbsorptionRed[0] = 0.45;
 	effectParametersViews.colorAbsorptionGreen[0] = 0.15;
 	effectParametersViews.colorAbsorptionBlue[0] = 0.05;
-	effectParametersViews.colorAbsorptionDepth[0] = 0.1;
+	effectParametersViews.colorAbsorptionDepth[0] = 0.1;	// Variance Light Transport Parameters - Enhanced for visibility
+	effectParametersViews.varianceSamples[0] = 9.0;
+	effectParametersViews.varianceStrength[0] = 3.0; // Increased from 2.0 for even more visible effect
+	effectParametersViews.varianceRadius[0] = 3.0;   // Increased from 2.0 for larger sampling area
+	effectParametersViews.varianceThreshold[0] = 0.02; // Decreased from 0.05 for easier activation
 
 	device.queue.writeBuffer(effectParametersBuffer, 0, effectParametersValues);
+
+	// Initialize composition parameters with default values
+	initializeCompositionDefaults();
+	device.queue.writeBuffer(compositionParamsBuffer, 0, compositionParamsValues);
 
 	// Initialize debug mode (disabled by default)
 	debugModeViews.mode[0] = DebugVisualizationMode.NONE;
@@ -433,9 +447,9 @@ async function main() {
 		debugModeBuffer,
 		effectsToggleBuffer,
 		lightingControlsBuffer,
-		effectParametersBuffer
-	);
-	const sphRenderer = new FluidRenderer(
+		effectParametersBuffer,
+		compositionParamsBuffer
+	); const sphRenderer = new FluidRenderer(
 		device,
 		canvas,
 		presentationFormat,
@@ -448,9 +462,9 @@ async function main() {
 		debugModeBuffer,
 		effectsToggleBuffer,
 		lightingControlsBuffer,
-		effectParametersBuffer
-	);
-	const boidsRenderer = new FluidRenderer(
+		effectParametersBuffer,
+		compositionParamsBuffer
+	); const boidsRenderer = new FluidRenderer(
 		device,
 		canvas,
 		presentationFormat,
@@ -463,7 +477,8 @@ async function main() {
 		debugModeBuffer,
 		effectsToggleBuffer,
 		lightingControlsBuffer,
-		effectParametersBuffer
+		effectParametersBuffer,
+		compositionParamsBuffer
 	);
 
 	console.log("simulator initialization done")
@@ -489,7 +504,8 @@ async function main() {
 			}
 
 			// Set debounced update (150ms delay)
-			particleCountChangeTimeout = setTimeout(() => {
+			particleCountChangeTimeout = 150;
+			setTimeout(() => {
 				particleCountChanged = true;
 				newParticleCount = value;
 			}, 150);
@@ -880,7 +896,8 @@ async function main() {
 			'enableReynoldsPhysics', 'enableCavitation', 'enableFoam', 'enableTurbulentNormals',
 			'enableSpecular', 'enableSubsurface', 'enableFresnel', 'enableReflection',
 			'enableRefraction', 'enableCaustics', 'enableDispersion', 'enableAbsorption',
-			'enableDepthColoring', 'enableVelocityColoring', 'enableRimLighting', 'enableColorAbsorption'
+			'enableDepthColoring', 'enableVelocityColoring', 'enableRimLighting', 'enableColorAbsorption',
+			'enableVarianceLightTransport'
 		];
 
 		if (index >= 0 && index < effectKeys.length) {

@@ -1,6 +1,6 @@
 import depthMap from './depthMap.wgsl'
 import depthFilter from './bilateral.wgsl'
-import fluid from './fluid.wgsl'
+import fluid from './fluid_decoupled.wgsl'
 import fullScreen from './fullScreen.wgsl'
 import thicknessMap from './thicknessMap.wgsl'
 import gaussian from './gaussian.wgsl'
@@ -34,6 +34,7 @@ export class FluidRenderer {
     effectsToggleBuffer: GPUBuffer
     lightingControlsBuffer: GPUBuffer
     effectParametersBuffer: GPUBuffer
+    compositionParamsBuffer: GPUBuffer
     sampler: GPUSampler
 
     constructor(
@@ -48,7 +49,8 @@ export class FluidRenderer {
         debugModeBuffer: GPUBuffer,
         effectsToggleBuffer: GPUBuffer,
         lightingControlsBuffer: GPUBuffer,
-        effectParametersBuffer: GPUBuffer
+        effectParametersBuffer: GPUBuffer,
+        compositionParamsBuffer: GPUBuffer
     ) {
         this.device = device
         this.renderUniformBuffer = renderUniformBuffer
@@ -57,6 +59,7 @@ export class FluidRenderer {
         this.effectsToggleBuffer = effectsToggleBuffer
         this.lightingControlsBuffer = lightingControlsBuffer
         this.effectParametersBuffer = effectParametersBuffer
+        this.compositionParamsBuffer = compositionParamsBuffer
 
         const maxFilterSize = 100
         const blurdDepthScale = 10
@@ -345,10 +348,10 @@ export class FluidRenderer {
                 { binding: 2, resource: { buffer: renderUniformBuffer } }, { binding: 3, resource: this.thicknessTextureView },
                 { binding: 4, resource: cubemapTextureView },
                 { binding: 5, resource: { buffer: waterAppearanceBuffer } },
-                { binding: 6, resource: { buffer: debugModeBuffer } },
-                { binding: 7, resource: { buffer: effectsToggleBuffer } },
+                { binding: 6, resource: { buffer: debugModeBuffer } }, { binding: 7, resource: { buffer: effectsToggleBuffer } },
                 { binding: 8, resource: { buffer: lightingControlsBuffer } },
                 { binding: 9, resource: { buffer: effectParametersBuffer } },
+                { binding: 10, resource: { buffer: compositionParamsBuffer } },
             ],
         })
 
@@ -551,11 +554,11 @@ export class FluidRenderer {
                 { binding: 2, resource: { buffer: this.renderUniformBuffer } },
                 { binding: 3, resource: this.thicknessTextureView },
                 { binding: 4, resource: newCubemapTextureView },
-                { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
-                { binding: 6, resource: { buffer: this.debugModeBuffer } },
+                { binding: 5, resource: { buffer: this.waterAppearanceBuffer } }, { binding: 6, resource: { buffer: this.debugModeBuffer } },
                 { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
                 { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
                 { binding: 9, resource: { buffer: this.effectParametersBuffer } },
+                { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
             ],
         });
     }    /**

@@ -11,38 +11,30 @@
 #include "effects/coloring.wgsl"
 
 // Uniform bindings - clearly separated concerns
-@group(0) @binding(0) var<uniform> uniforms: RenderUniforms;
+@group(0) @binding(0) var texture_sampler: sampler;
 @group(0) @binding(1) var texture: texture_2d<f32>;
-@group(0) @binding(2) var thickness_texture: texture_2d<f32>;
-@group(0) @binding(3) var envmap_texture: texture_cube<f32>;
-@group(0) @binding(4) var texture_sampler: sampler;
-
-// Effect control - independent toggles
-@group(1) @binding(0) var<uniform> effectsToggle: EffectsToggle;
-@group(1) @binding(1) var<uniform> effectParams: EffectParameters;
-@group(1) @binding(2) var<uniform> lightingControls: LightingControls;
-@group(1) @binding(3) var<uniform> waterAppearance: WaterAppearance;
-@group(1) @binding(4) var<uniform> debug: DebugUniforms;
-
-// Optional configuration override
-@group(2) @binding(0) var<uniform> fluidConfig: FluidConfig;
-@group(2) @binding(1) var<uniform> composition: CompositionParams;
-
-struct FragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f,
-}
+@group(0) @binding(2) var<uniform> uniforms: RenderUniforms;
+@group(0) @binding(3) var thickness_texture: texture_2d<f32>;
+@group(0) @binding(4) var envmap_texture: texture_cube<f32>;
+@group(0) @binding(5) var<uniform> waterAppearance: WaterAppearance;
+@group(0) @binding(6) var<uniform> debug: DebugUniforms;
+@group(0) @binding(7) var<uniform> effectsToggle: EffectsToggle;
+@group(0) @binding(8) var<uniform> lightingControls: LightingControls;
+@group(0) @binding(9) var<uniform> effectParams: EffectParameters;
+@group(0) @binding(10) var<uniform> composition: CompositionParams;
 
 // Independent effect composition system
 fn composeEffects(surface: SurfaceData, physics: PhysicsData, lighting: LightingEnvironment,
     specular: f32, subsurface: vec3f, rimLighting: vec3f, reflection: vec3f,
     volumetric: vec3f, ambient: vec3f, absorption: vec3f, transmission: vec3f,
     fresnel: f32, caustics: f32, foam: f32,
-    depthColor: vec3f, velocityColor: vec3f,
-    baseColor: vec3f) -> vec4f {
+    depthColor: vec3f, velocityColor: vec3f, baseColor: vec3f) -> vec4f {
 
     // === PHASE 1: BASE COLOR COMPUTATION ===
-    var safeBaseColor = getSafeWaterColor(baseColor);
+    var safeBaseColor = baseColor;
+    if length(baseColor) < 0.01 {
+        safeBaseColor = DEFAULT_WATER_COLOR;
+    }
     var colorModifiedBase = safeBaseColor * absorption * transmission;
 
     // === PHASE 2: COLOR EFFECTS (Independent) ===
@@ -115,7 +107,7 @@ fn composeEffects(surface: SurfaceData, physics: PhysicsData, lighting: Lighting
 // Debug visualization - completely independent
 fn debugVisualization(mode: u32, surface: SurfaceData, physics: PhysicsData,
     absorption: vec3f, transmission: vec3f, fresnel: f32,
-    caustics: f32, finalColor: vec3f, intensity: f32) -> vec4f {
+    caustics: f32, varianceTransport: vec3f, finalColor: vec3f, intensity: f32) -> vec4f {
     switch (mode) {
         case 1u: { // DEPTH
             var normalizedDepth = surface.depth * intensity * DEBUG_DEPTH_SCALE;
@@ -142,10 +134,13 @@ fn debugVisualization(mode: u32, surface: SurfaceData, physics: PhysicsData,
         }
         case 8u: { // FRESNEL
             return vec4f(vec3f(fresnel), 1.0);
-        }
-        case 9u: { // CAUSTICS
+        }        case 9u: { // CAUSTICS
             var causticsVis = caustics * intensity;
             return vec4f(vec3f(causticsVis), 1.0);
+        }
+        case 10u: { // VARIANCE LIGHT TRANSPORT
+            var varianceVis = length(varianceTransport - vec3f(1.0)) * intensity * 2.0;
+            return vec4f(vec3f(varianceVis), 1.0);
         }
         default: {
             return vec4f(finalColor, 1.0);
@@ -163,11 +158,9 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // ===== PHASE 1: SURFACE CALCULATION (Independent) =====
-    var surface = createSurfaceData(input, uniforms, texture, thickness_texture);
-
-    // ===== PHASE 2: LIGHTING ENVIRONMENT (Independent) =====
+    var surface = createSurfaceData(input, uniforms, texture, thickness_texture);    // ===== PHASE 2: LIGHTING ENVIRONMENT (Independent) =====
     var lighting = createLightingEnvironment(lightingControls, uniforms,
-        fluidConfig, envmap_texture, texture_sampler);
+        envmap_texture, texture_sampler);
 
     // ===== PHASE 3: PHYSICS CALCULATION (Independent) =====
     var physics: PhysicsData;
@@ -226,13 +219,18 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
                 surface.viewDotNormal = max(dot(surface.normal, -surface.rayDir), 0.0);
             }
         }
-    }
-
-    // ===== PHASE 4: OPTICAL EFFECTS (Independent) =====
+    }    // ===== PHASE 4: OPTICAL EFFECTS (Independent) =====
     var fresnel = 0.0;
     var absorption = vec3f(1.0);
     var transmission = vec3f(1.0);
     var caustics = 0.0;
+    var varianceTransport = vec3f(1.0);    // Variance Light Transport - reduces lighting noise
+    if effectsToggle.enableVarianceLightTransport != 0u {
+        varianceTransport = calculateVarianceLightTransport(surface, lighting,
+            texture, input.uv, uniforms.texel_size,
+            effectParams.varianceSamples, effectParams.varianceStrength,
+            effectParams.varianceRadius, effectParams.varianceThreshold);
+    }
 
     if effectsToggle.enableFresnel != 0u {
         fresnel = calculateFresnel(surface, effectParams.fresnelPower, effectParams.fresnelScale,
@@ -286,17 +284,25 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         reflection = calculateReflection(surface, lighting, envmap_texture, texture_sampler,
             uniforms.view_matrix, uniforms.inv_view_matrix,
             effectParams.reflectionStrength, fresnel);
-    }
-
-    // Calculate volumetric and ambient lighting
+    }    // Calculate volumetric and ambient lighting
     var volumetricLighting = calculateVolumetricLighting(surface, lighting,
         lightingControls.volumetricIntensity);
-    var ambientLighting = calculateAmbientLighting(surface, lighting);
-
-    // ===== PHASE 6: COLOR CALCULATIONS (Independent) =====
+    var ambientLighting = calculateAmbientLighting(surface, lighting);    // Apply variance light transport to reduce lighting noise - Enhanced for visibility
+    if effectsToggle.enableVarianceLightTransport != 0u {
+        volumetricLighting *= varianceTransport;
+        ambientLighting *= varianceTransport;
+        // Also apply to specular and subsurface for more visible effect
+        specular *= dot(varianceTransport, vec3f(0.333));
+        subsurface *= varianceTransport * 0.8;
+    }    // ===== PHASE 6: COLOR CALCULATIONS (Independent) =====
     var baseColor = waterAppearance.color.rgb;
     var depthColor = vec3f(1.0);
     var velocityColor = vec3f(1.0);
+
+    // Apply variance light transport to base color for more visible effect
+    if effectsToggle.enableVarianceLightTransport != 0u {
+        baseColor *= varianceTransport;
+    }
 
     if effectsToggle.enableDepthColoring != 0u {
         depthColor = calculateDepthColoring(surface, waterAppearance.color.rgb,
@@ -322,12 +328,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
             effectParams.colorAbsorptionDepth,
             uniforms.sphere_size);
         finalResult = vec4f(colorAbsorbedResult, finalResult.a);
-    }
-
-    // ===== PHASE 8: DEBUG VISUALIZATION (Independent) =====
+    }    // ===== PHASE 8: DEBUG VISUALIZATION (Independent) =====
     if debug.mode != 0u {
         return debugVisualization(debug.mode, surface, physics, absorption, transmission,
-            fresnel, caustics, finalResult.rgb, debug.intensity);
+            fresnel, caustics, varianceTransport, finalResult.rgb, debug.intensity);
     }
 
     return finalResult;

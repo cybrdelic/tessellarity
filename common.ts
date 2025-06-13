@@ -80,7 +80,7 @@ export const compositionParamsViews = {
 };
 
 // Effects toggle buffer - individual effect controls
-export const effectsToggleValues = new ArrayBuffer(64); // 16 toggles * 4 bytes each (u32)
+export const effectsToggleValues = new ArrayBuffer(68); // 17 toggles * 4 bytes each (u32)
 export const effectsToggleViews = {
   // Core water effects
   enableReynoldsPhysics: new Uint32Array(effectsToggleValues, 0, 1),    // Reynolds number turbulence
@@ -98,12 +98,12 @@ export const effectsToggleViews = {
   enableCaustics: new Uint32Array(effectsToggleValues, 36, 1),          // Caustics patterns
   enableDispersion: new Uint32Array(effectsToggleValues, 40, 1),        // Chromatic dispersion
   enableAbsorption: new Uint32Array(effectsToggleValues, 44, 1),        // Depth-based absorption
-
   // Color and depth effects
   enableDepthColoring: new Uint32Array(effectsToggleValues, 48, 1),     // Depth-based color variation
   enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts
   enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
   enableColorAbsorption: new Uint32Array(effectsToggleValues, 60, 1),   // Depth-based wavelength color absorption
+  enableVarianceLightTransport: new Uint32Array(effectsToggleValues, 64, 1), // Variance-based light transport
 };
 
 // Comprehensive lighting controls buffer
@@ -153,7 +153,7 @@ export const lightingControlsViews = {
 };
 
 // Effect parameters buffer - individual parameter controls for each effect
-export const effectParametersValues = new ArrayBuffer(256); // 64 parameters * 4 bytes each (f32)
+export const effectParametersValues = new ArrayBuffer(272); // 68 parameters * 4 bytes each (f32)
 export const effectParametersViews = {
   // Reynolds Physics Parameters
   reynoldsScale: new Float32Array(effectParametersValues, 0, 1),        // Reynolds number scaling factor
@@ -238,18 +238,17 @@ export const effectParametersViews = {
   rimLightPower: new Float32Array(effectParametersValues, 212, 1),      // Rim light falloff power
   rimLightScale: new Float32Array(effectParametersValues, 216, 1),      // Rim light scale factor
   rimLightContrast: new Float32Array(effectParametersValues, 220, 1),   // Rim light contrast
-
   // Color Absorption Parameters
   colorAbsorptionRed: new Float32Array(effectParametersValues, 224, 1), // Red wavelength absorption
   colorAbsorptionGreen: new Float32Array(effectParametersValues, 228, 1), // Green wavelength absorption
   colorAbsorptionBlue: new Float32Array(effectParametersValues, 232, 1), // Blue wavelength absorption
   colorAbsorptionDepth: new Float32Array(effectParametersValues, 236, 1), // Color absorption depth scale
 
-  // Padding for alignment
-  padding1: new Float32Array(effectParametersValues, 240, 1),
-  padding2: new Float32Array(effectParametersValues, 244, 1),
-  padding3: new Float32Array(effectParametersValues, 248, 1),
-  padding4: new Float32Array(effectParametersValues, 252, 1),
+  // Variance Light Transport Parameters
+  varianceSamples: new Float32Array(effectParametersValues, 240, 1),    // Number of variance samples
+  varianceStrength: new Float32Array(effectParametersValues, 244, 1),   // Variance reduction strength
+  varianceRadius: new Float32Array(effectParametersValues, 248, 1),     // Variance sampling radius
+  varianceThreshold: new Float32Array(effectParametersValues, 252, 1),  // Variance activation threshold
 };
 
 // Initialize composition defaults for clean effect blending

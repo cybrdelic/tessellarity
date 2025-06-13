@@ -1,18 +1,6 @@
 // Pure lighting calculations - completely independent
 // All lighting functions are self-contained and only depend on their inputs
-
-// Include configuration constants
-const DEFAULT_MAIN_LIGHT_DIR = vec3f(0.3, -0.7, -0.6);
-const DEFAULT_FILL_LIGHT_DIR = vec3f(-0.5, -0.3, 0.8);
-const DEFAULT_RIM_LIGHT_DIR = vec3f(0.8, 0.2, -0.4);
-const DEFAULT_MAIN_LIGHT_COLOR = vec3f(1.0, 1.0, 1.0);
-const DEFAULT_FILL_LIGHT_COLOR = vec3f(1.0, 1.0, 1.0);
-const DEFAULT_RIM_LIGHT_COLOR = vec3f(1.0, 1.0, 1.0);
-const DEFAULT_MAIN_LIGHT_INTENSITY = 1.0;
-const DEFAULT_FILL_LIGHT_INTENSITY = 0.0;
-const DEFAULT_RIM_LIGHT_INTENSITY = 0.0;
-const DEPTH_ATTENUATION_SCALE = 0.08;
-const THICKNESS_ATTENUATION_SCALE = 0.4;
+// Constants are defined in config.wgsl
 
 // Create lighting environment with configurable defaults - COMPLETELY INDEPENDENT
 fn createLightingEnvironment(lightingControls: LightingControls, uniforms: RenderUniforms,

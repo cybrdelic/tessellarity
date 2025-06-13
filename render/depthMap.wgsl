@@ -1,39 +1,39 @@
 struct VertexOutput {
-    @builtin(position) position: vec4f, 
-    @location(0) uv: vec2f, 
-    @location(1) view_position: vec3f, 
+    @builtin(position) position: vec4f,
+    @location(0) uv: vec2f,
+    @location(1) view_position: vec3f,
 }
 
-struct FragmentInput {
-    @location(0) uv: vec2f, 
-    @location(1) view_position: vec3f, 
+struct DepthMapFragmentInput {
+    @location(0) uv: vec2f,
+    @location(1) view_position: vec3f,
 }
 
 struct FragmentOutput {
-    @location(0) frag_color: vec4f, 
-    @builtin(frag_depth) frag_depth: f32, 
+    @location(0) frag_color: vec4f,
+    @builtin(frag_depth) frag_depth: f32,
 }
 
 struct RenderUniforms {
-    texel_size: vec2f, 
-    sphere_size: f32, 
-    inv_projection_matrix: mat4x4f, 
-    projection_matrix: mat4x4f, 
-    view_matrix: mat4x4f, 
-    inv_view_matrix: mat4x4f, 
+    texel_size: vec2f,
+    sphere_size: f32,
+    inv_projection_matrix: mat4x4f,
+    projection_matrix: mat4x4f,
+    view_matrix: mat4x4f,
+    inv_view_matrix: mat4x4f,
 }
 
 struct PosVel {
-    position: vec3f, 
-    v: vec3f, 
+    position: vec3f,
+    v: vec3f,
 }
 
 @group(0) @binding(0) var<storage> particles: array<PosVel>;
 @group(0) @binding(1) var<uniform> uniforms: RenderUniforms;
 
 @vertex
-fn vs(    
-    @builtin(vertex_index) vertex_index: u32, 
+fn vs(
+    @builtin(vertex_index) vertex_index: u32,
     @builtin(instance_index) instance_index: u32
 ) -> VertexOutput {
     var corner_positions = array(
@@ -59,7 +59,7 @@ fn vs(
 }
 
 @fragment
-fn fs(input: FragmentInput) -> FragmentOutput {
+fn fs(input: DepthMapFragmentInput) -> FragmentOutput {
     var out: FragmentOutput;
 
     var normalxy: vec2f = input.uv * 2.0 - 1.0;

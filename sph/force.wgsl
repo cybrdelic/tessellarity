@@ -30,7 +30,8 @@ struct SPHParams {
     restDensity: f32,
     viscosity: f32,
     surfaceTension: f32,
-    vorticityConfinement: f32,  // Add vorticity confinement parameter    xsphViscosity: f32,
+    vorticityConfinement: f32,  // Add vorticity confinement parameter
+    xsphViscosity: f32,
     boundaryStiffness: f32,
     boundaryDamping: f32,
     n: u32
@@ -93,10 +94,11 @@ fn cellNumberFromId(xi: i32, yi: i32, zi: i32) -> i32 {
 @compute @workgroup_size(64)
 fn computeForce(@builtin(global_invocation_id) id: vec3<u32>) {
     if id.x < params.n {
-        let n = params.n;
-        let density_i = particles[id.x].density;
+        let n = params.n;        let density_i = particles[id.x].density;
         let nearDensity_i = particles[id.x].nearDensity;
-        let pos_i = particles[id.x].position;        var fPress = vec3(0.0, 0.0, 0.0);
+        let pos_i = particles[id.x].position;
+
+        var fPress = vec3(0.0, 0.0, 0.0);
         var fVisc = vec3(0.0, 0.0, 0.0);
         var fSurfaceTension = vec3(0.0, 0.0, 0.0);
         var vorticity = vec3(0.0, 0.0, 0.0);  // Add vorticity calculation

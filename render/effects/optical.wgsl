@@ -1,12 +1,6 @@
 // Pure optical effects - independent calculations
 // All functions are self-contained with clear inputs and outputs
-
-// Configuration constants - centralized defaults
-const PURE_WATER_ABSORPTION_RGB = vec3f(0.03, 0.025, 0.02);
-const DEEP_WATER_ABSORPTION_RGB = vec3f(0.2, 0.08, 0.03);
-const AIR_IOR = 1.0;
-const WATER_IOR = 1.33;
-const LUMINANCE_WEIGHTS = vec3f(0.299, 0.587, 0.114);
+// Constants are defined in config.wgsl
 
 // Fresnel calculation
 fn calculateFresnel(surface: SurfaceData, fresnelPower: f32, fresnelScale: f32, fresnelBias: f32, reflectivity: f32) -> f32 {
@@ -83,7 +77,82 @@ fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, curvat
     }
     if lighting.rimLightIntensity > 0.0 {
         totalLightPenetration += max(0.0, -dot(surface.normal, lighting.rimLightDir)) * lighting.rimLightIntensity * 0.3;
+    }    return curvatureFocus * totalLightPenetration * causticsStrength;
+}
+
+// Variance Light Transport - reduces noise in light distribution
+fn calculateVarianceLightTransport(surface: SurfaceData, lighting: LightingEnvironment,
+    texture: texture_2d<f32>, uv: vec2f, texelSize: vec2f,
+    samples: f32, strength: f32, radius: f32, threshold: f32) -> vec3f {
+
+    if strength <= 0.0 || samples <= 1.0 {
+        return vec3f(1.0);
     }
 
-    return curvatureFocus * totalLightPenetration * causticsStrength;
+    // Get texture dimensions for safe sampling
+    var textureDims = textureDimensions(texture);
+    var invTextureDims = vec2f(1.0) / vec2f(textureDims);
+
+    // Sample neighboring pixels to calculate variance
+    var lightVariance = vec3f(0.0);
+    var meanLight = vec3f(0.0);
+    var validSamples = 0.0;
+
+    // 3x3 sampling pattern - use textureLoad for depth textures
+    for (var x = -1; x <= 1; x += 1) {
+        for (var y = -1; y <= 1; y += 1) {
+            var sampleCoord = vec2i(uv * vec2f(textureDims)) + vec2i(x, y) * i32(radius);
+            sampleCoord = clamp(sampleCoord, vec2i(0), vec2i(textureDims) - vec2i(1));
+
+            var sampleDepth = textureLoad(texture, sampleCoord, 0).r;
+
+            // Use conditional expressions for uniform control flow
+            var isValid = f32(sampleDepth < 1e4 && sampleDepth > 0.0);
+            var lightContrib = calculateSampleLightContribution(sampleDepth, lighting);
+            meanLight += lightContrib * isValid;
+            validSamples += isValid;
+        }
+    }
+
+    if validSamples < 2.0 {
+        return vec3f(1.0);
+    }
+
+    meanLight /= validSamples;
+
+    // Calculate variance using the same sampling pattern
+    for (var x = -1; x <= 1; x += 1) {
+        for (var y = -1; y <= 1; y += 1) {
+            var sampleCoord = vec2i(uv * vec2f(textureDims)) + vec2i(x, y) * i32(radius);
+            sampleCoord = clamp(sampleCoord, vec2i(0), vec2i(textureDims) - vec2i(1));
+
+            var sampleDepth = textureLoad(texture, sampleCoord, 0).r;
+
+            var isValid = f32(sampleDepth < 1e4 && sampleDepth > 0.0);
+            var lightContrib = calculateSampleLightContribution(sampleDepth, lighting);
+            var diff = (lightContrib - meanLight) * isValid;
+            lightVariance += diff * diff;
+        }
+    }
+
+    lightVariance /= validSamples;    // Convert variance to a smoothing factor with enhanced sensitivity
+    var varianceAmount = length(lightVariance);
+    var smoothingFactor = clamp(varianceAmount * strength * 2.0, 0.0, 1.0);
+
+    // Apply variance-based light transport correction with enhanced visibility
+    var correctionFactor = mix(1.0, 1.0 - smoothingFactor * 0.8,
+        step(threshold, varianceAmount));
+
+    // Enhanced mixing for more visible effect with stronger color variation
+    var colorCorrection = mix(vec3f(1.0), meanLight * 1.5, smoothingFactor * 0.9);
+    return vec3f(correctionFactor) * colorCorrection;
+}
+
+// Helper function to calculate light contribution for a depth sample
+fn calculateSampleLightContribution(depth: f32, lighting: LightingEnvironment) -> vec3f {
+    // Simple light falloff based on depth
+    var lightPenetration = exp(-depth * 0.1);
+    var contribution = lighting.mainLightColor * lighting.mainLightIntensity * lightPenetration;
+    contribution += lighting.ambientColor * lighting.ambientIntensity * 0.5;
+    return clamp(contribution, vec3f(0.0), vec3f(2.0));
 }

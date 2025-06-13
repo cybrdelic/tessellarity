@@ -1,12 +1,6 @@
 // Color modification effects - independent color calculations
 // All color effects are self-contained and composable
-
-// Configuration constants
-const DEPTH_COLOR_TINT_MULTIPLIER = vec3f(0.3, 0.8, 1.2);
-const COOL_WATER_TINT_MULTIPLIER = vec3f(0.9, 0.95, 1.05);
-const DEFAULT_WATER_COLOR = vec3f(0.2, 0.6, 0.8);
-const FOAM_COLOR = vec3f(1.0, 1.0, 1.0);
-const FOAM_OPACITY = 0.8;
+// Constants are defined in config.wgsl
 
 // Depth-based color modification
 fn calculateDepthColoring(surface: SurfaceData, waterColor: vec3f, sphereSize: f32, depthColorStrength: f32) -> vec3f {
@@ -83,12 +77,4 @@ fn calculateFoamColor(baseColor: vec3f, foam: f32, foamColor: vec3f) -> vec3f {
         return mix(baseColor, FOAM_COLOR, foam * FOAM_OPACITY);
     }
     return mix(baseColor, foamColor, foam * FOAM_OPACITY);
-}
-
-// Safe water color fallback
-fn getSafeWaterColor(inputColor: vec3f) -> vec3f {
-    if length(inputColor) < 0.01 {
-        return DEFAULT_WATER_COLOR;
-    }
-    return inputColor;
 }
