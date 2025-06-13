@@ -386,8 +386,6 @@ fn calculateReynoldsPhysics(velocity: vec3f, characteristicLength: f32, viscosit
 
     physics.pressure = physics.velocityMagnitude * 0.1;
     physics.density = 1.0 + physics.pressure * 0.3;
-    physics.cavitation = 1.0; // Initialize cavitation
-    physics.vorticity = vec3f(0.0); // Initialize vorticity
 
     return physics;
 }
@@ -517,17 +515,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     // === INDEPENDENT CALCULATIONS ===
     var surface = createSurfaceData(input);
-    var lighting = createLightingEnvironment();    // Physics calculations (independent)
-    var physics: PhysicsData;
-    // Initialize physics data with defaults
-    physics.velocity = vec3f(0.0);
-    physics.velocityMagnitude = 0.0;
-    physics.pressure = 0.0;
-    physics.density = 1.0;
-    physics.turbulence = 0.0;
-    physics.cavitation = 1.0;
-    physics.vorticity = vec3f(0.0);
+    var lighting = createLightingEnvironment();
 
+    // Physics calculations (independent)
+    var physics: PhysicsData;
     var foam = 0.0;
     var cavitation = 1.0;
 
@@ -537,7 +528,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         var velocity = vec3f(length(ddx), length(vec3f(ddx.y, ddy.y, 0.0)), length(ddy));
 
         physics = calculateReynoldsPhysics(velocity, uniforms.sphere_size, effectParams.viscosityFactor,
-            effectParams.reynoldsScale, effectParams.turbulenceStrength);
+                                         effectParams.reynoldsScale, effectParams.turbulenceStrength);
 
         if effectsToggle.enableTurbulentNormals != 0u && physics.turbulence > 0.25 {
             var surfaceOffset = vec3f(
@@ -568,7 +559,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableFresnel != 0u {
         fresnel = calculateFresnel(surface, effectParams.fresnelPower, effectParams.fresnelScale,
-            effectParams.fresnelBias, waterAppearance.reflectivity);
+                                 effectParams.fresnelBias, waterAppearance.reflectivity);
     }
 
     if effectsToggle.enableAbsorption != 0u {
@@ -587,7 +578,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableSpecular != 0u {
         specular = calculateSpecular(surface, lighting, effectParams.specularPower,
-            effectParams.specularScale * lightingControls.specularIntensityMultiplier);
+                                   effectParams.specularScale * lightingControls.specularIntensityMultiplier);
         specular *= (1.0 - foam * 0.7);
     }
 
@@ -619,13 +610,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     volumetric = lighting.backgroundColor * lightPenetration * lightingControls.volumetricIntensity * depthAttenuation;
     volumetric += caustics * lighting.backgroundColor * 0.3;
 
-    var ambient = lighting.ambientColor * lighting.ambientIntensity * clamp(surface.thickness * 0.5, 0.15, 0.7);    // Color calculations (independent)
-    var baseColor = waterAppearance.color.rgb * absorption;
+    var ambient = lighting.ambientColor * lighting.ambientIntensity * clamp(surface.thickness * 0.5, 0.15, 0.7);
 
-    // Safety check: ensure we have a reasonable base color
-    if length(baseColor) < 0.01 {
-        baseColor = vec3f(0.2, 0.6, 0.8); // Default blue water color
-    }
+    // Color calculations (independent)
+    var baseColor = waterAppearance.color.rgb * absorption;
 
     var depthColor = vec3f(1.0);
     if effectsToggle.enableDepthColoring != 0u {
@@ -671,12 +659,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
             case 3u: { return vec4f(0.5 * surface.normal + 0.5, 1.0); }
             case 4u: { return vec4f(vec3f((1.0 - length(absorption)) * debug.intensity), 1.0); }
             case 5u: { return vec4f(vec3f(physics.velocityMagnitude * debug.intensity), 1.0); }
-            case 6u: { return vec4f(vec3f(physics.density * debug.intensity * 0.1), 1.0); }            case 8u: { return vec4f(vec3f(fresnel), 1.0); }
+            case 6u: { return vec4f(vec3f(physics.density * debug.intensity * 0.1), 1.0); }
+            case 8u: { return vec4f(vec3f(fresnel), 1.0); }
             case 9u: { return vec4f(vec3f(caustics * debug.intensity), 1.0); }
-            default: {
-                // Return normal final color instead of error color
-                return vec4f(finalColor, alpha);
-            }
+            default: { return vec4f(1.0, 0.0, 1.0, 1.0); }
         }
     }
 
