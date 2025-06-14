@@ -1,9 +1,14 @@
-# Webgpu-Ocean
-A real-time 3d fluid simulation implemented in WebGPU. Works on your browsers which support WebGPU. 
+# Tessellarity
 
-[Try demo here!](https://webgpu-ocean.netlify.app/)
+Tessellarity is an enhanced branch of the WebGPU-Ocean fluid simulation project, featuring modular architecture, comprehensive documentation, and developer tools for real-time particle-based fluid dynamics. This project builds upon the foundational work of the original WebGPU-Ocean fluid simulation, extending it with educational resources, plugin systems, and enhanced user experience while preserving the core MLS-MPM and SPH simulation algorithms.
 
-![webgpu-ocean-demo](https://github.com/user-attachments/assets/5b008b16-7d46-4e09-af21-d70f6fa2ec20)
+**🌊 Based on WebGPU-Ocean fluid simulation technology**
+
+A real-time 3D fluid simulation implemented in WebGPU that works on browsers supporting WebGPU.
+
+[Try demo here!](https://webgpu-ocean.netlify.app/) *(Original WebGPU-Ocean demo)*
+
+![tessellarity-demo](https://github.com/user-attachments/assets/5b008b16-7d46-4e09-af21-d70f6fa2ec20)
 
 The following are the characteristics of the simulation.
 - [**Moving Least Squares Material Point Method (MLS-MPM)**](https://yzhu.io/publication/mpmmls2018siggraph/paper.pdf) by Hu et al. is implemented for the simulation. This algorithm enabled real-time simulation with **~100,000 particles on integrated graphics** and **~300,000 particles on decent GPUs**
@@ -11,7 +16,7 @@ The following are the characteristics of the simulation.
   - Particle to Grid (P2G) stage is implemented with atomicAdd.
 - **Smoothed Particle Hydrodynamics (SPH)** based on [Particle-Based Fluid Simulation for Interactive Applications](https://matthias-research.github.io/pages/publications/sca03.pdf) by Müller et al. is also implemented.
   - You can enable SPH simulation by clicking "SPH" button on the top right.
-  - For **fast neighborhood search on GPU**, an algorithm described in [FAST FIXED-RADIUS NEAREST NEIGHBORS: INTERACTIVE MILLION-PARTICLE FLUIDS](https://ramakarl.com/pdfs/2014_Hoetzlein_FastFixedRadius_Neighbors.pdf) is used. 
+  - For **fast neighborhood search on GPU**, an algorithm described in [FAST FIXED-RADIUS NEAREST NEIGHBORS: INTERACTIVE MILLION-PARTICLE FLUIDS](https://ramakarl.com/pdfs/2014_Hoetzlein_FastFixedRadius_Neighbors.pdf) is used.
 - **Screen-Space Fluid Rendering** described in [GDC 2010 slide](https://developer.download.nvidia.com/presentations/2010/gdc/Direct3D_Effects.pdf) is used for real-time rendering of the fluid.
 ## Implementation details of MLS-MPM
 Initially the simulation in this project was based on **Smoothed Particle Hydrodynamics (SPH)**. However, since the neighborhood search is really expensive, the maximum number of particles that can be simulated in real-time was 30,000 at best on integrated graphics. So I decided to implement **Moving Least Squares Material Point Method (MLS-MPM)** which is completely free from neighborhood search. The results were very good, enabling real-time simulations of **~100,000 particles on integrated graphics** and **~300,000 particles on decent GPUs.**
