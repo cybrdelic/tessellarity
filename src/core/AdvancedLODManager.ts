@@ -79,6 +79,33 @@ export interface AdvancedLODConfig {
     minParticleSizeScale: number;     // Size multiplier when close (e.g., 0.2 = 20% of original size)
     maxParticleSizeScale: number;     // Size multiplier when far (e.g., 1.0 = 100% of original size)
     particleSizeTransition: boolean;  // Smooth size transitions
+
+    // === MOTION-ADAPTIVE LOD ===
+    // Quality adaptation based on camera and fluid motion
+    enableMotionAdaptiveLOD: boolean;
+    motionSensitivityThreshold: number;   // Movement threshold to trigger quality changes
+    highMotionQualityBoost: number;       // Quality multiplier during fast motion (1.0-2.0)
+    staticSceneQualityReduction: number;  // Quality reduction when static (0.7-1.0)
+
+    // === VIEW-DEPENDENT OPTIMIZATION ===
+    // Higher quality in center of view, lower at edges
+    enableViewDependentLOD: boolean;
+    centerViewQualityRadius: number;      // Radius of high-quality center area (0.0-1.0)
+    edgeQualityFalloff: number;           // How quickly quality falls off toward edges (0.1-1.0)
+
+    // === SMART PARTICLE DISTRIBUTION ===
+    // Intelligent particle density based on fluid features
+    enableSmartDistribution: boolean;
+    preserveBoundaryParticles: boolean;   // Keep particles at fluid boundaries
+    bulkFluidReduction: number;           // Reduction in bulk interior (0.5-1.0)
+    interfaceDetectionRadius: number;     // Radius for detecting fluid interfaces
+
+    // === DYNAMIC EFFECT SCALING ===
+    // Scale effects based on their visual contribution
+    enableDynamicEffectScaling: boolean;
+    causticsImportanceThreshold: number;  // Distance threshold for caustics
+    foamDetailDistance: number;           // Distance for detailed foam rendering
+    reflectionQualityDistance: number;    // Distance for high-quality reflections
 }
 
 export class AdvancedLODManager {
@@ -94,6 +121,13 @@ export class AdvancedLODManager {
     private currentLightingMode: string = 'full';
     private currentGeometryLevel: number = 0;
     private currentPhysicsMode: string = 'full';
+
+    // Advanced state tracking
+    private lastCameraPosition: [number, number, number] = [0, 0, 0];
+    private cameraVelocity: [number, number, number] = [0, 0, 0];
+    private motionHistory: number[] = [];
+    private viewCenterQualityMap: Map<string, number> = new Map();
+    private staticFrameCount: number = 0;
 
     constructor(config: Partial<AdvancedLODConfig> = {}) {
         this.config = {            // Basic LOD defaults - REALISTIC fluid behavior
@@ -153,6 +187,29 @@ export class AdvancedLODManager {
             maxParticleSizeScale: 1.0,        // 100% of original size when CLOSE (maintain fluid appearance)
             particleSizeTransition: true,
 
+            // Motion-adaptive LOD defaults
+            enableMotionAdaptiveLOD: true,
+            motionSensitivityThreshold: 2.0,    // Units per frame to trigger motion response
+            highMotionQualityBoost: 1.3,        // 30% more particles during fast motion
+            staticSceneQualityReduction: 0.85,  // 15% fewer particles when static
+
+            // View-dependent optimization defaults
+            enableViewDependentLOD: true,
+            centerViewQualityRadius: 0.4,       // 40% of screen center gets full quality
+            edgeQualityFalloff: 0.6,            // Quality drops to 60% at edges
+
+            // Smart particle distribution defaults
+            enableSmartDistribution: true,
+            preserveBoundaryParticles: true,    // Always keep boundary particles for shape
+            bulkFluidReduction: 0.7,            // Reduce bulk interior to 70% when far
+            interfaceDetectionRadius: 3.0,      // Radius for detecting interesting areas
+
+            // Dynamic effect scaling defaults
+            enableDynamicEffectScaling: true,
+            causticsImportanceThreshold: 80,    // Disable caustics beyond 80 units
+            foamDetailDistance: 60,             // High-detail foam within 60 units
+            reflectionQualityDistance: 100,     // High-quality reflections within 100 units
+
             ...config
         };
 
@@ -174,11 +231,19 @@ export class AdvancedLODManager {
         // Update performance tracking
         this.updatePerformanceTracking(frameTime);
 
-        // Calculate focus-enhanced particle ratio
-        const focusEnhancedRatio = this.calculateFocusEnhancedLOD(cameraDistance, cameraPosition);
+        // Update motion analysis
+        this.updateMotionAnalysis(cameraPosition);
 
-        // Determine shader complexity mode
-        const shaderSettings = this.calculateShaderLOD(cameraDistance);
+        // Calculate motion-adaptive quality multiplier
+        const motionMultiplier = this.calculateMotionAdaptiveMultiplier();
+
+        // Calculate view-dependent quality map
+        const viewDependentMultiplier = this.calculateViewDependentQuality(cameraPosition);
+
+        // Calculate focus-enhanced particle ratio with motion and view adaptations
+        const baseFocusRatio = this.calculateFocusEnhancedLOD(cameraDistance, cameraPosition);
+        const adaptiveParticleRatio = baseFocusRatio * motionMultiplier * viewDependentMultiplier;        // Determine shader complexity mode with dynamic effect scaling
+        const shaderSettings = this.calculateEnhancedShaderLOD(cameraDistance);
 
         // Calculate lighting LOD
         const lightingSettings = this.calculateLightingLOD(cameraDistance);
@@ -200,7 +265,7 @@ export class AdvancedLODManager {
 
         // Apply performance-based adaptations
         const performanceAdjustedSettings = this.applyPerformanceAdaptation({
-            particleRatio: focusEnhancedRatio,
+            particleRatio: adaptiveParticleRatio,
             ...shaderSettings,
             ...lightingSettings,
             ...temporalSettings,
@@ -210,7 +275,13 @@ export class AdvancedLODManager {
             ...particleSizeSettings
         });
 
-        return performanceAdjustedSettings;
+        // Calculate smart particle distribution
+        const smartDistributionRatio = this.calculateSmartDistribution(cameraDistance, performanceAdjustedSettings.particleRatio);
+
+        return {
+            ...performanceAdjustedSettings,
+            particleRatio: smartDistributionRatio
+        };
     }
 
     /**
@@ -310,6 +381,41 @@ export class AdvancedLODManager {
         }
 
         return { shaderMode: 'full', effectsEnabled: this.getFullEffectsSet() };
+    }
+
+    /**
+     * Enhanced shader LOD with dynamic effect scaling
+     */
+    private calculateEnhancedShaderLOD(cameraDistance: number): ShaderLODSettings {
+        const baseShaderSettings = this.calculateShaderLOD(cameraDistance);
+        
+        if (!this.config.enableDynamicEffectScaling) {
+            return baseShaderSettings;
+        }
+
+        // Dynamically adjust effects based on distance thresholds
+        const enhancedEffects = { ...baseShaderSettings.effectsEnabled };
+
+        // Caustics - expensive, disable beyond threshold
+        if (cameraDistance > this.config.causticsImportanceThreshold) {
+            enhancedEffects.caustics = false;
+        }
+
+        // High-quality reflections - disable beyond threshold
+        if (cameraDistance > this.config.reflectionQualityDistance) {
+            enhancedEffects.reflection = false;
+        }
+
+        // Detailed foam - reduce complexity beyond threshold
+        if (cameraDistance > this.config.foamDetailDistance) {
+            // Could adjust foam complexity here (this is conceptual)
+            enhancedEffects.foam = cameraDistance < this.config.foamDetailDistance * 1.5;
+        }
+
+        return {
+            shaderMode: baseShaderSettings.shaderMode,
+            effectsEnabled: enhancedEffects
+        };
     }
 
     /**
@@ -523,6 +629,69 @@ export class AdvancedLODManager {
         }
     }
 
+    /**
+     * Update motion analysis based on camera movement
+     */
+    private updateMotionAnalysis(cameraPosition: [number, number, number]): void {
+        // Calculate camera velocity
+        const deltaX = cameraPosition[0] - this.lastCameraPosition[0];
+        const deltaY = cameraPosition[1] - this.lastCameraPosition[1];
+        const deltaZ = cameraPosition[2] - this.lastCameraPosition[2];
+        
+        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+        
+        // Update motion history
+        this.motionHistory.push(speed);
+        if (this.motionHistory.length > 10) {
+            this.motionHistory.shift();
+        }
+        
+        // Update static frame counter
+        if (speed < 0.01) {
+            this.staticFrameCount++;
+        } else {
+            this.staticFrameCount = 0;
+        }
+        
+        // Update camera velocity
+        this.cameraVelocity = [deltaX, deltaY, deltaZ];
+        this.lastCameraPosition = [...cameraPosition];
+    }
+
+    /**
+     * Calculate motion-adaptive quality multiplier
+     */
+    private calculateMotionAdaptiveMultiplier(): number {
+        if (!this.config.enableMotionAdaptiveLOD) {
+            return 1.0;
+        }
+
+        const avgSpeed = this.motionHistory.reduce((a, b) => a + b, 0) / this.motionHistory.length;
+        
+        if (avgSpeed > this.config.motionSensitivityThreshold) {
+            // Fast motion - increase quality for better continuity
+            return this.config.highMotionQualityBoost;
+        } else if (this.staticFrameCount > 60) { // 1 second at 60fps
+            // Static scene - can reduce quality
+            return this.config.staticSceneQualityReduction;
+        }
+        
+        return 1.0;
+    }
+
+    /**
+     * Calculate view-dependent quality multiplier
+     */
+    private calculateViewDependentQuality(cameraPosition: [number, number, number]): number {
+        if (!this.config.enableViewDependentLOD) {
+            return 1.0;
+        }
+
+        // For now, return a base multiplier - this would be expanded with actual screen-space calculations
+        // In a full implementation, this would analyze which particles are in the center vs edges of the view
+        return 1.0; // Placeholder - would calculate based on screen position
+    }
+
     private getAverageFrameRate(): number {
         if (this.performanceHistory.length === 0) return 60;
 
@@ -623,6 +792,31 @@ export class AdvancedLODManager {
             focusPoint: [...this.focusPoint],
             enabled: this.config.enabled
         };
+    }
+
+    /**
+     * Calculate smart particle distribution settings
+     */
+    private calculateSmartDistribution(cameraDistance: number, particleRatio: number): number {
+        if (!this.config.enableSmartDistribution) {
+            return particleRatio;
+        }
+
+        // When far away, intelligently reduce particles in bulk fluid while preserving boundaries
+        if (cameraDistance > this.config.maxDistance * 0.6) {
+            // Conceptual: In a real implementation, this would:
+            // 1. Identify boundary particles (particles near fluid surface)
+            // 2. Identify bulk interior particles
+            // 3. Preferentially keep boundary particles for shape preservation
+            // 4. Reduce bulk particles more aggressively
+            
+            const bulkReductionFactor = this.config.preserveBoundaryParticles ? 
+                this.config.bulkFluidReduction : 1.0;
+            
+            return particleRatio * (0.3 + 0.7 * bulkReductionFactor); // Blend boundary preservation
+        }
+
+        return particleRatio;
     }
 }
 
