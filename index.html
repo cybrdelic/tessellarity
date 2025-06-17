@@ -1392,6 +1392,93 @@
       }
     }
 
+    /* LOD Controls Specific Styling */
+    #lod-status {
+      transition: all 0.3s ease;
+    }
+
+    #lod-status:hover {
+      background: rgba(0, 122, 255, 0.15);
+      border-color: rgba(0, 122, 255, 0.4);
+    }
+
+    #lod-level-badge {
+      transition: all 0.3s ease;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    #lod-advanced-settings {
+      transition: all 0.3s ease;
+    }
+
+    #lod-advanced-settings:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    #lod-settings-toggle {
+      transition: all 0.3s ease;
+    }
+
+    #lod-settings-toggle:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    #lod-settings-content {
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    /* LOD Preset Button Enhancements */
+    .lod-preset-button {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lod-preset-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.3), transparent);
+      transition: left 0.6s ease;
+    }
+
+    .lod-preset-button:hover::before {
+      left: 100%;
+    }
+
+    /* LOD Status Update Animation */
+    .lod-updating {
+      animation: lodPulse 0.6s ease-in-out;
+    }
+
+    @keyframes lodPulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.7;
+      }
+    }
+
+    /* LOD Performance Indicators */
+    .lod-performance-optimal {
+      color: var(--accent-success) !important;
+    }
+
+    .lod-performance-balanced {
+      color: var(--accent-warning) !important;
+    }
+
+    .lod-performance-performance {
+      color: var(--accent-danger) !important;
+    }
+
     /* Debug UI Styling */
     .debug-info-overlay {
       position: fixed;
@@ -3132,16 +3219,197 @@
             <input type="range" id="caustics-contrast" min="0.1" max="3.0" step="0.1" value="1.0" />
           </div>
         </div>
-      </div>
-
-      <!-- Add reset all parameters button -->
+      </div> <!-- Add reset all parameters button -->
       <button id="reset-all-parameters" class="header-btn"
         style="width: 100%; margin-top: 1rem; background: var(--accent-secondary); color: #fff;">
         <i class="fas fa-undo-alt"></i>
         <span>Reset All Parameters</span>
       </button>
     </div>
-  </div> <!-- Instructions Panel -->
+
+    <!-- LOD (Level of Detail) Controls -->
+    <div class="control-group">
+      <label class="control-label">
+        <i class="fas fa-layer-group" style="margin-right: 0.5rem; color: var(--accent-color);"></i>
+        Level of Detail (LOD)
+      </label>
+      <div class="control-description">Dynamically adjust particle count based on camera distance for better performance
+      </div>
+
+      <!-- LOD Enable/Disable -->
+      <div class="checkbox-container" id="lod-enable-toggle">
+        <input type="checkbox" id="enable-lod" checked>
+        <div>
+          <div class="radio-option-label">Enable Adaptive LOD</div>
+          <div class="radio-option-description">Automatically reduce particles when camera is far away</div>
+        </div>
+      </div>
+
+      <!-- LOD Status Display -->
+      <div id="lod-status"
+        style="margin: var(--space-md) 0; padding: var(--space-md); background: rgba(0, 122, 255, 0.1); border: 1px solid rgba(0, 122, 255, 0.3); border-radius: 0;">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
+          <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">
+            <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>
+            LOD Status
+          </span>
+          <span id="lod-level-badge"
+            style="padding: 0.25rem 0.5rem; background: var(--accent-color); color: white; font-size: 0.75rem; font-weight: 600; border-radius: 0;">
+            HIGH
+          </span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); font-size: 0.85rem;">
+          <div>
+            <span style="color: var(--text-muted);">Active Particles:</span>
+            <div id="lod-active-particles" style="color: var(--text-primary); font-weight: 600;">70,000</div>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">Camera Distance:</span>
+            <div id="lod-camera-distance" style="color: var(--text-primary); font-weight: 600;">25.0</div>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">LOD Ratio:</span>
+            <div id="lod-ratio" style="color: var(--text-primary); font-weight: 600;">100%</div>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">Performance:</span>
+            <div id="lod-performance" style="color: var(--accent-success); font-weight: 600;">Optimal</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOD Presets -->
+      <div style="margin-bottom: var(--space-lg);">
+        <div style="margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">LOD Presets</span>
+        </div>
+        <div
+          style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); margin-bottom: var(--space-md);">
+          <button id="lod-preset-performance" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-rocket"></i>
+            <span>Performance</span>
+          </button>
+          <button id="lod-preset-balanced" class="header-btn primary" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-balance-scale"></i>
+            <span>Balanced</span>
+          </button>
+          <button id="lod-preset-quality" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-gem"></i>
+            <span>Quality</span>
+          </button>
+          <button id="lod-preset-custom" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-cog"></i>
+            <span>Custom</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- LOD Advanced Settings -->
+      <div id="lod-advanced-settings"
+        style="border: 1px solid rgba(255, 255, 255, 0.1); padding: var(--space-md); margin-bottom: var(--space-md);">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">
+            <i class="fas fa-sliders-h" style="margin-right: 0.5rem;"></i>
+            Advanced LOD Settings
+          </span>
+          <button id="lod-settings-toggle" class="header-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+
+        <div id="lod-settings-content" style="display: none;">
+          <!-- Min Distance -->
+          <div class="slider-container" style="margin-bottom: var(--space-md);">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Min Distance (Full Detail)</span>
+                <span class="slider-value" id="lod-min-distance-value">30</span>
+              </div>
+              <button class="slider-reset" onclick="resetLODParameter('lod-min-distance', 30)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="lod-min-distance" min="10" max="100" value="30" />
+            <div
+              style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+              <span>Close</span>
+              <span>Far</span>
+            </div>
+          </div>
+
+          <!-- Max Distance -->
+          <div class="slider-container" style="margin-bottom: var(--space-md);">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Max Distance (Low Detail)</span>
+                <span class="slider-value" id="lod-max-distance-value">200</span>
+              </div>
+              <button class="slider-reset" onclick="resetLODParameter('lod-max-distance', 200)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="lod-max-distance" min="50" max="500" value="200" />
+            <div
+              style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+              <span>Close</span>
+              <span>Very Far</span>
+            </div>
+          </div>
+
+          <!-- Min Particle Ratio -->
+          <div class="slider-container" style="margin-bottom: var(--space-md);">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Min Particle Ratio</span>
+                <span class="slider-value" id="lod-min-ratio-value">15%</span>
+              </div>
+              <button class="slider-reset" onclick="resetLODParameter('lod-min-ratio', 15)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="lod-min-ratio" min="5" max="50" value="15" />
+            <div
+              style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+              <span>5%</span>
+              <span>50%</span>
+            </div>
+          </div>
+
+          <!-- Smooth Transition -->
+          <div class="checkbox-container" style="margin-bottom: var(--space-md);">
+            <input type="checkbox" id="lod-smooth-transition" checked>
+            <div>
+              <div class="radio-option-label">Smooth Transitions</div>
+              <div class="radio-option-description">Gradually change particle count to avoid flickering</div>
+            </div>
+          </div>
+
+          <!-- Update Frequency -->
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Update Frequency</span>
+                <span class="slider-value" id="lod-update-frequency-value">5 frames</span>
+              </div>
+              <button class="slider-reset" onclick="resetLODParameter('lod-update-frequency', 5)"
+                title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="lod-update-frequency" min="1" max="30" value="5" />
+            <div
+              style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+              <span>Every Frame</span>
+              <span>30 Frames</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- Instructions Panel -->
   <div id="instructions-panel" class="instructions-panel">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
       <h4 style="margin: 0;">
@@ -3773,7 +4041,9 @@
       }
 
       requestAnimationFrame(animate);
-    } function showMaterialPresetFeedback(name) {
+    }
+
+    function showMaterialPresetFeedback(name) {
       const feedback = document.createElement('div');
       feedback.innerHTML = `
         <div style="display: flex; align-items: center; gap: var(--space-sm);">
@@ -3858,15 +4128,22 @@
           resetButton.style.transform = '';
         }, 150);
       }
-    }    // Initialize color presets when DOM is loaded    document.addEventListener('DOMContentLoaded', () => {    initializeColorPresets();
-    initializeMaterialPresets();
-    initializeSliderTooltips();
-    initializeSliderEnhancements();
-    initializeSmartValueIndicators();
-    initializeGeneralCheckboxes();
-    initializeEffectsToggles();
-    initializeLightingControls();
-    initializeEffectParameters();
+    }
+
+    // Initialize color presets when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeColorPresets();
+      initializeMaterialPresets();
+      initializeSliderTooltips();
+      initializeSliderEnhancements();
+      initializeSmartValueIndicators();
+      initializeGeneralCheckboxes();
+      initializeEffectsToggles();
+      initializeLightingControls();
+      initializeEffectParameters();
+      initializeLODControls();
+    });
+
     // If DOM is already loaded, initialize immediately
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
@@ -3879,6 +4156,7 @@
         initializeEffectsToggles();
         initializeLightingControls();
         initializeEffectParameters();
+        initializeLODControls();
       });
     } else {
       initializeColorPresets();
@@ -3890,7 +4168,10 @@
       initializeEffectsToggles();
       initializeLightingControls();
       initializeEffectParameters();
-    }// General Checkbox Functionality (for visual effects only)
+      initializeLODControls();
+    }
+
+    // General Checkbox Functionality (for visual effects only)
     function initializeGeneralCheckboxes() {
       // Initialize individual effect toggles for visual effects only
       const allCheckboxes = document.querySelectorAll('.checkbox-container input[type="checkbox"]');
@@ -4929,10 +5210,395 @@
             }
           });
         });
+      } console.log('Effect parameters initialized successfully');
+    }
+
+    // --- LOD Control System ---
+
+    // LOD control state
+    let lodControlsInitialized = false;
+    let currentLODPreset = 'balanced';
+
+    // LOD Presets configuration
+    const lodPresets = {
+      performance: {
+        name: 'Performance',
+        minDistance: 20,
+        maxDistance: 100,
+        minParticleRatio: 10,
+        smoothTransition: true,
+        updateFrequency: 3
+      },
+      balanced: {
+        name: 'Balanced',
+        minDistance: 30,
+        maxDistance: 200,
+        minParticleRatio: 15,
+        smoothTransition: true,
+        updateFrequency: 5
+      },
+      quality: {
+        name: 'Quality',
+        minDistance: 50,
+        maxDistance: 300,
+        minParticleRatio: 25,
+        smoothTransition: true,
+        updateFrequency: 10
+      },
+      custom: {
+        name: 'Custom',
+        minDistance: 30,
+        maxDistance: 200,
+        minParticleRatio: 15,
+        smoothTransition: true,
+        updateFrequency: 5
+      }
+    };    // Initialize LOD controls
+    function initializeLODControls() {
+      if (lodControlsInitialized) return;
+
+      console.log('Initializing LOD controls...');
+
+      // LOD Enable/Disable
+      const lodEnableToggle = document.getElementById('enable-lod');
+      if (lodEnableToggle) {
+        lodEnableToggle.addEventListener('change', function () {
+          const enabled = this.checked;
+          console.log('LOD enabled changed to:', enabled);
+          updateLODEnabled(enabled);
+          updateLODStatus();
+        });
+        console.log('LOD enable toggle initialized');
+      } else {
+        console.error('LOD enable toggle not found');
       }
 
-      console.log('Effect parameters initialized successfully');
+      // LOD Settings Toggle
+      const lodSettingsToggle = document.getElementById('lod-settings-toggle');
+      const lodSettingsContent = document.getElementById('lod-settings-content');
+      if (lodSettingsToggle && lodSettingsContent) {
+        lodSettingsToggle.addEventListener('click', function () {
+          const isExpanded = lodSettingsContent.style.display !== 'none';
+          lodSettingsContent.style.display = isExpanded ? 'none' : 'block';
+
+          const icon = this.querySelector('i');
+          icon.className = isExpanded ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+        });
+      }
+
+      // LOD Preset buttons
+      const presetButtons = ['performance', 'balanced', 'quality', 'custom'];
+      presetButtons.forEach(preset => {
+        const button = document.getElementById(`lod-preset-${preset}`);
+        if (button) {
+          button.addEventListener('click', function () {
+            applyLODPreset(preset);
+            updateLODPresetButtons(preset);
+            showLODPresetFeedback(lodPresets[preset].name);
+          });
+        }
+      });
+
+      // LOD Parameter sliders
+      const lodSliders = [
+        { id: 'lod-min-distance', param: 'minDistance', suffix: '' },
+        { id: 'lod-max-distance', param: 'maxDistance', suffix: '' },
+        { id: 'lod-min-ratio', param: 'minParticleRatio', suffix: '%' },
+        { id: 'lod-update-frequency', param: 'updateFrequency', suffix: ' frames' }
+      ];
+
+      lodSliders.forEach(({ id, param, suffix }) => {
+        const slider = document.getElementById(id);
+        const valueDisplay = document.getElementById(id + '-value');
+
+        if (slider && valueDisplay) {
+          slider.addEventListener('input', function () {
+            const value = parseFloat(this.value);
+            const displayValue = param === 'minParticleRatio' ? value :
+              param === 'updateFrequency' ? value + suffix : value;
+            valueDisplay.textContent = displayValue;
+
+            // Update LOD system
+            updateLODParameter(param, value);
+            updateLODStatus();
+
+            // Switch to custom preset
+            if (currentLODPreset !== 'custom') {
+              currentLODPreset = 'custom';
+              updateLODPresetButtons('custom');
+            }
+          });
+        }
+      });
+
+      // Smooth transition toggle
+      const smoothToggle = document.getElementById('lod-smooth-transition');
+      if (smoothToggle) {
+        smoothToggle.addEventListener('change', function () {
+          updateLODParameter('smoothTransition', this.checked);
+          updateLODStatus();
+        });
+      }      // Initialize with balanced preset
+      applyLODPreset('balanced');
+
+      // Start LOD status updates after a delay to ensure main.ts is loaded
+      setTimeout(() => {
+        console.log('Starting LOD status updates...');
+        setInterval(updateLODStatus, 500); // Update every 500ms for better performance
+      }, 2000); // Wait 2 seconds for main.ts to initialize
+
+      lodControlsInitialized = true;
+      console.log('LOD controls initialized successfully');
+    }    // Apply LOD preset
+    function applyLODPreset(presetName) {
+      const preset = lodPresets[presetName];
+      if (!preset) {
+        console.error('LOD preset not found:', presetName);
+        return;
+      }
+
+      console.log(`Applying LOD preset: ${preset.name}`);
+
+      // Update sliders
+      updateLODSlider('lod-min-distance', preset.minDistance);
+      updateLODSlider('lod-max-distance', preset.maxDistance);
+      updateLODSlider('lod-min-ratio', preset.minParticleRatio, '%');
+      updateLODSlider('lod-update-frequency', preset.updateFrequency, ' frames');
+
+      // Update checkbox
+      const smoothToggle = document.getElementById('lod-smooth-transition');
+      if (smoothToggle) {
+        smoothToggle.checked = preset.smoothTransition;
+      }
+
+      // Update LOD system - try immediately, then retry after delay if failed
+      const configData = {
+        minDistance: preset.minDistance,
+        maxDistance: preset.maxDistance,
+        minParticleRatio: preset.minParticleRatio / 100, // Convert to decimal
+        smoothTransition: preset.smoothTransition,
+        updateFrequency: preset.updateFrequency
+      };
+
+      if (window.setLODConfig) {
+        window.setLODConfig(configData);
+      } else {
+        console.log('LOD system not ready, will retry in 1 second...');
+        setTimeout(() => {
+          if (window.setLODConfig) {
+            window.setLODConfig(configData);
+            console.log('LOD configuration applied after delay');
+          } else {
+            console.error('LOD system still not available');
+          }
+        }, 1000);
+      }
+
+      currentLODPreset = presetName;
+      updateLODStatus();
     }
+
+    // Update LOD slider value
+    function updateLODSlider(sliderId, value, suffix = '') {
+      const slider = document.getElementById(sliderId);
+      const valueDisplay = document.getElementById(sliderId + '-value');
+
+      if (slider) {
+        slider.value = value;
+      }
+      if (valueDisplay) {
+        const displayValue = suffix === '%' ? value + suffix :
+          suffix === ' frames' ? value + suffix : value;
+        valueDisplay.textContent = displayValue;
+      }
+    }
+
+    // Update LOD preset button states
+    function updateLODPresetButtons(activePreset) {
+      const presetButtons = ['performance', 'balanced', 'quality', 'custom'];
+      presetButtons.forEach(preset => {
+        const button = document.getElementById(`lod-preset-${preset}`);
+        if (button) {
+          if (preset === activePreset) {
+            button.classList.add('primary');
+          } else {
+            button.classList.remove('primary');
+          }
+        }
+      });
+    }
+
+    // Show LOD preset feedback
+    function showLODPresetFeedback(presetName) {
+      const feedback = document.createElement('div');
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <i class="fas fa-layer-group" style="color: var(--accent-color);"></i>
+          <span>LOD: ${presetName} Applied</span>
+        </div>
+      `;
+      feedback.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--glass-bg-light);
+        backdrop-filter: var(--glass-backdrop);
+        -webkit-backdrop-filter: var(--glass-backdrop);
+        border: 1px solid var(--glass-border);
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        z-index: 9999;
+        pointer-events: none;
+        animation: slideInFadeOut 2.5s ease-out forwards;
+        border-radius: 0;
+      `;
+
+      document.body.appendChild(feedback);
+      setTimeout(() => feedback.remove(), 2500);
+    }    // Update LOD status display
+    function updateLODStatus() {
+      try {
+        if (!window.getCurrentLODInfo) {
+          console.log('getCurrentLODInfo not available yet');
+          return;
+        }
+
+        const lodInfo = window.getCurrentLODInfo();
+        if (!lodInfo) {
+          console.log('No LOD info available');
+          return;
+        }
+
+        console.log('LOD Info:', lodInfo);
+
+        // Update active particles
+        const activeParticlesEl = document.getElementById('lod-active-particles');
+        if (activeParticlesEl && lodInfo.activeParticles !== undefined) {
+          activeParticlesEl.textContent = lodInfo.activeParticles.toLocaleString();
+        }
+
+        // Update camera distance
+        const cameraDistanceEl = document.getElementById('lod-camera-distance');
+        if (cameraDistanceEl && lodInfo.cameraDistance !== undefined) {
+          cameraDistanceEl.textContent = lodInfo.cameraDistance.toFixed(1);
+        }
+
+        // Update LOD ratio
+        const lodRatioEl = document.getElementById('lod-ratio');
+        if (lodRatioEl && lodInfo.ratio !== undefined) {
+          const percentage = Math.round(lodInfo.ratio * 100);
+          lodRatioEl.textContent = percentage + '%';
+        }
+
+        // Update LOD level badge
+        const lodLevelBadge = document.getElementById('lod-level-badge');
+        if (lodLevelBadge && lodInfo.ratio !== undefined) {
+          const ratio = lodInfo.ratio;
+          let level, color;
+
+          if (ratio >= 0.8) {
+            level = 'HIGH';
+            color = 'var(--accent-success)';
+          } else if (ratio >= 0.5) {
+            level = 'MEDIUM';
+            color = 'var(--accent-warning)';
+          } else {
+            level = 'LOW';
+            color = 'var(--accent-danger)';
+          }
+
+          lodLevelBadge.textContent = level;
+          lodLevelBadge.style.background = color;
+        }
+
+        // Update performance indicator
+        const performanceEl = document.getElementById('lod-performance');
+        if (performanceEl && lodInfo.ratio !== undefined) {
+          const ratio = lodInfo.ratio;
+          let performance, color;
+
+          if (ratio >= 0.8) {
+            performance = 'Optimal';
+            color = 'var(--accent-success)';
+          } else if (ratio >= 0.5) {
+            performance = 'Balanced';
+            color = 'var(--accent-warning)';
+          } else {
+            performance = 'Performance';
+            color = 'var(--accent-danger)';
+          }
+
+          performanceEl.textContent = performance;
+          performanceEl.style.color = color;
+        }
+      } catch (error) {
+        console.error('Error updating LOD status:', error);
+      }
+    }    // Reset LOD parameter
+    function resetLODParameter(parameterId, defaultValue) {
+      console.log('Resetting LOD parameter:', parameterId, 'to', defaultValue);
+      const slider = document.getElementById(parameterId);
+      const valueDisplay = document.getElementById(parameterId + '-value');
+
+      if (slider) {
+        slider.value = defaultValue;
+
+        if (valueDisplay) {
+          let displayValue = defaultValue;
+          if (parameterId.includes('ratio')) {
+            displayValue = defaultValue + '%';
+          } else if (parameterId.includes('frequency')) {
+            displayValue = defaultValue + ' frames';
+          }
+          valueDisplay.textContent = displayValue;
+        }
+
+        // Trigger change event
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        console.error('LOD slider not found:', parameterId);
+      }
+    }
+
+    // Make resetLODParameter globally available
+    window.resetLODParameter = resetLODParameter;// Global functions for main.ts integration
+    window.updateLODEnabled = function (enabled) {
+      console.log('updateLODEnabled called with:', enabled);
+      if (window.setLODEnabled) {
+        window.setLODEnabled(enabled);
+      } else {
+        console.error('setLODEnabled function not available');
+      }
+    };
+
+    window.updateLODParameter = function (param, value) {
+      console.log('updateLODParameter called with:', param, value);
+      if (window.updateLODConfig) {
+        const config = {};
+        if (param === 'minParticleRatio') {
+          config[param] = value / 100; // Convert percentage to decimal
+        } else {
+          config[param] = value;
+        }
+        window.updateLODConfig(config);
+      } else {
+        console.error('updateLODConfig function not available');
+      }
+    };
+
+    window.updateLODConfig = function (config) {
+      console.log('updateLODConfig called with:', config);
+      if (window.setLODConfig) {
+        window.setLODConfig(config);
+      } else {
+        console.error('setLODConfig function not available');
+      }
+    };
+
+    // Initialize LOD controls when page loads
+    // (Note: This is already called in the main DOMContentLoaded event listener above)
 
     // Initialize lighting controls when page loads
     // (Note: This is already called in the main DOMContentLoaded event listener above)

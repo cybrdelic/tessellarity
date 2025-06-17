@@ -8,6 +8,8 @@ import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
 import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews, compositionParamsValues, compositionParamsViews, initializeCompositionDefaults } from './common'
 import { FluidRenderer } from './render/fluidRender'
 import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
+import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration'
+import { ENHANCED_LOD_UI_TEMPLATE, ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_SCRIPT } from './src/core/EnhancedLODUI'
 
 /// <reference types="@webgpu/types" />
 
@@ -480,6 +482,12 @@ async function main() {
 		effectParametersBuffer,
 		compositionParamsBuffer
 	);
+	// --- Enhanced LOD Integration ---
+	const lodIntegration = {
+		'mls-mpm': new EnhancedLODIntegration('mls-mpm'),
+		'sph': new EnhancedLODIntegration('sph'),
+		'boids': new EnhancedLODIntegration('boids')
+	};
 
 	console.log("simulator initialization done")
 
@@ -569,13 +577,13 @@ async function main() {
 	mlsmpmSimulator.reset(currentParticleCount[defaultMode], mlsmpmInitBoxSizes[defaultSizeIndex])
 	camera.reset(canvasElement, initDistance, [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
 		mlsmpmFov, mlsmpmZoomRate)
-
 	// Initialize UI with default mode
 	updateUILabels(defaultMode)
-	let sphereRenderFl = false
-	let sphFl = false
+	let sphereRenderFl = false;
+	let sphFl = false;
 	let boidsFl = false;
-	let boxWidthRatio = 1.
+	let boxWidthRatio = 1.;
+	let lodUpdateFrameCount = 0; // For periodic LOD status updates
 
 	console.log("simulation start");
 	async function frame() {
@@ -663,28 +671,71 @@ async function main() {
 			mlsmpmSimulator.changeBoxSize(realBoxSize)
 		}
 		device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues)
-
-		const commandEncoder = device.createCommandEncoder()
-		// 計算のためのパス
+		const commandEncoder = device.createCommandEncoder()		// Execute simulation and rendering with Enhanced LOD
+		let effectiveParticleCount = 0;
+		let lodResult: EnhancedLODResult;
+		const currentFrameTime = 16.67; // Default ~60fps frame time in milliseconds
 		if (boidsFl) {
 			boidsSimulator.execute(commandEncoder)
-			boidsRenderer.execute(context, commandEncoder, boidsSimulator.numParticles, sphereRenderFl)
+			lodResult = lodIntegration['boids'].getEnhancedLODSettings(
+				boidsSimulator.numParticles,
+				camera,
+				realBoxSize,
+				currentFrameTime
+			);
+			effectiveParticleCount = lodResult.effectiveParticleCount;
+			boidsRenderer.execute(context, commandEncoder, effectiveParticleCount, sphereRenderFl);
 		} else if (sphFl) {
 			sphSimulator.execute(commandEncoder)
-			sphRenderer.execute(context, commandEncoder, sphSimulator.numParticles, sphereRenderFl)
+			lodResult = lodIntegration['sph'].getEnhancedLODSettings(
+				sphSimulator.numParticles,
+				camera,
+				realBoxSize,
+				currentFrameTime
+			);
+			effectiveParticleCount = lodResult.effectiveParticleCount;
+			sphRenderer.execute(context, commandEncoder, effectiveParticleCount, sphereRenderFl);
 		} else {
 			mlsmpmSimulator.execute(commandEncoder)
-			mlsmpmRenderer.execute(context, commandEncoder, mlsmpmSimulator.numParticles, sphereRenderFl)
+			lodResult = lodIntegration['mls-mpm'].getEnhancedLODSettings(
+				mlsmpmSimulator.numParticles,
+				camera,
+				realBoxSize,
+				currentFrameTime
+			);
+			effectiveParticleCount = lodResult.effectiveParticleCount;
+			mlsmpmRenderer.execute(context, commandEncoder, effectiveParticleCount, sphereRenderFl);
+		}		// Store the result for UI updates
+		lastEnhancedLODResult = lodResult;
+
+		// Apply particle size scaling from LOD
+		if (lodResult && lodResult.particleSizeScale !== 1.0) {
+			if (boidsFl) {
+				const scaledDiameter = boidsSimulator.renderDiameter * lodResult.particleSizeScale;
+				renderUniformsViews.sphere_size.set([scaledDiameter]);
+			} else if (sphFl) {
+				const scaledDiameter = sphSimulator.renderDiameter * lodResult.particleSizeScale;
+				renderUniformsViews.sphere_size.set([scaledDiameter]);
+			} else {
+				const scaledDiameter = mlsmpmSimulator.renderDiameter * lodResult.particleSizeScale;
+				renderUniformsViews.sphere_size.set([scaledDiameter]);
+			}
+			// Update the render uniforms buffer with the new sphere size
+			device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues);
 		}
 
 		device.queue.submit([commandEncoder.finish()])
 		const end = performance.now();
 		// console.log(`js: ${(end - start).toFixed(1)}ms`);
 
-		requestAnimationFrame(frame)
-	}
-	requestAnimationFrame(frame)
+		// Update LOD status display periodically
+		if (lodUpdateFrameCount % 10 === 0 && (window as any).updateLODStatus) {
+			(window as any).updateLODStatus();
+		}
+		lodUpdateFrameCount++;
 
+		requestAnimationFrame(frame)
+	} requestAnimationFrame(frame)
 	const waterColorInput = document.getElementById('water-color') as HTMLInputElement;
 	const transparencyInput = document.getElementById('transparency') as HTMLInputElement;
 	const reflectivityInput = document.getElementById('reflectivity') as HTMLInputElement;
@@ -1001,7 +1052,6 @@ async function main() {
 			console.error(`Error updating lighting parameter ${parameter}:`, error);
 		}
 	};
-
 	// Global function to update effect parameters
 	(window as any).updateEffectParameters = function (parameterIndex: number, value: number) {
 		try {
@@ -1016,6 +1066,415 @@ async function main() {
 			console.log(`Updated effect parameter ${parameterIndex} to ${value}`);
 		} catch (error) {
 			console.error(`Error updating effect parameter ${parameterIndex}:`, error);
+		}
+	};
+	// --- Enhanced LOD Control Interface Functions ---
+	// Get current LOD information for UI display
+	(window as any).getCurrentLODInfo = function () {
+		try {
+			let currentLODIntegration: EnhancedLODIntegration;
+			let totalParticles: number;
+
+			// Get the appropriate LOD integration based on current simulation mode
+			if (boidsFl) {
+				currentLODIntegration = lodIntegration['boids'];
+				totalParticles = boidsSimulator.numParticles;
+			} else if (sphFl) {
+				currentLODIntegration = lodIntegration['sph'];
+				totalParticles = sphSimulator.numParticles;
+			} else {
+				currentLODIntegration = lodIntegration['mls-mpm'];
+				totalParticles = mlsmpmSimulator.numParticles;
+			}
+
+			// Get enhanced LOD settings
+			const lodResult = currentLODIntegration.getEnhancedLODSettings(
+				totalParticles,
+				camera,
+				realBoxSize,
+				16.67 // Default frame time
+			);			// Get LOD info from the manager
+			const lodInfo = currentLODIntegration.getEnhancedLODInfo();
+
+			return {
+				totalParticles,
+				activeParticles: lodResult.effectiveParticleCount,
+				cameraDistance: lodResult.cameraDistance,
+				ratio: lodResult.particleRatio,
+				enabled: lodInfo.enabled,
+				simulationMode: boidsFl ? 'boids' : sphFl ? 'sph' : 'mls-mpm',
+				// Enhanced LOD info
+				shaderMode: lodResult.shaderMode,
+				lightingMode: lodResult.lightingMode,
+				renderScale: lodResult.renderScale,
+				focusPoint: lodResult.focusPoint,
+				focusRadius: lodResult.focusRadius,
+				qualityZones: lodResult.qualityZones,
+				qualityAdaptationActive: lodResult.qualityAdaptationActive
+			};
+		} catch (error) {
+			console.error('Error getting LOD info:', error);
+			return null;
+		}
+	};
+
+	// Enable/disable LOD system
+	(window as any).setLODEnabled = function (enabled: boolean) {
+		try {
+			Object.values(lodIntegration).forEach(integration => {
+				integration.setEnabled(enabled);
+			});
+			console.log(`LOD system ${enabled ? 'enabled' : 'disabled'}`);
+		} catch (error) {
+			console.error('Error setting LOD enabled state:', error);
+		}
+	};
+	// Update LOD configuration
+	(window as any).setLODConfig = function (config: any) {
+		try {
+			Object.values(lodIntegration).forEach(integration => {
+				// Map basic LOD config to enhanced LOD config
+				const enhancedConfig = {
+					enabled: config.enabled ?? true,
+					minDistance: config.minDistance ?? 30,
+					maxDistance: config.maxDistance ?? 200,
+					minParticleRatio: (config.minParticleRatio ?? 30) / 100, // Convert percentage to ratio - now represents FAR distance ratio
+					smoothTransition: config.smoothTransition ?? true,
+					updateFrequency: config.updateFrequency ?? 5,
+					// Add enhanced features with defaults
+					enableHighResolutionFocus: true,
+					focusRadius: 50,
+					adaptiveQuality: true,
+					performanceThreshold: 60,
+					enableSpatialLOD: true,
+					maxQualityZones: 3
+				};
+				integration.updateConfig(enhancedConfig);
+			});
+			console.log('LOD configuration updated:', config);
+		} catch (error) {
+			console.error('Error updating LOD configuration:', error);
+		}
+	};
+
+	// Reset LOD parameter (for reset buttons)
+	(window as any).resetLODParameter = function (parameterId: string, defaultValue: any) {
+		try {
+			// This function is handled by the HTML JavaScript
+			// It's just a placeholder for consistency			console.log(`Resetting LOD parameter ${parameterId} to ${defaultValue}`);
+		} catch (error) {
+			console.error(`Error resetting LOD parameter ${parameterId}:`, error);
+		}
+	};	// Initialize Enhanced LOD UI
+	const initEnhancedLODUI = () => {
+		console.log('Starting Enhanced LOD UI initialization...');
+
+		// Add enhanced LOD styles to the document
+		const styleSheet = document.createElement('style');
+		styleSheet.textContent = ENHANCED_LOD_UI_STYLES;
+		document.head.appendChild(styleSheet);
+		console.log('Enhanced LOD styles added');
+
+		// Find the existing LOD controls section
+		const enableLODCheckbox = document.getElementById('enable-lod');
+		console.log('Found enable-lod checkbox:', enableLODCheckbox);
+
+		if (enableLODCheckbox) {
+			const existingLODSection = enableLODCheckbox.closest('.control-group');
+			console.log('Found existing LOD section:', existingLODSection);
+			if (existingLODSection) {
+				// Instead of replacing, hide the old section and add the new one after it
+				(existingLODSection as HTMLElement).style.display = 'none';
+
+				// Create the enhanced LOD section
+				const enhancedSection = document.createElement('div');
+				enhancedSection.className = 'control-group';
+				enhancedSection.innerHTML = ENHANCED_LOD_UI_TEMPLATE;
+
+				// Insert the enhanced section after the hidden one
+				existingLODSection.parentNode?.insertBefore(enhancedSection, existingLODSection.nextSibling);
+				console.log('Added enhanced LOD section after existing one');
+
+				// Now initialize the enhanced controls directly here instead of via script
+				setTimeout(() => {
+					console.log('Initializing enhanced LOD controls...');
+
+					// Enhanced LOD master toggle
+					const masterToggle = document.getElementById('enable-enhanced-lod');
+					if (masterToggle) {
+						masterToggle.addEventListener('change', function (e) {
+							const enabled = (e.target as HTMLInputElement).checked;
+							console.log('Enhanced LOD enabled:', enabled);
+							if ((window as any).setEnhancedLODEnabled) {
+								(window as any).setEnhancedLODEnabled(enabled);
+							}
+						});
+						console.log('Enhanced LOD master toggle initialized');
+					}
+
+					// Enhanced preset buttons
+					const presetButtons = ['performance', 'balanced', 'quality', 'ultra'];
+					presetButtons.forEach(preset => {
+						const button = document.getElementById(`enhanced-lod-preset-${preset}`);
+						if (button) {
+							button.addEventListener('click', function () {
+								console.log(`Applying enhanced ${preset} preset`);
+								// Define enhanced presets
+								const enhancedPresets = {
+									performance: {
+										enabled: true,
+										enableFocusEnhancement: false,
+										enablePerformanceAdaptation: true,
+										targetFrameRate: 60,
+										distantShaderMode: 'minimal',
+										distantLightingMode: 'single',
+										focusRadius: 30
+									},
+									balanced: {
+										enabled: true,
+										enableFocusEnhancement: true,
+										enablePerformanceAdaptation: true,
+										targetFrameRate: 60,
+										distantShaderMode: 'simplified',
+										distantLightingMode: 'dual',
+										focusRadius: 50
+									},
+									quality: {
+										enabled: true,
+										enableFocusEnhancement: true,
+										enablePerformanceAdaptation: false,
+										targetFrameRate: 30,
+										distantShaderMode: 'full',
+										distantLightingMode: 'full',
+										focusRadius: 70
+									},
+									ultra: {
+										enabled: true,
+										enableFocusEnhancement: true,
+										enablePerformanceAdaptation: false,
+										targetFrameRate: 30,
+										distantShaderMode: 'full',
+										distantLightingMode: 'full',
+										focusRadius: 100,
+										focusQualityMultiplier: 4.0
+									}
+								}; if ((window as any).setEnhancedLODConfig) {
+									(window as any).setEnhancedLODConfig(enhancedPresets[preset as keyof typeof enhancedPresets]);
+								}
+
+								// Update button styling to show which preset is active
+								presetButtons.forEach(p => {
+									const btn = document.getElementById(`enhanced-lod-preset-${p}`);
+									if (btn) {
+										btn.classList.remove('primary');
+									}
+								});
+								button.classList.add('primary');
+							});
+							console.log(`Enhanced ${preset} preset button initialized`);
+						}
+					});
+
+					// Advanced LOD Settings accordion toggle
+					const advancedToggle = document.getElementById('enhanced-lod-advanced-toggle');
+					const advancedContent = document.getElementById('enhanced-lod-advanced-content');
+					if (advancedToggle && advancedContent) {
+						advancedToggle.addEventListener('click', function () {
+							const isVisible = advancedContent.style.display !== 'none';
+							advancedContent.style.display = isVisible ? 'none' : 'block';
+
+							// Rotate the chevron icon
+							const chevron = advancedToggle.querySelector('i.fa-chevron-down');
+							if (chevron) {
+								if (isVisible) {
+									(chevron as HTMLElement).style.transform = 'rotate(0deg)';
+								} else {
+									(chevron as HTMLElement).style.transform = 'rotate(180deg)';
+								}
+							}
+
+							console.log('Advanced LOD settings toggled:', !isVisible);
+						});
+						console.log('Advanced LOD accordion toggle initialized');
+					}
+
+					// Advanced control checkboxes
+					const advancedControls = [
+						'enable-geometric-lod',
+						'enable-physics-lod',
+						'enable-resolution-lod',
+						'enable-temporal-lod'
+					];
+
+					advancedControls.forEach(controlId => {
+						const control = document.getElementById(controlId);
+						if (control) {
+							control.addEventListener('change', function (e) {
+								const enabled = (e.target as HTMLInputElement).checked;
+								const configKey = controlId.replace('enable-', '').replace(/-/g, '');
+								const config = { [configKey]: enabled };
+
+								console.log(`Advanced control ${controlId}:`, enabled);
+								if ((window as any).updateEnhancedLODConfig) {
+									(window as any).updateEnhancedLODConfig(config);
+								}
+							});
+							console.log(`Advanced control ${controlId} initialized`);
+						}
+					});
+
+					console.log('Enhanced LOD controls initialization complete');
+				}, 100);
+			}
+		} else {
+			console.error('Could not find enable-lod checkbox - Enhanced LOD UI not added');
+		}
+		console.log('Enhanced LOD UI initialization finished');
+	};
+
+	// Initialize the enhanced LOD UI
+	setTimeout(initEnhancedLODUI, 100); // Small delay to ensure DOM is ready
+
+	// Fallback: Make sure basic LOD controls work with enhanced system if UI replacement fails
+	setTimeout(() => {
+		// Check if basic LOD controls are still present and enhance them
+		const basicLODToggle = document.getElementById('enable-lod');
+		if (basicLODToggle && !document.getElementById('enable-enhanced-lod')) {
+			console.log('Enhanced LOD UI not found, enhancing basic controls...');
+
+			// Make basic LOD toggle work with enhanced system
+			basicLODToggle.addEventListener('change', function (e) {
+				const enabled = (e.target as HTMLInputElement).checked;
+				if ((window as any).setEnhancedLODEnabled) {
+					(window as any).setEnhancedLODEnabled(enabled);
+				}
+			});
+
+			// Make basic preset buttons work with enhanced system
+			const presetButtons = ['performance', 'balanced', 'quality'];
+			presetButtons.forEach(preset => {
+				const button = document.getElementById(`lod-preset-${preset}`);
+				if (button) {
+					button.addEventListener('click', function () {
+						console.log(`Applying enhanced ${preset} preset`);
+						const presetConfigs = {
+							performance: {
+								enabled: true,
+								enableFocusEnhancement: false,
+								enablePerformanceAdaptation: true,
+								targetFrameRate: 60,
+								distantShaderMode: 'minimal',
+								distantLightingMode: 'single'
+							},
+							balanced: {
+								enabled: true,
+								enableFocusEnhancement: true,
+								enablePerformanceAdaptation: true,
+								targetFrameRate: 60,
+								distantShaderMode: 'simplified',
+								distantLightingMode: 'dual'
+							},
+							quality: {
+								enabled: true,
+								enableFocusEnhancement: true,
+								enablePerformanceAdaptation: false,
+								targetFrameRate: 30,
+								distantShaderMode: 'full',
+								distantLightingMode: 'full'
+							}
+						};
+						if ((window as any).setEnhancedLODConfig) {
+							(window as any).setEnhancedLODConfig(presetConfigs[preset as keyof typeof presetConfigs]);
+						}
+					});
+				}
+			});
+
+			console.log('Basic LOD controls enhanced');
+		}
+	}, 500); // Longer delay to ensure everything is loaded
+
+	// Store last LOD result for status display
+	let lastEnhancedLODResult: EnhancedLODResult | null = null;
+	// Update LOD status display
+	(window as any).updateLODStatus = function () {
+		try {
+			if (lastEnhancedLODResult) {
+				const lodResult = lastEnhancedLODResult as EnhancedLODResult;
+
+				// Update Enhanced LOD status display elements
+				const activeParticlesEl = document.getElementById('enhanced-lod-active-particles') || document.getElementById('lod-active-particles');
+				const focusDistanceEl = document.getElementById('enhanced-lod-focus-distance') || document.getElementById('lod-camera-distance');
+				const qualityPercentEl = document.getElementById('enhanced-lod-quality-percent') || document.getElementById('lod-ratio');
+				const qualityBadgeEl = document.getElementById('enhanced-lod-quality-badge') || document.getElementById('lod-level-badge');
+				const frameRateEl = document.getElementById('enhanced-lod-frame-rate');
+				const shaderModeEl = document.getElementById('enhanced-lod-shader-mode');
+				const lightingModeEl = document.getElementById('enhanced-lod-lighting-mode');
+				const physicsModeEl = document.getElementById('enhanced-lod-physics-mode');
+
+				if (activeParticlesEl) {
+					activeParticlesEl.textContent = lodResult.effectiveParticleCount.toLocaleString();
+				}
+				if (focusDistanceEl) {
+					focusDistanceEl.textContent = lodResult.cameraDistance.toFixed(1);
+				}
+				if (qualityPercentEl) {
+					qualityPercentEl.textContent = Math.round(lodResult.particleRatio * 100) + '%';
+				}
+				if (qualityBadgeEl) {
+					const level = lodResult.particleRatio > 0.8 ? 'ULTRA' : lodResult.particleRatio > 0.6 ? 'HIGH' : lodResult.particleRatio > 0.4 ? 'MEDIUM' : 'LOW';
+					qualityBadgeEl.textContent = level;
+					qualityBadgeEl.className = 'quality-badge quality-' + level.toLowerCase();
+				} if (frameRateEl) {
+					const fps = Math.round(1000 / lodResult.frameTime);
+					frameRateEl.textContent = fps.toString();
+				}
+				if (shaderModeEl) {
+					shaderModeEl.textContent = lodResult.shaderMode.charAt(0).toUpperCase() + lodResult.shaderMode.slice(1);
+				}
+				if (lightingModeEl) {
+					const lightCount = lodResult.lightingMode === 'full' ? '3' : lodResult.lightingMode === 'dual' ? '2' : '1';
+					lightingModeEl.textContent = lightCount + ' Lights';
+				}
+				if (physicsModeEl) {
+					physicsModeEl.textContent = lodResult.physicsMode.charAt(0).toUpperCase() + lodResult.physicsMode.slice(1);
+				}
+			}
+		} catch (error) {
+			console.error('Error updating LOD status:', error);
+		}
+	};
+	// Enhanced LOD specific functions for the Enhanced UI
+	(window as any).setEnhancedLODEnabled = function (enabled: boolean) {
+		try {
+			Object.values(lodIntegration).forEach(integration => {
+				integration.setEnabled(enabled);
+			});
+			console.log(`Enhanced LOD system ${enabled ? 'enabled' : 'disabled'}`);
+		} catch (error) {
+			console.error('Error setting Enhanced LOD enabled state:', error);
+		}
+	};
+
+	(window as any).setEnhancedLODConfig = function (config: any) {
+		try {
+			Object.values(lodIntegration).forEach(integration => {
+				integration.updateConfig(config);
+			});
+			console.log('Enhanced LOD configuration updated:', config);
+		} catch (error) {
+			console.error('Error updating Enhanced LOD configuration:', error);
+		}
+	};
+
+	(window as any).updateEnhancedLODConfig = function (config: any) {
+		try {
+			Object.values(lodIntegration).forEach(integration => {
+				integration.updateConfig(config);
+			});
+			console.log('Enhanced LOD configuration updated:', config);
+		} catch (error) {
+			console.error('Error updating Enhanced LOD configuration:', error);
 		}
 	};
 }
