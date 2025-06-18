@@ -671,14 +671,13 @@ class EnhancedLODUI {
       focusToggle.addEventListener('change', (e) => {
         this.updateEnhancedLODConfig({ enableFocusEnhancement: e.target.checked });
       });
-    }
-
-    // Focus radius slider
+    }    // Focus radius slider
     const focusRadiusSlider = document.getElementById('focus-radius');
     if (focusRadiusSlider) {
       focusRadiusSlider.addEventListener('input', (e) => {
         const value = parseFloat(e.target.value);
         document.getElementById('focus-radius-value').textContent = value;
+        console.log('Focus radius changed to:', value);
         this.updateEnhancedLODConfig({ focusRadius: value });
       });
     }
@@ -689,6 +688,7 @@ class EnhancedLODUI {
       focusQualitySlider.addEventListener('input', (e) => {
         const value = parseFloat(e.target.value);
         document.getElementById('focus-quality-value').textContent = value + 'x';
+        console.log('Focus quality changed to:', value);
         this.updateEnhancedLODConfig({ focusQualityMultiplier: value });
       });
     }

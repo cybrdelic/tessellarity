@@ -7,6 +7,7 @@ import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
 import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews, compositionParamsValues, compositionParamsViews, initializeCompositionDefaults } from './common'
 import { FluidRenderer } from './render/fluidRender'
+import { SkyboxRenderer } from './render/SkyboxRenderer'
 import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
 import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration'
 import { ENHANCED_LOD_UI_TEMPLATE, ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_SCRIPT } from './src/core/EnhancedLODUI'
@@ -365,13 +366,12 @@ async function main() {
 	debugModeViews.intensity[0] = 1.0;
 	device.queue.writeBuffer(debugModeBuffer, 0, debugModeValues);
 
-	console.log("buffer allocating done")
-	// Centralized simulation configurations with safe particle limits
+	console.log("buffer allocating done")	// Centralized simulation configurations with safe particle limits
 	const maxGridCount = 64 * 64 * 64; // 262,144 - MLS-MPM grid limit
 	const simulationConfigs = {
 		'mls-mpm': {
 			name: 'MLS-MPM',
-			maxParticles: 200000, // Safe limit well below maxGridCount
+			maxParticles: 1000000, // Extended limit to 1M particles
 			defaultParticles: 70000,
 			minParticles: 1,
 			boxSizes: [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80], [55, 60, 90]],
@@ -480,8 +480,23 @@ async function main() {
 		effectsToggleBuffer,
 		lightingControlsBuffer,
 		effectParametersBuffer,
-		compositionParamsBuffer
+		compositionParamsBuffer);
+	// Create skybox renderer for environment background
+	const skyboxRenderer = new SkyboxRenderer(
+		device,
+		presentationFormat,
+		renderUniformBuffer,
+		cubemapTextureViews[currentEnvironmentIndex]
 	);
+
+	// Create shared depth texture for skybox rendering
+	const skyboxDepthTexture = device.createTexture({
+		size: [canvas.width, canvas.height],
+		format: 'depth24plus',
+		usage: GPUTextureUsage.RENDER_ATTACHMENT,
+	});
+	const skyboxDepthTextureView = skyboxDepthTexture.createView();
+
 	// --- Enhanced LOD Integration ---
 	const lodIntegration = {
 		'mls-mpm': new EnhancedLODIntegration('mls-mpm'),
@@ -669,9 +684,32 @@ async function main() {
 			sphSimulator.changeBoxSize(realBoxSize)
 		} else {
 			mlsmpmSimulator.changeBoxSize(realBoxSize)
-		}
-		device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues)
-		const commandEncoder = device.createCommandEncoder()		// Execute simulation and rendering with Enhanced LOD
+		} device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues)
+		const commandEncoder = device.createCommandEncoder()
+
+		// Render skybox first as background
+		const skyboxPassDescriptor: GPURenderPassDescriptor = {
+			colorAttachments: [
+				{
+					view: context.getCurrentTexture().createView(),
+					clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+					loadOp: 'clear',
+					storeOp: 'store',
+				},
+			],
+			depthStencilAttachment: {
+				view: skyboxDepthTextureView,
+				depthClearValue: 1.0,
+				depthLoadOp: 'clear',
+				depthStoreOp: 'store',
+			},
+		};
+
+		const skyboxPassEncoder = commandEncoder.beginRenderPass(skyboxPassDescriptor);
+		skyboxRenderer.render(skyboxPassEncoder);
+		skyboxPassEncoder.end();
+
+		// Execute simulation and rendering with Enhanced LOD
 		let effectiveParticleCount = 0;
 		let lodResult: EnhancedLODResult;
 		const currentFrameTime = 16.67; // Default ~60fps frame time in milliseconds
@@ -767,17 +805,18 @@ async function main() {
 	// Environment selector event listener
 	const environmentSelect = document.getElementById('environment-select') as HTMLSelectElement;
 	environmentSelect.addEventListener('change', (e) => {
-		currentEnvironmentIndex = parseInt((e.target as HTMLSelectElement).value);
-		// Update renderers with new environment
+		currentEnvironmentIndex = parseInt((e.target as HTMLSelectElement).value);		// Update renderers with new environment
 		if (currentEnvironmentIndex === -1) {
 			// Use white background (no environment map)
 			mlsmpmRenderer.updateEnvironment(null);
 			sphRenderer.updateEnvironment(null);
 			boidsRenderer.updateEnvironment(null);
+			// For skybox, we could create a white cubemap or skip rendering
 		} else {
 			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
 			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
 			boidsRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
+			skyboxRenderer.updateCubemap(cubemapTextureViews[currentEnvironmentIndex]);
 		}
 	});
 
@@ -1322,6 +1361,162 @@ async function main() {
 							console.log(`Advanced control ${controlId} initialized`);
 						}
 					});
+
+					// Add missing slider event listeners
+					// Focus radius slider
+					const focusRadiusSlider = document.getElementById('focus-radius');
+					if (focusRadiusSlider) {
+						focusRadiusSlider.addEventListener('input', function (e) {
+							const value = parseFloat((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('focus-radius-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = value.toString();
+							}
+							console.log('Focus radius changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ focusRadius: value });
+							}
+						});
+						console.log('Focus radius slider initialized');
+					}
+
+					// Focus quality slider
+					const focusQualitySlider = document.getElementById('focus-quality');
+					if (focusQualitySlider) {
+						focusQualitySlider.addEventListener('input', function (e) {
+							const value = parseFloat((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('focus-quality-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = value.toFixed(1) + 'x';
+							}
+							console.log('Focus quality changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ focusQualityMultiplier: value });
+							}
+						});
+						console.log('Focus quality slider initialized');
+					}
+
+					// Target FPS slider
+					const targetFPSSlider = document.getElementById('target-fps');
+					if (targetFPSSlider) {
+						targetFPSSlider.addEventListener('input', function (e) {
+							const value = parseInt((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('target-fps-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = value.toString();
+							}
+							console.log('Target FPS changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ targetFrameRate: value });
+							}
+						});
+						console.log('Target FPS slider initialized');
+					}
+
+					// Adaptation speed slider
+					const adaptationSpeedSlider = document.getElementById('adaptation-speed');
+					if (adaptationSpeedSlider) {
+						adaptationSpeedSlider.addEventListener('input', function (e) {
+							const value = parseFloat((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('adaptation-speed-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = value.toFixed(2);
+							}
+							console.log('Adaptation speed changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ qualityAdjustmentRate: value });
+							}
+						});
+						console.log('Adaptation speed slider initialized');
+					}
+
+					// Enhanced LOD toggle controls
+					const enhancedToggles = [
+						{ id: 'enable-focus-enhancement', config: 'enableFocusEnhancement' },
+						{ id: 'enable-auto-focus', config: 'adaptiveFocusPoint' },
+						{ id: 'enable-performance-adaptation', config: 'enablePerformanceAdaptation' }
+					];
+
+					enhancedToggles.forEach(toggle => {
+						const element = document.getElementById(toggle.id);
+						if (element) {
+							element.addEventListener('change', function (e) {
+								const enabled = (e.target as HTMLInputElement).checked;
+								console.log(`${toggle.id} changed to:`, enabled);
+								if ((window as any).updateEnhancedLODConfig) {
+									(window as any).updateEnhancedLODConfig({ [toggle.config]: enabled });
+								}
+							});
+							console.log(`Toggle ${toggle.id} initialized`);
+						}
+					});
+
+					// Additional sliders for Visual Quality LOD
+					const qualityTransitionSlider = document.getElementById('quality-transition-distance');
+					if (qualityTransitionSlider) {
+						qualityTransitionSlider.addEventListener('input', function (e) {
+							const value = parseInt((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('quality-transition-distance-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = value.toString();
+							}
+							console.log('Quality transition distance changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ shaderTransitionDistance: value });
+							}
+						});
+						console.log('Quality transition distance slider initialized');
+					}
+
+					// Distant render scale slider
+					const distantRenderScaleSlider = document.getElementById('distant-render-scale');
+					if (distantRenderScaleSlider) {
+						distantRenderScaleSlider.addEventListener('input', function (e) {
+							const value = parseFloat((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('distant-render-scale-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = Math.round(value * 100) + '%';
+							}
+							console.log('Distant render scale changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ distantRenderScale: value });
+							}
+						});
+						console.log('Distant render scale slider initialized');
+					}
+
+					// Min update rate slider
+					const minUpdateRateSlider = document.getElementById('min-update-rate');
+					if (minUpdateRateSlider) {
+						minUpdateRateSlider.addEventListener('input', function (e) {
+							const value = parseInt((e.target as HTMLInputElement).value);
+							const valueDisplay = document.getElementById('min-update-rate-value');
+							if (valueDisplay) {
+								valueDisplay.textContent = value + ' fps';
+							}
+							console.log('Min update rate changed to:', value);
+							if ((window as any).updateEnhancedLODConfig) {
+								(window as any).updateEnhancedLODConfig({ minUpdateRate: value });
+							}
+						});
+						console.log('Min update rate slider initialized');
+					}
+
+					// Shader mode radio buttons
+					const shaderModeRadios = document.querySelectorAll('input[name="distant-shader-mode"]');
+					shaderModeRadios.forEach(radio => {
+						radio.addEventListener('change', function (e) {
+							if ((e.target as HTMLInputElement).checked) {
+								const value = (e.target as HTMLInputElement).value;
+								console.log('Distant shader mode changed to:', value);
+								if ((window as any).updateEnhancedLODConfig) {
+									(window as any).updateEnhancedLODConfig({ distantShaderMode: value });
+								}
+							}
+						});
+					});
+					console.log('Shader mode radio buttons initialized');
 
 					console.log('Enhanced LOD controls initialization complete');
 				}, 100);

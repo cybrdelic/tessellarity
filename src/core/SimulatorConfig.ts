@@ -29,14 +29,14 @@ export interface SimulatorConfig {
 export const SIMULATION_CONFIGS: Record<SimulationMode, SimulatorConfig> = {
     [SimulationMode.MLSMPM]: {
         mode: SimulationMode.MLSMPM,
-        displayName: "MLS-MPM Fluid",
-        particleCounts: [40000, 70000, 120000, 200000, 300],
+        displayName: "MLS-MPM Fluid", particleCounts: [40000, 70000, 120000, 200000, 500000, 1000000],
         particleLabels: [
             "Small (40,000 particles)",
             "Medium (70,000 particles)",
             "Large (120,000 particles)",
             "Very Large (200,000 particles)",
-            "Extreme (300,000 particles)"
+            "Extreme (500,000 particles)",
+            "Maximum (1,000,000 particles)"
         ],
         boxSizes: [[35, 25, 55], [40, 30, 60], [45, 40, 80], [50, 50, 80], [55, 60, 90]],
         cameraDistances: [60, 70, 90, 100, 120],

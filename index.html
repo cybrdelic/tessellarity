@@ -11,8 +11,8 @@
   <style>
     :root {
       /* Tesla Ultra-Black Minimalism with Enhanced Glassmorphism */
-      --primary-bg: #000000;
-      --secondary-bg: #000000;
+      --primary-bg: transparent;
+      --secondary-bg: transparent;
       --glass-bg: rgba(0, 0, 0, 0.8);
       --glass-bg-light: rgba(0, 0, 0, 0.6);
       --glass-bg-dark: rgba(0, 0, 0, 0.9);
@@ -85,7 +85,7 @@
       font-weight: 400;
       line-height: 1.6;
       color: var(--text-primary);
-      background: var(--primary-bg);
+      background: transparent;
       height: 100vh;
       overflow: hidden;
       position: relative;
@@ -101,10 +101,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background:
-        radial-gradient(circle at 20% 80%, rgba(0, 122, 255, 0.03) 0%, transparent 60%),
-        radial-gradient(circle at 80% 20%, rgba(88, 86, 214, 0.02) 0%, transparent 60%),
-        radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
+      background: transparent;
       pointer-events: none;
       z-index: 0;
     }
@@ -1568,7 +1565,7 @@
     }
 
     #debug-mode-controls select option {
-      background: var(--primary-bg);
+      background: transparent;
       color: var(--text-primary);
     }
 
@@ -1760,14 +1757,26 @@
           <button class="slider-reset" onclick="resetSlider('particle-count-slider', 70000)" title="Reset to default">
             <i class="fas fa-undo" style="font-size: 10px;"></i>
           </button>
-        </div>
-        <input type="range" id="particle-count-slider" min="1" max="200000" value="70000" step="1000" />
+        </div> <input type="range" id="particle-count-slider" min="1" max="1000000" value="70000" step="1000" />
         <div
           style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
           <span>1K</span>
-          <span>100K</span>
-          <span>200K</span>
+          <span>500K</span> <span>1M</span>
         </div>
+      </div>
+
+      <!-- High Particle Count Info -->
+      <div id="high-particle-info"
+        style="display: none; margin-top: var(--space-md); padding: var(--space-md); background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 4px;">
+        <div style="display: flex; align-items: center; margin-bottom: var(--space-sm);">
+          <i class="fas fa-info-circle" style="color: var(--warning-accent); margin-right: var(--space-sm);"></i>
+          <strong style="color: var(--warning-accent);">High Particle Count Mode</strong>
+        </div>
+        <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+          With <strong id="particle-count-display">500K+</strong> particles, the LOD system may significantly reduce the
+          visible particles for performance.
+          Consider using the <strong>"Ultra"</strong> LOD preset or disabling LOD to see the full particle count.
+        </p>
       </div>
     </div>
 
@@ -3236,6 +3245,18 @@
       <div class="control-description">Dynamically adjust particle count based on camera distance for better performance
       </div>
 
+      <!-- Quick LOD Actions -->
+      <div style="margin-bottom: var(--space-md); display: flex; gap: var(--space-sm);">
+        <button id="lod-quick-disable" class="header-btn" style="flex: 1; font-size: 0.75rem; padding: 0.3rem;">
+          <i class="fas fa-power-off"></i>
+          <span>Disable LOD</span>
+        </button>
+        <button id="lod-quick-ultra" class="header-btn" style="flex: 1; font-size: 0.75rem; padding: 0.3rem;">
+          <i class="fas fa-fire"></i>
+          <span>Ultra Preset</span>
+        </button>
+      </div>
+
       <!-- LOD Enable/Disable -->
       <div class="checkbox-container" id="lod-enable-toggle">
         <input type="checkbox" id="enable-lod" checked>
@@ -3298,7 +3319,12 @@
             <i class="fas fa-gem"></i>
             <span>Quality</span>
           </button>
-          <button id="lod-preset-custom" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+          <button id="lod-preset-ultra" class="header-btn" style="width: 100%; font-size: 0.8rem;">
+            <i class="fas fa-fire"></i>
+            <span>Ultra</span>
+          </button>
+          <button id="lod-preset-custom" class="header-btn"
+            style="width: 100%; font-size: 0.8rem; grid-column: span 2;">
             <i class="fas fa-cog"></i>
             <span>Custom</span>
           </button>
@@ -3686,16 +3712,16 @@
     updateSliderValue('slider', 'slider-value');
     updateSliderValue('transparency', 'transparency-value', '%');
     updateSliderValue('reflectivity', 'reflectivity-value', '%');
-    updateSliderValue('wave-height', 'wave-height-value', '%');
-
-    // Enhanced particle count slider with number formatting and performance indicators
+    updateSliderValue('wave-height', 'wave-height-value', '%');    // Enhanced particle count slider with number formatting and performance indicators
     function updateParticleCountSlider() {
       const slider = document.getElementById('particle-count-slider');
       const valueDisplay = document.getElementById('particle-count-value');
+      const highParticleInfo = document.getElementById('high-particle-info');
+      const particleCountDisplay = document.getElementById('particle-count-display');
 
       if (slider && valueDisplay) {
-        slider.addEventListener('input', function () {
-          const value = parseInt(this.value);
+        function updateParticleDisplay() {
+          const value = parseInt(slider.value);
 
           // Smooth value transition
           valueDisplay.style.transform = 'scale(1.1)';
@@ -3706,21 +3732,32 @@
 
           // Performance indicator colors
           let performanceColor = 'var(--tertiary-accent)';
-          if (value > 150000) performanceColor = 'var(--danger-accent)';
-          else if (value > 100000) performanceColor = 'var(--warning-accent)';
+          if (value > 500000) performanceColor = 'var(--danger-accent)';
+          else if (value > 250000) performanceColor = 'var(--warning-accent)';
+          else if (value > 150000) performanceColor = 'var(--warning-accent)';
 
           valueDisplay.style.color = performanceColor;
 
           // Update slider track
-          const percentage = ((value - this.min) / (this.max - this.min)) * 100;
-          this.style.background = `linear-gradient(to right, ${performanceColor} 0%, ${performanceColor} ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
-        });
+          const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
+          slider.style.background = `linear-gradient(to right, ${performanceColor} 0%, ${performanceColor} ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+
+          // Show/hide high particle count info
+          if (highParticleInfo && particleCountDisplay) {
+            if (value >= 500000) {
+              const displayValue = value >= 1000000 ? '1M' : (Math.floor(value / 1000) + 'K');
+              particleCountDisplay.textContent = displayValue;
+              highParticleInfo.style.display = 'block';
+            } else {
+              highParticleInfo.style.display = 'none';
+            }
+          }
+        }
+
+        slider.addEventListener('input', updateParticleDisplay);
 
         // Initialize
-        const initialValue = parseInt(slider.value);
-        valueDisplay.textContent = initialValue.toLocaleString();
-        const percentage = ((initialValue - slider.min) / (slider.max - slider.min)) * 100;
-        slider.style.background = `linear-gradient(to right, var(--tertiary-accent) 0%, var(--tertiary-accent) ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+        updateParticleDisplay();
       }
     }
     updateParticleCountSlider();
@@ -4365,21 +4402,23 @@
           const min = parseInt(slider.min);
 
           // Reset classes
-          indicator.classList.remove('performance-warning', 'performance-danger', 'optimal', 'info', 'visible');
-
-          if (slider.id.includes('particle-count')) {
-            if (value > 150000) {
+          indicator.classList.remove('performance-warning', 'performance-danger', 'optimal', 'info', 'visible'); if (slider.id.includes('particle-count')) {
+            if (value > 500000) {
               indicator.classList.add('performance-danger', 'visible');
               indicator.textContent = '⚠';
-              indicator.title = 'Very high particle count - may impact performance';
-            } else if (value > 100000) {
+              indicator.title = 'Extreme particle count (500K+) - severe performance impact expected';
+            } else if (value > 250000) {
               indicator.classList.add('performance-warning', 'visible');
               indicator.textContent = '⚡';
-              indicator.title = 'High particle count - monitor performance';
-            } else if (value >= 50000 && value <= 100000) {
+              indicator.title = 'Very high particle count (250K+) - significant performance impact';
+            } else if (value > 150000) {
+              indicator.classList.add('performance-warning', 'visible');
+              indicator.textContent = '⚡';
+              indicator.title = 'High particle count (150K+) - monitor performance';
+            } else if (value >= 50000 && value <= 150000) {
               indicator.classList.add('optimal', 'visible');
               indicator.textContent = '✓';
-              indicator.title = 'Optimal particle count for most systems';
+              indicator.title = 'Good particle count range for most systems';
             }
           } else if (slider.id.includes('transparency')) {
             if (value < 20) {
@@ -5217,9 +5256,7 @@
 
     // LOD control state
     let lodControlsInitialized = false;
-    let currentLODPreset = 'balanced';
-
-    // LOD Presets configuration
+    let currentLODPreset = 'balanced';    // LOD Presets configuration
     const lodPresets = {
       performance: {
         name: 'Performance',
@@ -5245,6 +5282,14 @@
         smoothTransition: true,
         updateFrequency: 10
       },
+      ultra: {
+        name: 'Ultra (High Particle Count)',
+        minDistance: 100,
+        maxDistance: 500,
+        minParticleRatio: 80,
+        smoothTransition: true,
+        updateFrequency: 8
+      },
       custom: {
         name: 'Custom',
         minDistance: 30,
@@ -5267,10 +5312,36 @@
           console.log('LOD enabled changed to:', enabled);
           updateLODEnabled(enabled);
           updateLODStatus();
-        });
-        console.log('LOD enable toggle initialized');
+        }); console.log('LOD enable toggle initialized');
       } else {
         console.error('LOD enable toggle not found');
+      }
+
+      // Quick LOD Action buttons
+      const lodQuickDisable = document.getElementById('lod-quick-disable');
+      if (lodQuickDisable) {
+        lodQuickDisable.addEventListener('click', function () {
+          const lodToggle = document.getElementById('enable-lod');
+          if (lodToggle) {
+            lodToggle.checked = false;
+            lodToggle.dispatchEvent(new Event('change'));
+          }
+          // Visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => { this.style.transform = ''; }, 150);
+        });
+      }
+
+      const lodQuickUltra = document.getElementById('lod-quick-ultra');
+      if (lodQuickUltra) {
+        lodQuickUltra.addEventListener('click', function () {
+          applyLODPreset('ultra');
+          updateLODPresetButtons('ultra');
+          showLODPresetFeedback('Ultra (High Particle Count)');
+          // Visual feedback
+          this.style.transform = 'scale(0.95)';
+          setTimeout(() => { this.style.transform = ''; }, 150);
+        });
       }
 
       // LOD Settings Toggle
@@ -5284,10 +5355,8 @@
           const icon = this.querySelector('i');
           icon.className = isExpanded ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
         });
-      }
-
-      // LOD Preset buttons
-      const presetButtons = ['performance', 'balanced', 'quality', 'custom'];
+      }      // LOD Preset buttons
+      const presetButtons = ['performance', 'balanced', 'quality', 'ultra', 'custom'];
       presetButtons.forEach(preset => {
         const button = document.getElementById(`lod-preset-${preset}`);
         if (button) {

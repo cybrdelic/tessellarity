@@ -388,7 +388,7 @@ export class AdvancedLODManager {
      */
     private calculateEnhancedShaderLOD(cameraDistance: number): ShaderLODSettings {
         const baseShaderSettings = this.calculateShaderLOD(cameraDistance);
-        
+
         if (!this.config.enableDynamicEffectScaling) {
             return baseShaderSettings;
         }
@@ -637,22 +637,22 @@ export class AdvancedLODManager {
         const deltaX = cameraPosition[0] - this.lastCameraPosition[0];
         const deltaY = cameraPosition[1] - this.lastCameraPosition[1];
         const deltaZ = cameraPosition[2] - this.lastCameraPosition[2];
-        
+
         const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
-        
+
         // Update motion history
         this.motionHistory.push(speed);
         if (this.motionHistory.length > 10) {
             this.motionHistory.shift();
         }
-        
+
         // Update static frame counter
         if (speed < 0.01) {
             this.staticFrameCount++;
         } else {
             this.staticFrameCount = 0;
         }
-        
+
         // Update camera velocity
         this.cameraVelocity = [deltaX, deltaY, deltaZ];
         this.lastCameraPosition = [...cameraPosition];
@@ -667,7 +667,7 @@ export class AdvancedLODManager {
         }
 
         const avgSpeed = this.motionHistory.reduce((a, b) => a + b, 0) / this.motionHistory.length;
-        
+
         if (avgSpeed > this.config.motionSensitivityThreshold) {
             // Fast motion - increase quality for better continuity
             return this.config.highMotionQualityBoost;
@@ -675,7 +675,7 @@ export class AdvancedLODManager {
             // Static scene - can reduce quality
             return this.config.staticSceneQualityReduction;
         }
-        
+
         return 1.0;
     }
 
@@ -759,13 +759,13 @@ export class AdvancedLODManager {
             particleRatio: settings.particleRatio * quality,
             renderScale: Math.max(0.5, settings.renderScale * (0.5 + quality * 0.5))
         };
-    }
-
-    /**
+    }    /**
      * Update configuration at runtime
      */
     updateConfig(newConfig: Partial<AdvancedLODConfig>): void {
+        console.log('AdvancedLODManager.updateConfig called with:', newConfig);
         this.config = { ...this.config, ...newConfig };
+        console.log('Updated config:', this.config);
     }
 
     /**
@@ -809,10 +809,10 @@ export class AdvancedLODManager {
             // 2. Identify bulk interior particles
             // 3. Preferentially keep boundary particles for shape preservation
             // 4. Reduce bulk particles more aggressively
-            
-            const bulkReductionFactor = this.config.preserveBoundaryParticles ? 
+
+            const bulkReductionFactor = this.config.preserveBoundaryParticles ?
                 this.config.bulkFluidReduction : 1.0;
-            
+
             return particleRatio * (0.3 + 0.7 * bulkReductionFactor); // Blend boundary preservation
         }
 
