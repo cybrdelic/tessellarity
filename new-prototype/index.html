@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Prototype - Rapid Simulation Development</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Consolas', 'Monaco', monospace;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #canvas {
+            flex: 1;
+            background: #000;
+        }
+
+        #controls {
+            width: 300px;
+            background: #2a2a2a;
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid #444;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            color: #00ff88;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .parameter {
+            margin-bottom: 15px;
+        }
+
+        .parameter label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .parameter input {
+            width: 100%;
+            padding: 5px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 3px;
+        }
+
+        .parameter input[type="range"] {
+            height: 20px;
+        }
+
+        .parameter-value {
+            display: inline-block;
+            margin-left: 10px;
+            color: #00ff88;
+            font-size: 12px;
+        }
+
+        #info {
+            background: #333;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        #performance {
+            background: #1a3a1a;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-family: monospace;
+        }
+
+        .status {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #ff4444;
+            background: #441111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+        <div id="controls">
+            <div id="info">
+                <h3>New Prototype System</h3>
+                <p>Rapid iteration simulation platform</p>
+                <div class="status" id="status">Initializing...</div>
+            </div>
+
+            <div class="control-group">
+                <h3>Simulation</h3>
+                <div class="parameter">
+                    <label>Active Simulation:</label> <select id="simulationSelect">
+                        <option value="basic-particles">Basic Particles</option>
+                        <option value="simple-ocean">Simple Ocean</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Parameters</h3>
+                <div id="parameters">
+                    <!-- Parameters will be generated dynamically -->
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Performance</h3>
+                <div id="performance">
+                    <div>FPS: <span id="fps">0</span></div>
+                    <div>Frame Time: <span id="frameTime">0</span>ms</div>
+                    <div>Update Time: <span id="updateTime">0</span>ms</div>
+                    <div>Render Time: <span id="renderTime">0</span>ms</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>WebGPU Requirements</h3>
+                <div id="webGpuInfo" style="font-size: 11px; color: #ccc;">
+                    <div>WebGPU Status: <span id="webGpuStatus">Checking...</span></div>
+                    <div style="margin-top: 5px;">
+                        <strong>Requirements:</strong><br>
+                        • Chrome Canary or Chrome 113+<br>
+                        • Enable chrome://flags/#enable-unsafe-webgpu<br>
+                        • Windows 10+ or macOS 10.15+<br>
+                        • Dedicated GPU recommended
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>    <script type="module">
+        import { BasicParticleSystem } from './examples/basic-particle.ts';
+        import { SimpleOceanWaves } from './examples/simple-ocean.ts';
+
+        class PrototypeApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.device = null;
+                this.context = null;
+                this.currentSimulation = null;
+                this.animationId = null;
+
+                this.performanceStats = {
+                    frameCount: 0,
+                    lastTime: 0,
+                    fps: 0,
+                    frameTime: 0,
+                    updateTime: 0,
+                    renderTime: 0
+                };
+
+                this.init();
+            }
+
+            async init() {
+                this.checkWebGPUSupport();
+                try {
+                    await this.initWebGPU();
+                    await this.loadSimulation('basic-particles');
+                    this.setupControls();
+                    this.startRenderLoop();
+                    this.updateStatus('Running');
+                } catch (error) {
+                    this.showError('Initialization failed: ' + error.message);
+                    console.error(error);
+                }
+            }
+            
+            checkWebGPUSupport() {
+                const statusElement = document.getElementById('webGpuStatus');
+                
+                if (!navigator.gpu) {
+                    statusElement.textContent = 'Not Supported';
+                    statusElement.style.color = '#ff3b30';
+                    return;
+                }
+                
+                statusElement.textContent = 'Available';
+                statusElement.style.color = '#30d158';
+                
+                // Check for common issues
+                if (navigator.userAgent.indexOf('Chrome') === -1) {
+                    statusElement.textContent = 'Chrome Required';
+                    statusElement.style.color = '#ff9500';
+                }
+            }
+            
+            async initWebGPU() {
+                if (!navigator.gpu) {
+                    throw new Error('WebGPU is not supported on your browser. Please use Chrome Canary with WebGPU enabled.');
+                }
+
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    throw new Error('No WebGPU adapter found. Please check your browser settings.');
+                }
+
+                this.device = await adapter.requestDevice();
+                this.context = this.canvas.getContext('webgpu');
+                
+                if (!this.context) {
+                    throw new Error('Failed to get WebGPU context from canvas');
+                }
+
+                // Resize canvas to fill container
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // Configure the context with proper format
+                const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+                this.context.configure({
+                    device: this.device,
+                    format: presentationFormat,
+                    alphaMode: 'premultiplied',
+                    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
+                });
+            }
+
+            resizeCanvas() {
+                const container = this.canvas.parentElement;
+                const rect = container.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+
+            async loadSimulation(type) {
+                if (this.currentSimulation) {
+                    this.currentSimulation.cleanup();
+                }
+                switch (type) {
+                    case 'basic-particles':
+                        this.currentSimulation = new BasicParticleSystem();
+                        break;
+                    case 'simple-ocean':
+                        this.currentSimulation = new SimpleOceanWaves();
+                        break;
+                    default:
+                        throw new Error('Unknown simulation type: ' + type);
+                }
+
+                await this.currentSimulation.init(this.device, this.canvas);
+                this.generateParameterControls();
+            }
+
+            setupControls() {
+                const simulationSelect = document.getElementById('simulationSelect');
+                simulationSelect.addEventListener('change', (e) => {
+                    this.loadSimulation(e.target.value);
+                });
+            }
+
+            generateParameterControls() {
+                if (!this.currentSimulation) return;
+
+                const parametersContainer = document.getElementById('parameters');
+                parametersContainer.innerHTML = '';
+
+                const parameters = this.currentSimulation.getParameters();
+                parameters.forEach(param => {
+                    const paramDiv = document.createElement('div');
+                    paramDiv.className = 'parameter';
+
+                    const label = document.createElement('label');
+                    label.textContent = param.description || param.name;
+                    paramDiv.appendChild(label);
+
+                    let input;
+                    if (param.type === 'float' && param.range) {
+                        input = document.createElement('input');
+                        input.type = 'range';
+                        input.min = param.range[0];
+                        input.max = param.range[1];
+                        input.step = (param.range[1] - param.range[0]) / 100;
+                        input.value = param.value;
+
+                        const valueSpan = document.createElement('span');
+                        valueSpan.className = 'parameter-value';
+                        valueSpan.textContent = param.value.toFixed(2);
+
+                        input.addEventListener('input', (e) => {
+                            const value = parseFloat(e.target.value);
+                            this.currentSimulation.setParameter(param.name, value);
+                            valueSpan.textContent = value.toFixed(2);
+                        });
+
+                        paramDiv.appendChild(input);
+                        paramDiv.appendChild(valueSpan);
+                    } else if (param.type === 'boolean') {
+                        input = document.createElement('input');
+                        input.type = 'checkbox';
+                        input.checked = param.value;
+
+                        input.addEventListener('change', (e) => {
+                            this.currentSimulation.setParameter(param.name, e.target.checked);
+                        });
+
+                        paramDiv.appendChild(input);
+                    }
+
+                    parametersContainer.appendChild(paramDiv);
+                });
+            }
+
+            startRenderLoop() {
+                const render = (time) => {
+                    const deltaTime = time - this.performanceStats.lastTime;
+                    this.performanceStats.lastTime = time;
+
+                    this.updatePerformanceStats(deltaTime);
+
+                    if (this.currentSimulation) {
+                        // Measure update time
+                        const updateStart = performance.now();
+                        this.currentSimulation.update(deltaTime);
+                        this.performanceStats.updateTime = performance.now() - updateStart;
+
+                        // Measure render time
+                        const renderStart = performance.now();
+                        const encoder = this.device.createCommandEncoder();
+                        this.currentSimulation.render(encoder);
+                        this.device.queue.submit([encoder.finish()]);
+                        this.performanceStats.renderTime = performance.now() - renderStart;
+                    }
+
+                    this.animationId = requestAnimationFrame(render);
+                };
+
+                this.animationId = requestAnimationFrame(render);
+            }
+
+            updatePerformanceStats(deltaTime) {
+                this.performanceStats.frameCount++;
+                this.performanceStats.frameTime = deltaTime;
+
+                if (this.performanceStats.frameCount % 60 === 0) {
+                    this.performanceStats.fps = Math.round(1000 / deltaTime);
+
+                    document.getElementById('fps').textContent = this.performanceStats.fps;
+                    document.getElementById('frameTime').textContent = deltaTime.toFixed(1);
+                    document.getElementById('updateTime').textContent = this.performanceStats.updateTime.toFixed(1);
+                    document.getElementById('renderTime').textContent = this.performanceStats.renderTime.toFixed(1);
+                }
+            }
+
+            updateStatus(status) {
+                document.getElementById('status').textContent = status;
+            }
+
+            showError(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = message;
+
+                const controls = document.getElementById('controls');
+                controls.insertBefore(errorDiv, controls.firstChild);
+
+                this.updateStatus('Error');
+            }
+        }
+
+        // Start the application
+        new PrototypeApp();
+    </script>
+</body>
+
+</html>
