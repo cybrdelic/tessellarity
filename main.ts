@@ -1,16 +1,14 @@
-import { PrefixSumKernel } from 'webgpu-radix-sort';
-import { mat4 } from 'wgpu-matrix'
 
-import { Camera } from './camera'
-import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
-import { SPHSimulator, sphParticleStructSize } from './sph/sph';
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
-import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews, compositionParamsValues, compositionParamsViews, initializeCompositionDefaults } from './common'
-import { FluidRenderer } from './render/fluidRender'
-import { SkyboxRenderer } from './render/SkyboxRenderer'
-import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes'
-import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration'
-import { ENHANCED_LOD_UI_TEMPLATE, ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_SCRIPT } from './src/core/EnhancedLODUI'
+import { Camera } from './camera';
+import { compositionParamsValues, debugModeValues, debugModeViews, effectParametersValues, effectParametersViews, effectsToggleValues, effectsToggleViews, initializeCompositionDefaults, lightingControlsValues, lightingControlsViews, numParticlesMax, renderUniformsValues, renderUniformsViews, waterAppearanceValues, waterAppearanceViews } from './common';
+import { MLSMPMSimulator, mlsmpmParticleStructSize } from './mls-mpm/mls-mpm';
+import { FluidRenderer } from './render/fluidRender';
+import { SkyboxRenderer } from './render/SkyboxRenderer';
+import { SPHSimulator, sphParticleStructSize } from './sph/sph';
+import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration';
+import { ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_TEMPLATE } from './src/core/EnhancedLODUI';
+import { DebugLayer, DebugVisualizationMode } from './src/debug/DebugModes';
 
 /// <reference types="@webgpu/types" />
 
@@ -173,6 +171,12 @@ async function main() {
 		size: waterAppearanceValues.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 	});
+	// Initialize default water appearance (prevent black surface before UI interaction)
+	waterAppearanceViews.color.set([0.2, 0.6, 1.0, 1.0]); // default bluish
+	waterAppearanceViews.transparency[0] = 0.3;
+	waterAppearanceViews.reflectivity[0] = 0.4;
+	waterAppearanceViews.waveHeight[0] = 0.0;
+	device.queue.writeBuffer(waterAppearanceBuffer, 0, waterAppearanceValues);
 	// Create debug mode buffer
 	const debugModeBuffer = device.createBuffer({
 		label: 'debug mode buffer',
@@ -225,31 +229,32 @@ async function main() {
 	device.queue.writeBuffer(effectsToggleBuffer, 0, effectsToggleValues);
 
 	// Initialize lighting controls with default values
-	// Main light - primary key light
-	lightingControlsViews.mainLightDirection.set([0.3, -0.7, -0.6]);
-	lightingControlsViews.mainLightIntensity[0] = 1.0;
-	lightingControlsViews.mainLightColor.set([1.0, 1.0, 1.0]);
+	// Main light - slightly warm sun key
+	lightingControlsViews.mainLightDirection.set([0.55, -0.75, -0.35]);
+	lightingControlsViews.mainLightIntensity[0] = 1.25; // a bit stronger for definition
+	lightingControlsViews.mainLightColor.set([1.0, 0.96, 0.90]); // warm white
 	lightingControlsViews.mainLightEnabled[0] = 1;
 
-	// Fill light - secondary light for softer illumination
-	lightingControlsViews.fillLightDirection.set([-0.5, -0.3, 0.8]);
-	lightingControlsViews.fillLightIntensity[0] = 0.6;
-	lightingControlsViews.fillLightColor.set([0.9, 0.95, 1.0]);
+	// Fill light - cool sky bounce, lower intensity
+	lightingControlsViews.fillLightDirection.set([-0.35, -0.45, 0.82]);
+	lightingControlsViews.fillLightIntensity[0] = 0.35; // reduced to avoid washing out
+	lightingControlsViews.fillLightColor.set([0.70, 0.82, 1.0]); // desaturated cool
 	lightingControlsViews.fillLightEnabled[0] = 1;
 
-	// Rim light - edge lighting for definition
-	lightingControlsViews.rimLightDirection.set([0.8, 0.2, -0.4]);
-	lightingControlsViews.rimLightIntensity[0] = 0.4;
-	lightingControlsViews.rimLightColor.set([1.0, 0.9, 0.8]);
+	// Rim light - subtle warm edge, reduced intensity
+	lightingControlsViews.rimLightDirection.set([0.85, 0.15, -0.30]);
+	lightingControlsViews.rimLightIntensity[0] = 0.25;
+	lightingControlsViews.rimLightColor.set([1.0, 0.92, 0.84]);
 	lightingControlsViews.rimLightEnabled[0] = 1;
 
-	// Global lighting properties
-	lightingControlsViews.ambientIntensity[0] = 0.3;
-	lightingControlsViews.ambientColor.set([0.2, 0.3, 0.4]);
+	// Global ambient - neutral cool ocean haze (avoid purple cast)
+	lightingControlsViews.ambientIntensity[0] = 0.22; // slightly lower so key drives scene
+	lightingControlsViews.ambientColor.set([0.28, 0.38, 0.46]); // balanced cool teal, no magenta component
 	lightingControlsViews.shadowIntensity[0] = 0.8;
 	lightingControlsViews.lightingMode[0] = 0; // 0=realistic
 	// Advanced lighting properties
-	lightingControlsViews.specularIntensityMultiplier[0] = 1.0; lightingControlsViews.subsurfaceIntensityMultiplier[0] = 1.0;
+	lightingControlsViews.specularIntensityMultiplier[0] = 0.9; // mild reduction to curb sparkle in sparse regions
+	lightingControlsViews.subsurfaceIntensityMultiplier[0] = 0.85; // reduce base subsurface brightness
 
 	// Additional lighting properties (for WebGPU 160-byte alignment)
 	lightingControlsViews.lightingPower[0] = 1.0;        // Default gamma/power
@@ -293,7 +298,7 @@ async function main() {
 	effectParametersViews.specularRoughness[0] = 0.05;
 	effectParametersViews.specularFresnel[0] = 2.0;	// Subsurface Parameters
 	effectParametersViews.subsurfaceDepth[0] = 0.4;
-	effectParametersViews.subsurfaceScale[0] = 1.0; // Restored to 1.0 for natural water translucency
+	effectParametersViews.subsurfaceScale[0] = 0.6; // Reduced to prevent excessive subsurface brightness
 	effectParametersViews.subsurfaceColor[0] = 1.0;
 	effectParametersViews.subsurfaceDistortion[0] = 0.5;
 
@@ -340,8 +345,8 @@ async function main() {
 	effectParametersViews.velocityColorThreshold[0] = 0.05;
 
 	// Rim Lighting Parameters
-	effectParametersViews.rimLightStrength[0] = 1.2;
-	effectParametersViews.rimLightPower[0] = 0.8;
+	effectParametersViews.rimLightStrength[0] = 0.6; // Reduced default rim strength
+	effectParametersViews.rimLightPower[0] = 1.6;   // Increased power to tighten rim highlight
 	effectParametersViews.rimLightScale[0] = 1.0;
 	effectParametersViews.rimLightContrast[0] = 1.0;
 	// Color Absorption Parameters
@@ -801,6 +806,21 @@ async function main() {
 	waveHeightInput.addEventListener('input', (e) => {
 		waterAppearanceViews.waveHeight[0] = parseInt((e.target as HTMLInputElement).value) / 100;
 		device.queue.writeBuffer(waterAppearanceBuffer, 24, waterAppearanceViews.waveHeight);
+	});
+
+	// Sphere containment toggle (press 'O') cycles enabled state for active renderer
+	let sphereContainEnabled = false;
+	window.addEventListener('keydown', (ev) => {
+		if (ev.key === 'o' || ev.key === 'O') {
+			sphereContainEnabled = !sphereContainEnabled;
+			// Choose active renderer based on current sim mode (mls-mpm prioritized)
+			const center: [number,number,number] = [0,0,0];
+			const radius = 3.5; // default radius; adjust later via UI if needed
+			mlsmpmRenderer.setSphereContain(sphereContainEnabled, center, radius);
+			sphRenderer.setSphereContain(sphereContainEnabled, center, radius);
+			boidsRenderer.setSphereContain(sphereContainEnabled, center, radius);
+			console.log(`[SphereContain] ${sphereContainEnabled ? 'Enabled' : 'Disabled'} (radius ${radius})`);
+		}
 	});
 	// Environment selector event listener
 	const environmentSelect = document.getElementById('environment-select') as HTMLSelectElement;
@@ -1313,6 +1333,13 @@ async function main() {
 							console.log(`Enhanced ${preset} preset button initialized`);
 						}
 					});
+
+						// Auto-select ultra preset by default after buttons are initialized
+						const ultraBtn = document.getElementById('enhanced-lod-preset-ultra');
+						if (ultraBtn) {
+							ultraBtn.click();
+							console.log('Ultra preset auto-applied by default.');
+						}
 
 					// Advanced LOD Settings accordion toggle
 					const advancedToggle = document.getElementById('enhanced-lod-advanced-toggle');

@@ -551,7 +551,7 @@ class EnhancedLODUI {
   constructor() {
     this.updateInterval = null;
     this.isInitialized = false;
-    this.currentPreset = 'balanced';
+  this.currentPreset = 'ultra';
 
     // Enhanced presets with all new features
     this.enhancedPresets = {

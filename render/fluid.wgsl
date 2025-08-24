@@ -1,6 +1,28 @@
 // MODULAR FLUID SHADER - Clean separation of concerns
 // Each effect is independent and can be toggled/modified without affecting others
 
+// --- Brightness Control Additions ---
+// Added attenuation & normalization constants to prevent rim lighting and subsurface scattering blowout.
+// SUBSURFACE_THICKNESS_SCALE controls how quickly thickness saturates (exp falloff). Adjust to tune translucency.
+// MAX_SUBSURFACE_CONTRIB clamps per-light subsurface accumulation before summing other channels.
+// RIM_COMBINED_MAX limits combined (effect * control) rim intensity.
+// SIMPLE_TONEMAP toggles a lightweight Reinhard tone map at end of composition.
+const SUBSURFACE_THICKNESS_SCALE : f32 = 0.6;
+const MAX_SUBSURFACE_CONTRIB : f32 = 1.1;
+const RIM_COMBINED_MAX : f32 = 1.0;
+const SIMPLE_TONEMAP : bool = true;
+// Coverage & energy management additions
+const COVERAGE_SMOOTHING_STRENGTH : f32 = 0.6; // How strongly to smooth shading in sparse regions
+const COVERAGE_SPECULAR_SCALE_MIN : f32 = 0.4; // Minimum specular scaling under low coverage
+const COVERAGE_RIM_SCALE_MIN : f32 = 0.5;      // Minimum rim scaling under low coverage
+const LUM_KNEE_START : f32 = 0.9;              // Luminance knee start for energy budget
+const LUM_KNEE_SLOPE : f32 = 2.5;              // Knee softness / slope control
+// Hole fill & continuity controls
+const HOLE_FILL_STRENGTH : f32 = 0.55;         // Base strength for color infill in sparse regions
+const HOLE_FILL_THICKNESS_BIAS : f32 = 0.35;   // Bias added to thickness when reconstructing in sparse areas
+const EDGE_SOFTEN_THRESHOLD : f32 = 0.18;      // Threshold for enhancing thin edge continuity
+const PURPLE_HUE_SUPPRESS : f32 = 0.2;         // Intensity for neutralizing overstated purple tint
+
 @group(0) @binding(0) var texture_sampler: sampler;
 @group(0) @binding(1) var texture: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> uniforms: RenderUniforms;
@@ -14,12 +36,13 @@
 
 // === SHARED DATA STRUCTURES ===
 struct RenderUniforms {
-    texel_size: vec2f,
+    @align(8) texel_size: vec2f,
     sphere_size: f32,
-    inv_projection_matrix: mat4x4f,
-    projection_matrix: mat4x4f,
-    view_matrix: mat4x4f,
-    inv_view_matrix: mat4x4f,
+    padding0: f32,
+    @align(16) inv_projection_matrix: mat4x4<f32>,
+    projection_matrix: mat4x4<f32>,
+    view_matrix: mat4x4<f32>,
+    inv_view_matrix: mat4x4<f32>,
 }
 
 struct WaterAppearance {
@@ -165,6 +188,7 @@ struct SurfaceData {
     depth: f32,
     rayDir: vec3f,
     viewDotNormal: f32,
+    coverage: f32,
 }
 
 struct LightingEnvironment {
@@ -208,7 +232,8 @@ fn getViewPosFromTexCoord(tex_coord: vec2f, iuv: vec2f) -> vec3f {
 
 fn safeThicknessSample(coords: vec2f) -> f32 {
     var texture_dims = textureDimensions(thickness_texture);
-    var clamped_coords = clamp(coords, vec2f(0.0), vec2f(f32(texture_dims.x - 1), f32(texture_dims.y - 1)));
+    let maxCoord = vec2f(f32(texture_dims.x - 1u), f32(texture_dims.y - 1u));
+    var clamped_coords = clamp(coords, vec2f(0.0), maxCoord);
     return textureLoad(thickness_texture, vec2u(clamped_coords), 0).r;
 }
 
@@ -240,15 +265,43 @@ fn createSurfaceData(input: FluidFragmentInput) -> SurfaceData {
 
     surface.normal = -normalize(cross(ddx, ddy));
 
-    // Calculate smooth thickness
-    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
-    var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
-    var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
-    var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
-    var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
+    // Extended neighborhood sampling for continuity (9-tap + diagonals)
+    let center = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
+    let L  = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
+    let R  = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
+    let U  = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
+    let D  = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
+    let UL = safeThicknessSample(input.iuv + vec2f(-1.0, -1.0));
+    let UR = safeThicknessSample(input.iuv + vec2f(1.0, -1.0));
+    let DL = safeThicknessSample(input.iuv + vec2f(-1.0, 1.0));
+    let DR = safeThicknessSample(input.iuv + vec2f(1.0, 1.0));
 
-    var smoothedThickness = (thickness * 4.0 + thicknessL + thicknessR + thicknessU + thicknessD) / 8.0;
-    surface.thickness = mix(thickness, smoothedThickness, 0.8);
+    var weightedSum = center * 4.0 + (L + R + U + D) * 2.0 + (UL + UR + DL + DR) * 1.0;
+    var weightTotal = 4.0 + 4.0 * 2.0 + 4.0 * 1.0; // 4 + 8 + 4 = 16
+    var neighborhoodAvg = weightedSum / weightTotal;
+
+    // Compute occupancy coverage across all 9 + center taps (counts > threshold)
+    var occ = 0.0;
+    occ += step(0.02, center);
+    occ += step(0.02, L);
+    occ += step(0.02, R);
+    occ += step(0.02, U);
+    occ += step(0.02, D);
+    occ += step(0.02, UL);
+    occ += step(0.02, UR);
+    occ += step(0.02, DL);
+    occ += step(0.02, DR);
+    surface.coverage = occ / 9.0;
+
+    // Adaptive smoothing: stronger in sparse regions (prevents speckle)
+    let sparse = 1.0 - surface.coverage;
+    let adaptiveBlend = mix(0.65, 0.9, sparse); // more smoothing when sparse
+    var smoothedThickness = mix(center, neighborhoodAvg, adaptiveBlend);
+    // Edge softening: if center thin but surrounded -> bias upward
+    if (center < EDGE_SOFTEN_THRESHOLD && surface.coverage > 0.5) {
+        smoothedThickness = mix(smoothedThickness, smoothedThickness + HOLE_FILL_THICKNESS_BIAS, 0.5 * (surface.coverage - 0.5));
+    }
+    surface.thickness = smoothedThickness;
 
     surface.viewDotNormal = max(dot(surface.normal, -surface.rayDir), 0.0);
 
@@ -325,46 +378,191 @@ fn calculateSpecular(surface: SurfaceData, lighting: LightingEnvironment, specul
 }
 
 fn calculateSubsurface(surface: SurfaceData, lighting: LightingEnvironment, subsurfaceIntensity: f32) -> vec3f {
+    // Exponential thickness normalization: approaches 1.0 as physical thickness grows
+    let tNorm = 1.0 - exp(-surface.thickness * SUBSURFACE_THICKNESS_SCALE);
+    // Mild view-angle weighting to avoid front-face blowout
+    let viewAtten = clamp(surface.viewDotNormal * 1.2, 0.25, 1.0);
     var subsurface = vec3f(0.0);
 
     if lighting.mainLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
-        subsurface += lighting.mainLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.mainLightIntensity;
+        let backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
+        subsurface += lighting.mainLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.mainLightIntensity;
     }
-
     if lighting.fillLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
-        subsurface += lighting.fillLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.fillLightIntensity * 0.5;
+        let backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
+        subsurface += lighting.fillLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.fillLightIntensity * 0.45; // slight reduction
     }
-
     if lighting.rimLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
-        subsurface += lighting.rimLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.rimLightIntensity * 0.3;
+        let backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
+        subsurface += lighting.rimLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.rimLightIntensity * 0.25;
     }
-
+    // Clamp to avoid runaway HDR prior to composition
+    subsurface = min(subsurface, vec3f(MAX_SUBSURFACE_CONTRIB)) * viewAtten;
     return subsurface;
 }
 
 fn calculateRimLighting(surface: SurfaceData, lighting: LightingEnvironment, rimPower: f32, rimIntensity: f32) -> vec3f {
-    var fresnel = pow(1.0 - surface.viewDotNormal, rimPower);
+    // Increase rimPower minimum to keep highlight thinner and dimmer
+    let effectivePower = max(rimPower, 1.4);
+    var fresnel = pow(1.0 - surface.viewDotNormal, effectivePower);
+    // Combine user strength & lighting control; clamp overall
+    let combinedStrength = min(rimIntensity * lighting.rimLightIntensity, RIM_COMBINED_MAX);
+    if combinedStrength <= 0.0 { return vec3f(0.0); }
     var rim = vec3f(0.0);
 
     if lighting.mainLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.mainLightDir));
-        rim += lighting.mainLightColor * fresnel * lightAlignment * rimIntensity * lighting.mainLightIntensity;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.mainLightDir));
+        rim += lighting.mainLightColor * fresnel * lightAlignment * combinedStrength * lighting.mainLightIntensity * 0.7; // reduced from 1.0
     }
-
     if lighting.fillLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.fillLightDir));
-        rim += lighting.fillLightColor * fresnel * lightAlignment * rimIntensity * lighting.fillLightIntensity * 0.6;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.fillLightDir));
+        rim += lighting.fillLightColor * fresnel * lightAlignment * combinedStrength * lighting.fillLightIntensity * 0.4; // reduced from 0.6
     }
-
     if lighting.rimLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.rimLightDir));
-        rim += lighting.rimLightColor * fresnel * lightAlignment * rimIntensity * lighting.rimLightIntensity * 0.7;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.rimLightDir));
+        rim += lighting.rimLightColor * fresnel * lightAlignment * combinedStrength * 0.5; // was 0.7 and double-counted intensity
     }
 
+    // Soft clamp: Reinhard-like per-channel before returning
+    rim = rim / (vec3f(1.0) + rim);
     return rim;
+}
+
+// Energy budget knee to gently compress extreme HDR before tone mapping
+fn applyEnergyBudget(color: vec3f) -> vec3f {
+    let lum = dot(color, vec3f(0.2126, 0.7152, 0.0722));
+    if lum <= LUM_KNEE_START { return color; }
+    let excess = lum - LUM_KNEE_START;
+    let compressed = LUM_KNEE_START + excess / (1.0 + excess / LUM_KNEE_SLOPE);
+    let scale = compressed / lum;
+    return color * scale;
+}
+
+// --- ADDITIONAL CONTINUITY HELPERS ------------------------------------------------------------
+// Heavier neighborhood sampling (5x5 approximate using two radii) for low coverage regions.
+fn continuityEnhancedThickness(centerCoord: vec2f, centerValue: f32, coverage: f32) -> f32 {
+    // If already dense, keep original.
+    if coverage > 0.9 { return centerValue; }
+    // Gather 1-ring & 2-ring samples (Manhattan & diagonals) with diminishing weights.
+    var sum = centerValue * 8.0;
+    var weight = 8.0;
+    // 1-ring (weight 4)
+    for (var ox: i32 = -1; ox <= 1; ox = ox + 1) {
+        for (var oy: i32 = -1; oy <= 1; oy = oy + 1) {
+            if !(ox == 0 && oy == 0) {
+                let w = 4.0;
+                sum += safeThicknessSample(centerCoord + vec2f(f32(ox), f32(oy))) * w;
+                weight += w;
+            }
+        }
+    }
+    // 2-ring (weight 1)
+    for (var ox2: i32 = -2; ox2 <= 2; ox2 = ox2 + 1) {
+        for (var oy2: i32 = -2; oy2 <= 2; oy2 = oy2 + 1) {
+            if (abs(ox2) == 2 || abs(oy2) == 2) { // perimeter of 5x5
+                let w2 = 1.0;
+                sum += safeThicknessSample(centerCoord + vec2f(f32(ox2), f32(oy2))) * w2;
+                weight += w2;
+            }
+        }
+    }
+    let avg = sum / weight;
+    // Blend more aggressively when coverage is low.
+    let blend = (1.0 - coverage);
+    return mix(centerValue, avg, blend);
+}
+
+// Compute a blurred normal for specular/rim lighting decoupled from silhouette normal.
+fn computeBlurredNormal(input: FluidFragmentInput, basePos: vec3f) -> vec3f {
+    // Larger smoothing factor & wider taps reduce per-particle faceting.
+    var accum = vec3f(0.0);
+    var count = 0.0;
+    // Manually unrolled to satisfy WGSL constant index requirements.
+    {
+        let off = vec2f(1.0, 0.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(-1.0, 0.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(0.0, 1.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(0.0, -1.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(1.0, 1.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(-1.0, 1.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(1.0, -1.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    {
+        let off = vec2f(-1.0, -1.0);
+        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
+        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+        let grad = pos - pos2;
+        accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
+        count += 1.0;
+    }
+    var blurred = normalize(accum / max(count, 1.0));
+    // Ensure we don't flip vs base view direction
+    if (blurred.z * basePos.z < 0.0) { blurred = -blurred; }
+    return blurred;
+}
+
+fn calculateSpecularWithNormal(surface: SurfaceData, lighting: LightingEnvironment, customNormal: vec3f, specularPower: f32, specularIntensity: f32) -> f32 {
+    var specular = 0.0;
+    if lighting.mainLightIntensity > 0.0 {
+        var H = normalize(lighting.mainLightDir - surface.rayDir);
+        specular += pow(max(0.0, dot(H, customNormal)), specularPower) * specularIntensity * lighting.mainLightIntensity;
+    }
+    if lighting.fillLightIntensity > 0.0 {
+        var H = normalize(lighting.fillLightDir - surface.rayDir);
+        specular += pow(max(0.0, dot(H, customNormal)), specularPower * 0.7) * specularIntensity * 0.4 * lighting.fillLightIntensity;
+    }
+    if lighting.rimLightIntensity > 0.0 {
+        var H = normalize(lighting.rimLightDir - surface.rayDir);
+        specular += pow(max(0.0, dot(H, customNormal)), specularPower * 0.5) * specularIntensity * 0.3 * lighting.rimLightIntensity;
+    }
+    return specular;
 }
 
 // === PHYSICS CALCULATIONS (Independent) ===
@@ -517,6 +715,9 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
 
     // === INDEPENDENT CALCULATIONS ===
     var surface = createSurfaceData(input);
+    // Continuity enhancement: heavier smoothing of thickness for low coverage before lighting.
+    let enhancedThickness = continuityEnhancedThickness(input.iuv, surface.thickness, surface.coverage);
+    surface.thickness = enhancedThickness;
     var lighting = createLightingEnvironment();    // Physics calculations (independent)
     var physics: PhysicsData;
     // Initialize physics data with defaults
@@ -584,9 +785,12 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
     var subsurface = vec3f(0.0);
     var rimLighting = vec3f(0.0);
     var reflection = vec3f(0.0);
+    // Blurred normal for highlight continuity (keeps silhouettes from blurring)
+    let blurredNormal = computeBlurredNormal(input, surface.position);
 
     if effectsToggle.enableSpecular != 0u {
-        specular = calculateSpecular(surface, lighting, effectParams.specularPower,
+        let specNormal = mix(surface.normal, blurredNormal, 0.6); // stronger smoothing for specular only
+        specular = calculateSpecularWithNormal(surface, lighting, specNormal, effectParams.specularPower,
             effectParams.specularScale * lightingControls.specularIntensityMultiplier);
         specular *= (1.0 - foam * 0.7);
     }
@@ -637,14 +841,43 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
         velocityColor = calculateVelocityColoring(physics, waterAppearance.color.rgb, effectParams.velocityColorStrength);
     }
 
-    // === CLEAN COLOR COMPOSITION ===
-    var finalColor = baseColor * depthColor * velocityColor;
-    finalColor += subsurface;
-    finalColor += reflection;
-    finalColor += vec3f(specular);
-    finalColor += rimLighting;
+    // === CLEAN COLOR COMPOSITION (EARLY INFILL) ===
+    let cov = surface.coverage;
+    var composedBase = baseColor * depthColor * velocityColor;
+    if cov < 0.95 {
+        let voidness = 1.0 - cov;
+        let fillColor = mix(waterAppearance.color.rgb, lighting.backgroundColor, 0.4);
+        // Pre-lighting infill reduces per-particle contrast.
+        composedBase = mix(composedBase, fillColor, voidness * HOLE_FILL_STRENGTH);
+    }
+    var finalColor = composedBase;
+    // Coverage-weighted lighting (squared to attenuate more in sparse regions)
+    let covLight = cov * cov;
+    finalColor += subsurface * covLight;
+    finalColor += reflection * covLight;
+    let specScale = mix(COVERAGE_SPECULAR_SCALE_MIN, 1.0, cov);
+    let rimScale  = mix(COVERAGE_RIM_SCALE_MIN, 1.0, cov);
+    finalColor += vec3f(specular * specScale * covLight);
+    finalColor += rimLighting * rimScale * covLight;
     finalColor += volumetric;
-    finalColor += ambient;
+    finalColor += ambient * cov;
+
+    // Purple hue suppression (empirical neutralization of magenta bias)
+    // Detect imbalance where R & B dominate over G leading to purple cast
+    let purpleExcess = clamp((finalColor.r + finalColor.b) * 0.5 - finalColor.g, 0.0, 1.0);
+    if purpleExcess > 0.0 {
+        let neutral = vec3f((finalColor.r + finalColor.g + finalColor.b) / 3.0);
+        // Slight push toward teal by boosting green & dampening red/blue equally
+        let tealish = neutral * vec3f(0.95, 1.08, 1.02);
+        finalColor = mix(finalColor, tealish, purpleExcess * PURPLE_HUE_SUPPRESS);
+    }
+
+    // Optional lightweight global tone mapping to tame residual HDR spikes
+    finalColor = applyEnergyBudget(finalColor);
+    if SIMPLE_TONEMAP {
+        finalColor = finalColor / (vec3f(1.0) + finalColor);
+    }
+    finalColor = clamp(finalColor, vec3f(0.0), vec3f(1.0));
 
     // Apply color absorption if enabled
     if effectsToggle.enableColorAbsorption != 0u {
@@ -656,12 +889,15 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
 
     // === TRANSPARENCY CALCULATION ===
     var alpha = waterAppearance.transparency;
-    var volumeOpacity = clamp(surface.thickness * 0.8, 0.0, 0.9);
+    // Use enhanced (smoothed) thickness for more continuous opacity build-up.
+    var volumeOpacity = clamp(surface.thickness * 0.9, 0.0, 0.95);
     alpha = mix(alpha, 1.0, volumeOpacity);
     alpha = mix(alpha, 1.0, foam * 0.6);
-    var depthOpacity = clamp(surface.depth * 0.05, 0.0, 0.3);
+    var depthOpacity = clamp(surface.depth * 0.05, 0.0, 0.35);
     alpha = mix(alpha, 1.0, depthOpacity);
-    alpha = clamp(alpha, 0.1, 1.0);
+    // Additional coverage-based lift so sparse regions don't show holes.
+    alpha = mix(alpha, 1.0, (1.0 - cov) * 0.5);
+    alpha = clamp(alpha, 0.2, 1.0);
 
     // === DEBUG MODE ===
     if debug.mode != 0u {
@@ -671,7 +907,25 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
             case 3u: { return vec4f(0.5 * surface.normal + 0.5, 1.0); }
             case 4u: { return vec4f(vec3f((1.0 - length(absorption)) * debug.intensity), 1.0); }
             case 5u: { return vec4f(vec3f(physics.velocityMagnitude * debug.intensity), 1.0); }
-            case 6u: { return vec4f(vec3f(physics.density * debug.intensity * 0.1), 1.0); }            case 8u: { return vec4f(vec3f(fresnel), 1.0); }
+            case 6u: { return vec4f(vec3f(physics.density * debug.intensity * 0.1), 1.0); }
+            case 8u: { return vec4f(vec3f(fresnel), 1.0); }
+            case 10u: { // tNorm visualization
+                let tNorm = 1.0 - exp(-surface.thickness * SUBSURFACE_THICKNESS_SCALE);
+                return vec4f(vec3f(tNorm), 1.0);
+            }
+            case 11u: { // Rim lighting contribution
+                return vec4f(rimLighting, 1.0);
+            }
+            case 12u: { // Coverage visualization
+                return vec4f(vec3f(surface.coverage), 1.0);
+            }
+            case 13u: { // Hole fill contribution debug (difference visualization)
+                let center = finalColor; // already infilled
+                // approximate original (remove infill & suppression heuristics) - reuse coverage to scale
+                let estOrig = finalColor / (1.0 + (1.0 - cov) * HOLE_FILL_STRENGTH);
+                let diff = clamp(center - estOrig, vec3f(0.0), vec3f(1.0));
+                return vec4f(diff, 1.0);
+            }
             case 9u: { return vec4f(vec3f(caustics * debug.intensity), 1.0); }
             default: {
                 // Return normal final color instead of error color

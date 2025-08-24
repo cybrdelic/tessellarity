@@ -325,46 +325,44 @@ fn calculateSpecular(surface: SurfaceData, lighting: LightingEnvironment, specul
 }
 
 fn calculateSubsurface(surface: SurfaceData, lighting: LightingEnvironment, subsurfaceIntensity: f32) -> vec3f {
+    let tNorm = 1.0 - exp(-surface.thickness * 0.6);
+    let viewAtten = clamp(surface.viewDotNormal * 1.2, 0.25, 1.0);
     var subsurface = vec3f(0.0);
-
     if lighting.mainLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
-        subsurface += lighting.mainLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.mainLightIntensity;
+        let backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
+        subsurface += lighting.mainLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.mainLightIntensity;
     }
-
     if lighting.fillLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
-        subsurface += lighting.fillLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.fillLightIntensity * 0.5;
+        let backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
+        subsurface += lighting.fillLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.fillLightIntensity * 0.45;
     }
-
     if lighting.rimLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
-        subsurface += lighting.rimLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.rimLightIntensity * 0.3;
+        let backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
+        subsurface += lighting.rimLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.rimLightIntensity * 0.25;
     }
-
+    subsurface = min(subsurface, vec3f(1.1)) * viewAtten;
     return subsurface;
 }
 
 fn calculateRimLighting(surface: SurfaceData, lighting: LightingEnvironment, rimPower: f32, rimIntensity: f32) -> vec3f {
-    var fresnel = pow(1.0 - surface.viewDotNormal, rimPower);
+    let effectivePower = max(rimPower, 1.4);
+    let combinedStrength = rimIntensity * lighting.rimLightIntensity;
+    if combinedStrength <= 0.0 { return vec3f(0.0); }
+    var fresnel = pow(1.0 - surface.viewDotNormal, effectivePower);
     var rim = vec3f(0.0);
-
     if lighting.mainLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.mainLightDir));
-        rim += lighting.mainLightColor * fresnel * lightAlignment * rimIntensity * lighting.mainLightIntensity;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.mainLightDir));
+        rim += lighting.mainLightColor * fresnel * lightAlignment * combinedStrength * lighting.mainLightIntensity * 0.7;
     }
-
     if lighting.fillLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.fillLightDir));
-        rim += lighting.fillLightColor * fresnel * lightAlignment * rimIntensity * lighting.fillLightIntensity * 0.6;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.fillLightDir));
+        rim += lighting.fillLightColor * fresnel * lightAlignment * combinedStrength * lighting.fillLightIntensity * 0.4;
     }
-
     if lighting.rimLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.rimLightDir));
-        rim += lighting.rimLightColor * fresnel * lightAlignment * rimIntensity * lighting.rimLightIntensity * 0.7;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.rimLightDir));
+        rim += lighting.rimLightColor * fresnel * lightAlignment * combinedStrength * 0.5;
     }
-
-    return rim;
+    return rim / (vec3f(1.0) + rim);
 }
 
 // === PHYSICS CALCULATIONS (Independent) ===
@@ -633,6 +631,8 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
     finalColor += rimLighting;
     finalColor += volumetric;
     finalColor += ambient;
+    finalColor = finalColor / (vec3f(1.0) + finalColor);
+    finalColor = clamp(finalColor, vec3f(0.0), vec3f(1.0));
 
     // Apply color absorption if enabled
     if effectsToggle.enableColorAbsorption != 0u {
@@ -661,6 +661,8 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
             case 5u: { return vec4f(vec3f(physics.velocityMagnitude * debug.intensity), 1.0); }
             case 6u: { return vec4f(vec3f(physics.density * debug.intensity * 0.1), 1.0); }
             case 8u: { return vec4f(vec3f(fresnel), 1.0); }
+            case 10u: { let tNorm = 1.0 - exp(-surface.thickness * 0.6); return vec4f(vec3f(tNorm), 1.0); }
+            case 11u: { return vec4f(rimLighting, 1.0); }
             case 9u: { return vec4f(vec3f(caustics * debug.intensity), 1.0); }
             default: { return vec4f(1.0, 0.0, 1.0, 1.0); }
         }

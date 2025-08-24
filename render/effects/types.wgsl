@@ -38,6 +38,7 @@ struct SurfaceData {
     depth: f32,
     rayDir: vec3f,
     viewDotNormal: f32,
+    coverage: f32,
 }
 
 // Lighting environment data
@@ -219,3 +220,10 @@ struct CompositionParams {
     padding3: f32,
     padding4: f32,
 }
+
+// struct FrameParams {
+//     particleRatio: f32,
+//     coverageBoost: f32,
+//     temporalBlend: f32,
+//     frameIndex: f32,
+// }

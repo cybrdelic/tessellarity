@@ -15,16 +15,17 @@ struct FilterUniforms {
 fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
     // thickness は unfilterable か？
     var thickness: f32 = textureLoad(texture, vec2u(input.iuv), 0).r;
-    if thickness == 0. {
-        return vec4f(0., 0., 0., 1.);
-    }    // Enhanced filter size for smoother surface reconstruction
-    var filter_size: i32 = 30; // Increased for ultra-smooth blending
-    var sigma: f32 = f32(filter_size) / 2.0; // Wider Gaussian for maximum smoothness
+    // Removed early return on zero thickness so nearby non-zero splats can diffuse into empty pixels
+    // Enhanced filter size for smoother surface reconstruction
+    // Smaller kernel; we'll rely on multiple passes for isotropy to avoid long directional streaks
+    var filter_size: i32 = 12;
+    var sigma: f32 = f32(filter_size) * 0.33; // maintain similar effective width over multi-pass
     var two_sigma: f32 = 2.0 * sigma * sigma;
 
     var sum = 0.;
     var wsum = 0.;    // Get texture dimensions for boundary checking
-    var texture_dims = textureDimensions(texture);
+    let texture_dims_u = textureDimensions(texture);
+    let texture_dims = vec2f(f32(texture_dims_u.x), f32(texture_dims_u.y));
 
     // Ultra-smooth bilateral-like filtering for seamless surfaces with boundary handling
     var center_thickness = thickness;
@@ -34,7 +35,7 @@ fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
         var sample_pos = input.iuv + uniforms.blur_dir * coords;
 
         // Clamp sample position to valid texture bounds
-        var clamped_pos = clamp(sample_pos, vec2f(0.0), vec2f(f32(texture_dims.x - 1), f32(texture_dims.y - 1)));
+    var clamped_pos = clamp(sample_pos, vec2f(0.0), texture_dims - vec2f(1.0));
         var sampled_thickness: f32 = textureLoad(texture, vec2u(clamped_pos), 0).r;
 
         // Check if we're sampling outside bounds and adjust weight accordingly
@@ -46,7 +47,7 @@ fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
 
         // Range weight (preserve boundaries) - much reduced sensitivity for ultra-smooth surface
         var thickness_diff = abs(sampled_thickness - center_thickness);
-        var range_weight: f32 = exp(-thickness_diff * thickness_diff * 50.0); // Much reduced from 200.0
+    var range_weight: f32 = exp(-thickness_diff * thickness_diff * 25.0); // relaxed further to unify layers
 
         var final_weight = spatial_weight * range_weight;
 
@@ -54,7 +55,10 @@ fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
         wsum += final_weight;
     }
 
-    sum /= wsum;
-
+    if (wsum > 0.0) {
+        sum /= wsum;
+    } else {
+        sum = thickness; // fallback
+    }
     return vec4f(sum, 0., 0., 1.);
 }

@@ -62,6 +62,12 @@ const DEBUG_DEPTH_SCALE = 0.1;
 const DEBUG_THICKNESS_SCALE = 0.2;
 const DEBUG_DENSITY_SCALE = 0.1;
 
+// === BRIGHTNESS / ATTENUATION CONTROLS ===
+// Controls for stabilizing subsurface scattering & rim lighting across shader variants
+const SUBSURFACE_THICKNESS_SCALE = 0.6;    // Exponential thickness normalization scale
+const MAX_SUBSURFACE_CONTRIB = 1.1;        // Clamp for per-channel subsurface contribution (pre-tone map)
+const RIM_COMBINED_MAX = 1.0;              // Maximum combined rim strength (effect * light intensity)
+
 // === VARIANCE LIGHT TRANSPORT CONSTANTS ===
 const DEFAULT_VARIANCE_SAMPLES = 9.0;
 const DEFAULT_VARIANCE_STRENGTH = 0.5;

@@ -82,53 +82,44 @@ fn calculateSpecular(surface: SurfaceData, lighting: LightingEnvironment, specul
 
 // Subsurface scattering calculation
 fn calculateSubsurface(surface: SurfaceData, lighting: LightingEnvironment, subsurfaceIntensity: f32) -> vec3f {
+    let tNorm = 1.0 - exp(-surface.thickness * SUBSURFACE_THICKNESS_SCALE);
+    let viewAtten = clamp(surface.viewDotNormal * 1.2, 0.25, 1.0);
     var subsurface = vec3f(0.0);
-
-    // Main light subsurface
     if lighting.mainLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
-        subsurface += lighting.mainLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.mainLightIntensity;
+        let backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
+        subsurface += lighting.mainLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.mainLightIntensity;
     }
-
-    // Fill light subsurface
     if lighting.fillLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
-        subsurface += lighting.fillLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.fillLightIntensity * 0.5;
+        let backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
+        subsurface += lighting.fillLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.fillLightIntensity * 0.45;
     }
-
-    // Rim light subsurface
     if lighting.rimLightIntensity > 0.0 {
-        var backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
-        subsurface += lighting.rimLightColor * backLighting * surface.thickness * subsurfaceIntensity * lighting.rimLightIntensity * 0.3;
+        let backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
+        subsurface += lighting.rimLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.rimLightIntensity * 0.25;
     }
-
-    return subsurface;
+    return min(subsurface, vec3f(MAX_SUBSURFACE_CONTRIB)) * viewAtten;
 }
 
 // Rim lighting calculation
 fn calculateRimLighting(surface: SurfaceData, lighting: LightingEnvironment, rimPower: f32, rimIntensity: f32) -> vec3f {
-    var fresnel = pow(1.0 - surface.viewDotNormal, rimPower);
+    let effectivePower = max(rimPower, 1.4);
+    let combinedStrength = min(rimIntensity * lighting.rimLightIntensity, RIM_COMBINED_MAX);
+    if combinedStrength <= 0.0 { return vec3f(0.0); }
+    var fresnel = pow(1.0 - surface.viewDotNormal, effectivePower);
     var rim = vec3f(0.0);
-
-    // Main light rim
     if lighting.mainLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.mainLightDir));
-        rim += lighting.mainLightColor * fresnel * lightAlignment * rimIntensity * lighting.mainLightIntensity;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.mainLightDir));
+        rim += lighting.mainLightColor * fresnel * lightAlignment * combinedStrength * lighting.mainLightIntensity * 0.7;
     }
-
-    // Fill light rim
     if lighting.fillLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.fillLightDir));
-        rim += lighting.fillLightColor * fresnel * lightAlignment * rimIntensity * lighting.fillLightIntensity * 0.6;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.fillLightDir));
+        rim += lighting.fillLightColor * fresnel * lightAlignment * combinedStrength * lighting.fillLightIntensity * 0.4;
     }
-
-    // Rim light rim
     if lighting.rimLightIntensity > 0.0 {
-        var lightAlignment = max(0.0, dot(surface.normal, -lighting.rimLightDir));
-        rim += lighting.rimLightColor * fresnel * lightAlignment * rimIntensity * lighting.rimLightIntensity * 0.7;
+        let lightAlignment = max(0.0, dot(surface.normal, -lighting.rimLightDir));
+        rim += lighting.rimLightColor * fresnel * lightAlignment * combinedStrength * 0.5;
     }
-
-    return rim;
+    return rim / (vec3f(1.0) + rim);
 }
 
 // Volumetric lighting calculation

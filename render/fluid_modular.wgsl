@@ -281,11 +281,16 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableSubsurface != 0u {
         var subsurfaceIntensity = effectParams.subsurfaceScale * lightingControls.subsurfaceIntensityMultiplier;
-        subsurface = calculateSubsurface(surface, lighting, subsurfaceIntensity);
+    // Exponential thickness normalization for stable subsurface
+    let tNorm = 1.0 - exp(-surface.thickness * 0.6);
+    var rawSubsurface = calculateSubsurface(surface, lighting, subsurfaceIntensity);
+    subsurface = min(rawSubsurface * tNorm, vec3f(1.1));
     }
 
     if effectsToggle.enableRimLighting != 0u {
-        rimLighting = calculateRimLighting(surface, lighting, effectParams.rimLightPower, effectParams.rimLightStrength);
+    let combinedStrength = min(effectParams.rimLightStrength * lighting.rimLightIntensity, 1.0);
+    var rawRim = calculateRimLighting(surface, lighting, max(effectParams.rimLightPower, 1.4), combinedStrength);
+    rimLighting = rawRim / (vec3f(1.0) + rawRim); // per-channel soft clamp
     }
 
     // Always calculate volumetric and ambient
@@ -321,6 +326,9 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     finalColor += rimLighting;
     finalColor += volumetricLighting;
     finalColor += ambientLighting;
+    // Lightweight tone map
+    finalColor = finalColor / (vec3f(1.0) + finalColor);
+    finalColor = clamp(finalColor, vec3f(0.0), vec3f(1.0));
 
     // Apply color absorption if enabled
     if effectsToggle.enableColorAbsorption != 0u {

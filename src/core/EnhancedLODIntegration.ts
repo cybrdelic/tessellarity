@@ -3,14 +3,18 @@
  * Integrates advanced LOD techniques with the existing WebGPU Ocean simulation
  */
 
-import { AdvancedLODManager, AdvancedLODConfig, AdvancedLODSettings } from './AdvancedLODManager';
 import { Camera } from '../../camera';
+import { AdvancedLODConfig, AdvancedLODManager, AdvancedLODSettings } from './AdvancedLODManager';
 
 export class EnhancedLODIntegration {
     private advancedLODManager: AdvancedLODManager;
     private simulationCenter: [number, number, number] = [0, 0, 0];
     private frameCounter: number = 0;
     private lastSettings: AdvancedLODSettings | null = null;
+    // Temporal smoothing state to reduce visible popping when zooming
+    private smoothedParticleRatio: number | null = null;
+    private lastEffectiveParticleCount: number | null = null;
+    private particleRatioVelocity: number = 0; // for simple damped spring smoothing
 
     // Focus tracking
     private interestingAreas: Array<{ position: [number, number, number], importance: number }> = [];
@@ -67,9 +71,58 @@ export class EnhancedLODIntegration {
 
         this.lastSettings = settings;
 
-        // Calculate effective counts and qualities
-        const effectiveParticleCount = Math.floor(totalParticles * settings.particleRatio);
-        const renderScale = settings.renderScale;
+        // === Temporal smoothing & hysteresis for particle ratio ===
+        // Target ratio proposed by LOD logic
+        const targetRatio = settings.particleRatio;
+
+        // Initialize smoothing state
+        if (this.smoothedParticleRatio === null) {
+            this.smoothedParticleRatio = targetRatio;
+            this.lastEffectiveParticleCount = Math.floor(totalParticles * targetRatio);
+        }
+
+        // Strategy: critically damped spring toward target plus clamped per-frame delta
+        const dt = Math.max(0.001, frameTime / 1000.0); // seconds
+        const stiffness = 6.0;   // higher = faster convergence
+        const damping = 1.2 * Math.sqrt(stiffness); // slight overdamp
+        const maxDeltaPerSecond = 0.35; // cap how fast ratio can change (fraction of full range per second)
+        const maxDelta = maxDeltaPerSecond * dt;
+
+        // Spring integration (semi-implicit Euler)
+        const displacement = this.smoothedParticleRatio - targetRatio;
+        const accel = -stiffness * displacement - damping * this.particleRatioVelocity;
+        this.particleRatioVelocity += accel * dt;
+        let newRatio = this.smoothedParticleRatio + this.particleRatioVelocity * dt;
+
+        // Clamp toward target (hysteresis – don't overshoot back and forth in small band)
+        if (Math.abs(newRatio - targetRatio) < 0.002) {
+            newRatio = targetRatio;
+            this.particleRatioVelocity = 0;
+        }
+
+        // Limit instantaneous change to avoid abrupt popping on big zooms
+        const unclampedDelta = newRatio - this.smoothedParticleRatio;
+        const clampedDelta = Math.min(Math.max(unclampedDelta, -maxDelta), maxDelta);
+        newRatio = this.smoothedParticleRatio + clampedDelta;
+
+        // Hard bounds safeguard
+        newRatio = Math.min(1.0, Math.max(0.01, newRatio));
+
+        this.smoothedParticleRatio = newRatio;
+
+        // Convert to effective particle count with gradual integer ramping
+        const targetCount = Math.floor(totalParticles * newRatio);
+        let effectiveParticleCount = targetCount;
+        if (this.lastEffectiveParticleCount !== null) {
+            const countDelta = targetCount - this.lastEffectiveParticleCount;
+            const maxCountStep = Math.max(1, Math.floor(totalParticles * maxDelta));
+            const appliedDelta = Math.min(Math.max(countDelta, -maxCountStep), maxCountStep);
+            effectiveParticleCount = this.lastEffectiveParticleCount + appliedDelta;
+        }
+        this.lastEffectiveParticleCount = effectiveParticleCount;
+        // Expose smoothed ratio back into settings for downstream consumers (UI)
+        (settings as any).particleRatio = this.smoothedParticleRatio;
+    const renderScale = settings.renderScale;
 
         // Determine quality zones
         const qualityZones = this.calculateQualityZones(cameraPosition, settings);

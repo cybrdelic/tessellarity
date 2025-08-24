@@ -70,10 +70,12 @@ fn composeEffects(surface: SurfaceData, physics: PhysicsData, lighting: Lighting
         opticalContribution += caustics * lighting.backgroundColor * 0.3;
     }
 
-    // === PHASE 6: CLEAN COMPOSITION ===
+    // === PHASE 6: CLEAN COMPOSITION (coverage-weighted) ===
     var finalColor = finalBaseColor * composition.baseColorWeight;
-    finalColor += lightingContribution * composition.lightingGlobalMultiplier;
-    finalColor += opticalContribution * composition.opticalGlobalMultiplier;
+    let cov = surface.coverage;
+    let covLight = cov * cov; // Quadratic falloff in sparse regions for smoother blending
+    finalColor += lightingContribution * composition.lightingGlobalMultiplier * covLight;
+    finalColor += opticalContribution * composition.opticalGlobalMultiplier * covLight;
 
     // === PHASE 7: FOAM APPLICATION (Independent) ===
     if effectsToggle.enableFoam != 0u {
@@ -82,24 +84,21 @@ fn composeEffects(surface: SurfaceData, physics: PhysicsData, lighting: Lighting
 
     // === PHASE 8: TRANSPARENCY CALCULATION (Independent) ===
     var alpha = waterAppearance.transparency;
-
-    // Physics-based opacity modifications
-    if effectsToggle.enableReynoldsPhysics != 0u {
-        var volumeOpacity = clamp(surface.thickness * 0.8, 0.0, 0.9);
-        alpha = mix(alpha, 1.0, volumeOpacity);
-        alpha = mix(alpha, 1.0, foam * 0.6);
+    // Optical depth derived alpha with coverage influence
+    var opticalDepth = surface.thickness * (0.8 + 0.5 * cov);
+    var tau = opticalDepth * 1.2; // scale factor
+    var transmittance = exp(-tau);
+    var odAlpha = 1.0 - transmittance;
+    alpha = mix(alpha, odAlpha, 0.9);
+    if effectsToggle.enableFoam != 0u {
+        alpha = mix(alpha, 1.0, foam * 0.5);
     }
-
-    // Optical opacity modifications
-    if effectsToggle.enableAbsorption != 0u {
-        var transmissionLuminance = dot(transmission, LUMINANCE_WEIGHTS);
-        alpha = mix(alpha, transmissionLuminance, 0.7);
-    }
-
-    // Depth opacity
-    var depthOpacity = clamp(surface.depth * 0.05, 0.0, 0.3);
+    // Depth based contribution
+    var depthOpacity = clamp(surface.depth * 0.045, 0.0, 0.35);
     alpha = mix(alpha, 1.0, depthOpacity);
-    alpha = clamp(alpha, 0.1, 1.0);
+    // Ensure sparse regions still contribute
+    alpha = max(alpha, cov * 0.85);
+    alpha = clamp(alpha, 0.15, 1.0);
 
     return vec4f(finalColor, alpha);
 }
@@ -272,12 +271,14 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableSubsurface != 0u {
         var subsurfaceIntensity = effectParams.subsurfaceScale * lightingControls.subsurfaceIntensityMultiplier;
-        subsurface = calculateSubsurface(surface, lighting, subsurfaceIntensity);
+    let tNorm = 1.0 - exp(-surface.thickness * 0.6);
+    subsurface = min(calculateSubsurface(surface, lighting, subsurfaceIntensity) * tNorm, vec3f(1.1));
     }
 
     if effectsToggle.enableRimLighting != 0u {
-        rimLighting = calculateRimLighting(surface, lighting, effectParams.rimLightPower,
-            effectParams.rimLightStrength);
+    let combinedStrength = min(effectParams.rimLightStrength * lighting.rimLightIntensity, 1.0);
+    var rawRim = calculateRimLighting(surface, lighting, max(effectParams.rimLightPower, 1.4), combinedStrength);
+    rimLighting = rawRim / (vec3f(1.0) + rawRim);
     }
 
     if effectsToggle.enableReflection != 0u {

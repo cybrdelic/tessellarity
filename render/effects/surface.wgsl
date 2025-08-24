@@ -90,15 +90,28 @@ fn calculateSmoothThickness(input: FragmentInput, thickness_texture: texture_2d<
 
 fn createSurfaceData(input: FragmentInput, uniforms: RenderUniforms, texture: texture_2d<f32>,
                     thickness_texture: texture_2d<f32>) -> SurfaceData {
-    var surface: SurfaceData;
-
-    var depth = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
-    surface.position = computeViewPosFromUVDepth(input.uv, depth, uniforms.projection_matrix, uniforms.inv_projection_matrix);
-    surface.normal = calculateSurfaceNormal(input, uniforms, texture);
-    surface.thickness = calculateSmoothThickness(input, thickness_texture);
-    surface.depth = abs(surface.position.z);
-    surface.rayDir = normalize(surface.position);
-    surface.viewDotNormal = max(dot(surface.normal, -surface.rayDir), 0.0);
-
-    return surface;
+    let icoord = vec2u(u32(input.iuv.x), u32(input.iuv.y));
+        // Sample depth using integer pixel coordinates derived from interpolated iuv
+        let depth = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
+    let position = computeViewPosFromUVDepth(input.uv, depth, uniforms.projection_matrix, uniforms.inv_projection_matrix);
+    let normal = calculateSurfaceNormal(input, uniforms, texture);
+    let thickness = calculateSmoothThickness(input, thickness_texture);
+    let d = abs(position.z);
+    let rayDir = normalize(position);
+    let viewDotNormal = max(dot(normal, -rayDir), 0.0);
+    // Coverage estimation (occupancy over 3x3 neighborhood) using thickness texture directly
+    var occ = 0.0;
+    let threshold = 0.005;
+    occ += step(threshold, thickness);
+        // Manually sample 8 neighbors (avoid dynamic indexing)
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f(-1.0, 0.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f( 1.0, 0.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f( 0.0,-1.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f( 0.0, 1.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f(-1.0,-1.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f( 1.0,-1.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f(-1.0, 1.0), thickness_texture));
+        occ += step(threshold, safeThicknessSample(input.iuv + vec2f( 1.0, 1.0), thickness_texture));
+    let coverage = occ / 9.0;
+    return SurfaceData(position, normal, thickness, d, rayDir, viewDotNormal, coverage);
 }
