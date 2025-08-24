@@ -4,15 +4,29 @@
     "description": "Tessellarity - An enhanced branch of WebGPU-Ocean fluid simulation featuring modular architecture, comprehensive documentation, and developer tools for real-time particle-based fluid dynamics",
     "type": "module",
     "scripts": {
-        "build": "npx vite build",
-        "serve": "npx vite"
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint \"{src,tests}/**/*.{ts,tsx}\"",
+        "deadcode": "knip --strict || true",
+        "test": "playwright test",
+        "test:update": "playwright test --update-snapshots",
+        "ci": "npm run typecheck && npm run lint && npm run test"
     },
     "devDependencies": {
+        "@playwright/test": "^1.45.0",
+        "@typescript-eslint/eslint-plugin": "^7.0.0",
+        "@typescript-eslint/parser": "^7.0.0",
         "@webgpu/types": "^0.1.51",
+        "eslint": "^8.57.0",
+        "knip": "^5.63.0",
         "typescript": "^5.7.2",
-        "wgpu-matrix": "^3.3.0",
         "vite": "^6.0.3",
-        "vite-plugin-glsl": "^1.3.1",
-        "webgpu-radix-sort": "^1.0.7"
+        "vite-plugin-glsl": "^1.3.1"
+    },
+    "dependencies": {
+        "webgpu-radix-sort": "^1.0.7",
+        "wgpu-matrix": "^3.3.0"
     }
 }

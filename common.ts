@@ -28,29 +28,7 @@ export const debugModeViews = {
 };
 
 // Fluid configuration override buffer - centralized parameter management
-export const fluidConfigValues = new ArrayBuffer(112); // Configurable override parameters (aligned to 16 bytes)
-export const fluidConfigViews = {
-  // Lighting overrides
-  enableLightingOverrides: new Uint32Array(fluidConfigValues, 0, 1),
-  mainLightOverride: new Float32Array(fluidConfigValues, 16, 4),     // xyz = direction, w = intensity (16-byte aligned)
-  fillLightOverride: new Float32Array(fluidConfigValues, 32, 4),     // xyz = direction, w = intensity
-  rimLightOverride: new Float32Array(fluidConfigValues, 48, 4),      // xyz = direction, w = intensity
-
-  // Water appearance overrides
-  waterColorOverride: new Float32Array(fluidConfigValues, 64, 4),    // xyz = color, w = transparency
-  reflectivityOverride: new Float32Array(fluidConfigValues, 80, 1),
-
-  // Absorption overrides (start at next 16-byte boundary)
-  absorptionOverride: new Float32Array(fluidConfigValues, 96, 4),    // xyz = RGB coefficients, w = strength
-
-  // Physics overrides - these will be in the next struct in WGSL
-  viscosityScale: new Float32Array(fluidConfigValues, 84, 1),
-  turbulenceScale: new Float32Array(fluidConfigValues, 88, 1),
-
-  // Padding for alignment
-  padding1: new Float32Array(fluidConfigValues, 92, 1),
-  padding2: new Float32Array(fluidConfigValues, 108, 1),
-};
+// (Removed) fluidConfigValues / fluidConfigViews: legacy override buffer eliminated during cleanup.
 
 // Effect composition parameters - how effects blend together
 export const compositionParamsValues = new ArrayBuffer(64); // Effect blending control
@@ -269,16 +247,4 @@ export function initializeCompositionDefaults() {
 }
 
 // Initialize fluid configuration defaults
-export function initializeFluidConfigDefaults() {
-  fluidConfigViews.enableLightingOverrides[0] = 0; // Disabled by default
-  fluidConfigViews.reflectivityOverride[0] = 0.3;
-  fluidConfigViews.viscosityScale[0] = 1.0;
-  fluidConfigViews.turbulenceScale[0] = 1.0;
-
-  // Default safe fallback colors (will only be used if main controls fail)
-  fluidConfigViews.waterColorOverride.set([0.2, 0.6, 0.8, 0.8], 0);
-  fluidConfigViews.mainLightOverride.set([0.3, -0.7, -0.6, 1.0], 0);
-  fluidConfigViews.fillLightOverride.set([-0.5, -0.3, 0.8, 0.0], 0);
-  fluidConfigViews.rimLightOverride.set([0.8, 0.2, -0.4, 0.0], 0);
-  fluidConfigViews.absorptionOverride.set([0.03, 0.025, 0.02, 1.0], 0);
-}
+// initializeFluidConfigDefaults removed (legacy override system retired)

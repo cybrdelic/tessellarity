@@ -1,60 +1,28 @@
-
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
 import { Camera } from './camera';
 import { compositionParamsValues, debugModeValues, debugModeViews, effectParametersValues, effectParametersViews, effectsToggleValues, effectsToggleViews, initializeCompositionDefaults, lightingControlsValues, lightingControlsViews, numParticlesMax, renderUniformsValues, renderUniformsViews, waterAppearanceValues, waterAppearanceViews } from './common';
 import { MLSMPMSimulator, mlsmpmParticleStructSize } from './mls-mpm/mls-mpm';
 import { FluidRenderer } from './render/fluidRender';
 import { SkyboxRenderer } from './render/SkyboxRenderer';
-import { SPHSimulator, sphParticleStructSize } from './sph/sph';
+import { initWebGPU, loadEnvironmentCubemaps } from './src/app/webgpuSetup';
 import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration';
 import { ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_TEMPLATE } from './src/core/EnhancedLODUI';
 import { DebugLayer, DebugVisualizationMode } from './src/debug/DebugModes';
+import { DebugHUD } from './src/debug/hud';
 
 /// <reference types="@webgpu/types" />
 
+// Define global option arrays safely
+const modeNames: Record<number,string> = {};
+const layerNames: Record<number,string> = {};
 
-async function init() {
-	const canvas: HTMLCanvasElement = document.querySelector('canvas')!
+// init() extracted to src/app/webgpuSetup.ts (initWebGPU)
 
-	if (!navigator.gpu) {
-		alert("WebGPU is not supported on your browser.");
-		throw new Error()
-	}
-
-	const adapter = await navigator.gpu.requestAdapter()
-
-	if (!adapter) {
-		alert("Adapter is not available.");
-		throw new Error()
-	}
-
-	const device = await adapter.requestDevice()
-
-	const context = canvas.getContext('webgpu') as GPUCanvasContext
-
-	if (!context) {
-		throw new Error()
-	}
-
-	// const { devicePixelRatio } = window
-	// let devicePixelRatio  = 3.0;
-	let devicePixelRatio = 0.7;
-	canvas.width = devicePixelRatio * canvas.clientWidth
-	canvas.height = devicePixelRatio * canvas.clientHeight
-	const presentationFormat = navigator.gpu.getPreferredCanvasFormat()
-
-	context.configure({
-		device,
-		format: presentationFormat,
-		alphaMode: 'premultiplied',
-		usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
-	})
-
-	return { canvas, device, presentationFormat, context }
-}
+let hud: DebugHUD | undefined;
 
 async function main() {
-	const { canvas, device, presentationFormat, context } = await init();
+	const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+	const { device, presentationFormat, context } = await initWebGPU(canvas);
 
 	console.log("initialization done")
 	context.configure({
@@ -64,93 +32,31 @@ async function main() {
 		usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
 	})
 
-	// Create multiple cubemap textures for different environments
-	let cubemapTextures: GPUTexture[] = [];
-	let cubemapTextureViews: GPUTextureView[] = [];
-	let currentEnvironmentIndex = 0;
-
-	const park3Med = [
-		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/px.jpg', // +X
-		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/nx.jpg', // –X
-		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/py.jpg', // +Y
-		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/ny.jpg', // –Y
-		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/pz.jpg', // +Z
-		'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/cube/Park3Med/nz.jpg'  // –Z
-	];
-
-	const environments = [
-		{
-			name: "Industrial Sunset",
-			files: park3Med
-		},
-		{
-			name: "Venice Sunset",
-			files: [
-				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/px.jpg',
-				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/nx.jpg',
-				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/py.jpg',
-				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/ny.jpg',
-				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/pz.jpg',
-				'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/nz.jpg'
-			]
-		},
-		{
-			name: "Forest",
-			files: [
-				'https://threejs.org/examples/textures/cube/pisa/px.png',
-				'https://threejs.org/examples/textures/cube/pisa/nx.png',
-				'https://threejs.org/examples/textures/cube/pisa/py.png',
-				'https://threejs.org/examples/textures/cube/pisa/ny.png',
-				'https://threejs.org/examples/textures/cube/pisa/pz.png',
-				'https://threejs.org/examples/textures/cube/pisa/nz.png'
-			]
+	// Environment cubemaps
+	const environments = await loadEnvironmentCubemaps(device);
+	const cubemapTextureViews = environments.map(e => e.view);
+	// Fallback to a single 1x1 white cube if no environments loaded (should not occur)
+	if (!cubemapTextureViews.length) {
+		const fallbackTex = device.createTexture({
+			label: 'fallback-white-cubemap',
+			dimension: '2d',
+			size: [1,1,6],
+			format: 'rgba8unorm',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+		});
+		const whitePixel = new Uint8Array([255,255,255,255]);
+		for (let face=0; face<6; face++) {
+			device.queue.writeTexture({texture: fallbackTex, origin: {x:0,y:0,z:face}}, whitePixel, {bytesPerRow:4}, {width:1,height:1,depthOrArrayLayers:1});
 		}
-	];
-
-	// Load all environment textures
-	for (let envIndex = 0; envIndex < environments.length; envIndex++) {
-		const environment = environments[envIndex];
-		try {
-			const promises = environment.files.map(async (src) => {
-				const response = await fetch(src);
-				if (!response.ok) throw new Error(`Failed to load ${src}`);
-				return createImageBitmap(await response.blob());
-			});
-			const imageBitmaps = await Promise.all(promises);
-
-			const cubemapTexture = device.createTexture({
-				dimension: '2d',
-				size: [imageBitmaps[0].width, imageBitmaps[0].height, 6],
-				format: 'rgba8unorm',
-				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-			});
-
-			for (let i = 0; i < imageBitmaps.length; i++) {
-				const imageBitmap = imageBitmaps[i];
-				device.queue.copyExternalImageToTexture(
-					{ source: imageBitmap },
-					{ texture: cubemapTexture, origin: [0, 0, i] },
-					[imageBitmap.width, imageBitmap.height]
-				);
-			}
-
-			cubemapTextures.push(cubemapTexture);
-			cubemapTextureViews.push(cubemapTexture.createView({ dimension: 'cube' }));
-		} catch (error) {
-			console.warn(`Failed to load environment ${environment.name}, using fallback`);
-			// Use the first environment as fallback
-			if (envIndex === 0) throw error;
-			cubemapTextures.push(cubemapTextures[0]);
-			cubemapTextureViews.push(cubemapTextureViews[0]);
-		}
+		cubemapTextureViews.push(fallbackTex.createView({dimension:'cube'}));
 	}
-
-	console.log("cubemap initialization done")
+	let currentEnvironmentIndex = 0;
+	console.log('cubemap initialization done');
 
 	// uniform buffer を作る
 	renderUniformsViews.texel_size.set([1.0 / canvas.width, 1.0 / canvas.height]);
 	// storage buffer を作る
-	const maxParticleStructSize = Math.max(mlsmpmParticleStructSize, sphParticleStructSize, boidsParticleStructSize)
+	const maxParticleStructSize = Math.max(mlsmpmParticleStructSize, boidsParticleStructSize) // SPH removed
 	const particleBuffer = device.createBuffer({
 		label: 'particles buffer',
 		size: maxParticleStructSize * numParticlesMax,
@@ -385,17 +291,6 @@ async function main() {
 			sliderLabel: 'Box width:',
 			particleLabel: 'Number of Particles'
 		},
-		'sph': {
-			name: 'SPH',
-			maxParticles: 50000, // Reduced from unsafe 60K limit
-			defaultParticles: 20000,
-			minParticles: 1,
-			boxSizes: [[0.7, 2.0, 0.7], [1.0, 2.0, 1.0], [1.2, 2.0, 1.2], [1.4, 2.0, 1.4], [1.6, 2.0, 1.6]],
-			cameraDistances: [2.6, 3.0, 3.4, 3.8, 4.2],
-			showWaterControls: true,
-			sliderLabel: 'Box width:',
-			particleLabel: 'Number of Particles'
-		},
 		'boids': {
 			name: 'Boids',
 			maxParticles: 25000, // Reduced from unsafe 30K limit
@@ -414,15 +309,12 @@ async function main() {
 	// Current particle count for each simulation (will be managed by sliders)
 	let currentParticleCount = {
 		'mls-mpm': simulationConfigs['mls-mpm'].defaultParticles,
-		'sph': simulationConfigs['sph'].defaultParticles,
 		'boids': simulationConfigs['boids'].defaultParticles
 	}
 
 	// Legacy arrays kept for compatibility during transition
 	let mlsmpmInitBoxSizes = simulationConfigs['mls-mpm'].boxSizes
 	let mlsmpmInitDistances = simulationConfigs['mls-mpm'].cameraDistances
-	let sphInitBoxSizes = simulationConfigs['sph'].boxSizes
-	let sphInitDistances = simulationConfigs['sph'].cameraDistances
 	let boidsInitBoxSizes = simulationConfigs['boids'].boxSizes
 	let boidsInitDistances = simulationConfigs['boids'].cameraDistances
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
@@ -432,11 +324,6 @@ async function main() {
 	const mlsmpmDiameter = 2 * mlsmpmRadius;
 	const mlsmpmZoomRate = 1.5;
 	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device);
-	const sphFov = 45 * Math.PI / 180;
-	const sphRadius = 0.04;
-	const sphDiameter = 2 * sphRadius;
-	const sphZoomRate = 0.05;
-	const sphSimulator = new SPHSimulator(particleBuffer, posvelBuffer, sphDiameter, device);
 	const boidsFov = 45 * Math.PI / 180;
 	const boidsRadius = 0.3;
 	const boidsDiameter = 2 * boidsRadius;
@@ -449,13 +336,13 @@ async function main() {
 		mlsmpmFov,
 		posvelBuffer,
 		renderUniformBuffer,
-		cubemapTextureViews[currentEnvironmentIndex],
+		cubemapTextureViews[currentEnvironmentIndex]!,
 		waterAppearanceBuffer,
 		debugModeBuffer,
 		effectsToggleBuffer,
 		lightingControlsBuffer,
 		effectParametersBuffer,
-		compositionParamsBuffer
+		compositionParamsBuffer,
 	); const sphRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -464,7 +351,7 @@ async function main() {
 		sphFov,
 		posvelBuffer,
 		renderUniformBuffer,
-		cubemapTextureViews[currentEnvironmentIndex],
+		cubemapTextureViews[currentEnvironmentIndex]!,
 		waterAppearanceBuffer,
 		debugModeBuffer,
 		effectsToggleBuffer,
@@ -479,7 +366,7 @@ async function main() {
 		boidsFov,
 		posvelBuffer,
 		renderUniformBuffer,
-		cubemapTextureViews[currentEnvironmentIndex],
+		cubemapTextureViews[currentEnvironmentIndex]!,
 		waterAppearanceBuffer,
 		debugModeBuffer,
 		effectsToggleBuffer,
@@ -491,7 +378,7 @@ async function main() {
 		device,
 		presentationFormat,
 		renderUniformBuffer,
-		cubemapTextureViews[currentEnvironmentIndex]
+		cubemapTextureViews[currentEnvironmentIndex]!
 	);
 
 	// Create shared depth texture for skybox rendering
@@ -591,11 +478,11 @@ async function main() {
 	});	// Initialize with default configuration
 	const defaultMode = 'mls-mpm'
 	const defaultSizeIndex = 1 // Medium
-	const initDistance = mlsmpmInitDistances[defaultSizeIndex]
-	let initBoxSize = mlsmpmInitBoxSizes[defaultSizeIndex]
-	let realBoxSize = [...initBoxSize];
-	mlsmpmSimulator.reset(currentParticleCount[defaultMode], mlsmpmInitBoxSizes[defaultSizeIndex])
-	camera.reset(canvasElement, initDistance, [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
+	const initDistance = mlsmpmInitDistances[defaultSizeIndex] ?? 70;
+	let initBoxSize: number[] = (mlsmpmInitBoxSizes[defaultSizeIndex] as number[] | undefined) ?? [40,30,60];
+	let realBoxSize: number[] = [...initBoxSize];
+	mlsmpmSimulator.reset(currentParticleCount[defaultMode], initBoxSize);
+	camera.reset(canvasElement, initDistance, [ initBoxSize[0]! / 2, initBoxSize[1]! / 4, initBoxSize[2]! / 2],
 		mlsmpmFov, mlsmpmZoomRate)
 	// Initialize UI with default mode
 	updateUILabels(defaultMode)
@@ -642,23 +529,23 @@ async function main() {
 			const defaultSizeIndex = 1;
 
 			if (boidsFl) {
-				initBoxSize = boidsInitBoxSizes[defaultSizeIndex]
-				boidsSimulator.reset(clampedCount, initBoxSize)
-				camera.reset(canvasElement, boidsInitDistances[defaultSizeIndex], [initBoxSize[0] / 2, initBoxSize[1] / 2, initBoxSize[2] / 2],
-					boidsFov, boidsZoomRate)
+				initBoxSize = boidsInitBoxSizes[defaultSizeIndex] ?? initBoxSize;
+				boidsSimulator.reset(clampedCount, initBoxSize);
+				camera.reset(canvasElement, boidsInitDistances[defaultSizeIndex] ?? 100, [initBoxSize[0]! / 2, initBoxSize[1]! / 2, initBoxSize[2]! / 2],
+					boidsFov, boidsZoomRate);
 			} else if (sphFl) {
-				initBoxSize = sphInitBoxSizes[defaultSizeIndex]
-				sphSimulator.reset(clampedCount, initBoxSize)
-				camera.reset(canvasElement, sphInitDistances[defaultSizeIndex], [0, -initBoxSize[1] + 0.1, 0],
-					sphFov, sphZoomRate)
+				initBoxSize = sphInitBoxSizes[defaultSizeIndex] ?? initBoxSize;
+				sphSimulator.reset(clampedCount, initBoxSize);
+				camera.reset(canvasElement, sphInitDistances[defaultSizeIndex] ?? 3.0, [0, -initBoxSize[1]! + 0.1, 0],
+					sphFov, sphZoomRate);
 			} else {
-				initBoxSize = mlsmpmInitBoxSizes[defaultSizeIndex]
-				mlsmpmSimulator.reset(clampedCount, initBoxSize)
-				camera.reset(canvasElement, mlsmpmInitDistances[defaultSizeIndex], [initBoxSize[0] / 2, initBoxSize[1] / 4, initBoxSize[2] / 2],
-					mlsmpmFov, mlsmpmZoomRate)
+				initBoxSize = mlsmpmInitBoxSizes[defaultSizeIndex] ?? initBoxSize;
+				mlsmpmSimulator.reset(clampedCount, initBoxSize);
+				camera.reset(canvasElement, (mlsmpmInitDistances[defaultSizeIndex] ?? initDistance) as number, [initBoxSize[0]! / 2, initBoxSize[1]! / 4, initBoxSize[2]! / 2],
+					mlsmpmFov, mlsmpmZoomRate);
 			}
 
-			realBoxSize = [...initBoxSize]
+			realBoxSize = [...(initBoxSize ?? realBoxSize)]
 			let slider = document.getElementById("slider") as HTMLInputElement
 			slider.value = "100"
 
@@ -682,7 +569,7 @@ async function main() {
 		boxWidthRatio += dVal
 
 		// 行列の更新
-		realBoxSize[2] = initBoxSize[2] * boxWidthRatio
+		realBoxSize[2] = initBoxSize[2]! * boxWidthRatio
 		if (boidsFl) {
 			boidsSimulator.changeBoxSize(realBoxSize)
 		} else if (sphFl) {
@@ -769,7 +656,7 @@ async function main() {
 
 		device.queue.submit([commandEncoder.finish()])
 		const end = performance.now();
-		// console.log(`js: ${(end - start).toFixed(1)}ms`);
+		hud?.tick(end - start);
 
 		// Update LOD status display periodically
 		if (lodUpdateFrameCount % 10 === 0 && (window as any).updateLODStatus) {
@@ -779,35 +666,33 @@ async function main() {
 
 		requestAnimationFrame(frame)
 	} requestAnimationFrame(frame)
-	const waterColorInput = document.getElementById('water-color') as HTMLInputElement;
-	const transparencyInput = document.getElementById('transparency') as HTMLInputElement;
-	const reflectivityInput = document.getElementById('reflectivity') as HTMLInputElement;
-	const waveHeightInput = document.getElementById('wave-height') as HTMLInputElement;
-
-	waterColorInput.addEventListener('input', (e) => {
-		const color = (e.target as HTMLInputElement).value;
-		const r = parseInt(color.substr(1, 2), 16) / 255;
-		const g = parseInt(color.substr(3, 2), 16) / 255;
-		const b = parseInt(color.substr(5, 2), 16) / 255;
-		waterAppearanceViews.color.set([r, g, b, 1.0]);
-		device.queue.writeBuffer(waterAppearanceBuffer, 0, waterAppearanceValues);
-	});
-
-	transparencyInput.addEventListener('input', (e) => {
-		waterAppearanceViews.transparency[0] = parseInt((e.target as HTMLInputElement).value) / 100;
-		device.queue.writeBuffer(waterAppearanceBuffer, 16, waterAppearanceViews.transparency);
-	});
-
-	reflectivityInput.addEventListener('input', (e) => {
-		waterAppearanceViews.reflectivity[0] = parseInt((e.target as HTMLInputElement).value) / 100;
-		device.queue.writeBuffer(waterAppearanceBuffer, 20, waterAppearanceViews.reflectivity);
-	});
-
-	waveHeightInput.addEventListener('input', (e) => {
-		waterAppearanceViews.waveHeight[0] = parseInt((e.target as HTMLInputElement).value) / 100;
-		device.queue.writeBuffer(waterAppearanceBuffer, 24, waterAppearanceViews.waveHeight);
-	});
-
+	// Guard optional UI elements (allow stripped UI builds)
+	const waterColorInput = document.getElementById('water-color') as HTMLInputElement | null;
+	if (waterColorInput) {
+		const transparencyInput = document.getElementById('transparency') as HTMLInputElement | null;
+		const reflectivityInput = document.getElementById('reflectivity') as HTMLInputElement | null;
+		const waveHeightInput = document.getElementById('wave-height') as HTMLInputElement | null;
+		waterColorInput.addEventListener('input', (e) => {
+			const color = (e.target as HTMLInputElement).value;
+			const r = parseInt(color.substr(1, 2), 16) / 255;
+			const g = parseInt(color.substr(3, 2), 16) / 255;
+			const b = parseInt(color.substr(5, 2), 16) / 255;
+			waterAppearanceViews.color.set([r, g, b, 1.0]);
+			device.queue.writeBuffer(waterAppearanceBuffer, 0, waterAppearanceValues);
+		});
+		transparencyInput?.addEventListener('input', (e) => {
+			waterAppearanceViews.transparency[0] = parseInt((e.target as HTMLInputElement).value) / 100;
+			device.queue.writeBuffer(waterAppearanceBuffer, 16, waterAppearanceViews.transparency);
+		});
+		reflectivityInput?.addEventListener('input', (e) => {
+			waterAppearanceViews.reflectivity[0] = parseInt((e.target as HTMLInputElement).value) / 100;
+			device.queue.writeBuffer(waterAppearanceBuffer, 20, waterAppearanceViews.reflectivity);
+		});
+		waveHeightInput?.addEventListener('input', (e) => {
+			waterAppearanceViews.waveHeight[0] = parseInt((e.target as HTMLInputElement).value) / 100;
+			device.queue.writeBuffer(waterAppearanceBuffer, 24, waterAppearanceViews.waveHeight);
+		});
+	}
 	// Sphere containment toggle (press 'O') cycles enabled state for active renderer
 	let sphereContainEnabled = false;
 	window.addEventListener('keydown', (ev) => {
@@ -833,10 +718,10 @@ async function main() {
 			boidsRenderer.updateEnvironment(null);
 			// For skybox, we could create a white cubemap or skip rendering
 		} else {
-			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
-			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
-			boidsRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]);
-			skyboxRenderer.updateCubemap(cubemapTextureViews[currentEnvironmentIndex]);
+			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]!);
+			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]!);
+			boidsRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]!);
+			skyboxRenderer.updateCubemap(cubemapTextureViews[currentEnvironmentIndex]!);
 		}
 	});
 
@@ -861,16 +746,32 @@ async function main() {
 	let debugModeActive = false;
 	let frameCount = 0;
 	let lastFrameTime = performance.now();
+
+	// Ensure the dropdown reflects all currently implemented debug modes (auto-sync with enum)
+	(function ensureDebugModeOptions() {
+		const modeNamesFull = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
+			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
+			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
+			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask',
+			'Raw NoV', 'Lifted NoV', 'NoV Delta'];
+		if (debugModeSelect.options.length !== modeNamesFull.length) {
+			debugModeSelect.innerHTML = modeNamesFull.map((name, i) => `<option value="${i}">${i} - ${name}</option>`).join('');
+		}
+	})();
 	// Update debug info display
 	function updateDebugInfo() {
 		const modeNames = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
-			'Caustics Patterns', 'Refraction Rays', 'Combined Variation'];
+			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
+			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask'];
 		const layerNames = ['Raw Data', 'Filtered Data', 'Differential'];
 
-		debugCurrentMode.textContent = modeNames[debugModeViews.mode[0]] || 'Unknown';
-		debugCurrentLayer.textContent = layerNames[debugModeViews.layer[0]] || 'Unknown';
-		debugCurrentIntensity.textContent = `${Math.round(debugModeViews.intensity[0] * 100)}%`;
+		const dm = debugModeViews.mode[0] ?? 0;
+		const dl = debugModeViews.layer[0] ?? 0;
+		const di = debugModeViews.intensity[0] ?? 1.0;
+		debugCurrentMode.textContent = modeNames[dm] || 'Unknown';
+		debugCurrentLayer.textContent = layerNames[dl] || 'Unknown';
+		debugCurrentIntensity.textContent = `${Math.round(di * 100)}%`;
 
 		// Update particle count based on current simulation
 		const particleCountElement = document.getElementById('particle-count-value') as HTMLSpanElement;
@@ -893,9 +794,9 @@ async function main() {
 		device.queue.writeBuffer(debugModeBuffer, 0, debugModeValues);
 
 		// Update all renderer instances
-		mlsmpmRenderer.setDebugMode(debugModeViews.mode[0], debugModeViews.layer[0], debugModeViews.intensity[0]);
-		sphRenderer.setDebugMode(debugModeViews.mode[0], debugModeViews.layer[0], debugModeViews.intensity[0]);
-		boidsRenderer.setDebugMode(debugModeViews.mode[0], debugModeViews.layer[0], debugModeViews.intensity[0]);
+		mlsmpmRenderer.setDebugMode(debugModeViews.mode[0]!, debugModeViews.layer[0]!, debugModeViews.intensity[0]!);
+		sphRenderer.setDebugMode(debugModeViews.mode[0]!, debugModeViews.layer[0]!, debugModeViews.intensity[0]!);
+		boidsRenderer.setDebugMode(debugModeViews.mode[0]!, debugModeViews.layer[0]!, debugModeViews.intensity[0]!);
 
 		updateDebugInfo();
 	}
@@ -948,12 +849,16 @@ async function main() {
 
 			// Get current debug mode info for filename
 			const modeNames = ['none', 'depth', 'thickness', 'normals', 'absorption',
-				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction'];
+				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction', 'nov', 'f_layer', 'foam_prob', 'height', 'slope',
+				'raw_height', 'f_layer_hot', 'curvature_mag', 'slope_cap_foam', 'height_var', 'mirror_diff', 'mid_split'];
 			const layerNames = ['raw', 'filtered', 'differential'];
 
-			const modeName = modeNames[debugModeViews.mode[0]] || 'unknown';
-			const layerName = layerNames[debugModeViews.layer[0]] || 'unknown';
-			const intensity = Math.round(debugModeViews.intensity[0] * 100);
+			const _dm = debugModeViews.mode[0] ?? 0;
+			const _dl = debugModeViews.layer[0] ?? 0;
+			const _di = debugModeViews.intensity[0] ?? 1.0;
+			const modeName = modeNames[_dm] || 'unknown';
+			const layerName = layerNames[_dl] || 'unknown';
+			const intensity = Math.round(_di * 100);
 
 			const filename = `debug_${modeName}_${layerName}_${intensity}pct_${Date.now()}`;
 
@@ -1104,9 +1009,9 @@ async function main() {
 			device.queue.writeBuffer(lightingControlsBuffer, 0, lightingControlsValues);
 
 			// Update all renderer instances with the current lighting controls buffer
-			mlsmpmRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
-			sphRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]);
-			boidsRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]); console.log(`Updated lighting parameter ${parameter} to ${value}`);
+			mlsmpmRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]!);
+			sphRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]!);
+			boidsRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]!); console.log(`Updated lighting parameter ${parameter} to ${value}`);
 		} catch (error) {
 			console.error(`Error updating lighting parameter ${parameter}:`, error);
 		}
@@ -1223,6 +1128,18 @@ async function main() {
 			// It's just a placeholder for consistency			console.log(`Resetting LOD parameter ${parameterId} to ${defaultValue}`);
 		} catch (error) {
 			console.error(`Error resetting LOD parameter ${parameterId}:`, error);
+		}
+	};
+
+	// Clear temporal buffers to eliminate ghost artifacts
+	(window as any).clearTemporalBuffers = function () {
+		try {
+			boidsRenderer.clearTemporalBuffers();
+			sphRenderer.clearTemporalBuffers();
+			mlsmpmRenderer.clearTemporalBuffers();
+			console.log('All temporal buffers cleared - ghost artifacts eliminated');
+		} catch (error) {
+			console.error('Error clearing temporal buffers:', error);
 		}
 	};	// Initialize Enhanced LOD UI
 	const initEnhancedLODUI = () => {

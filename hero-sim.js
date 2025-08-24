@@ -51,7 +51,12 @@ export class HeroSimulation {
             return false;
         }
     }
-
+            import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews, compositionParamsValues, compositionParamsViews, initializeCompositionDefaults } from './common';
+            import { FluidRenderer } from './render/fluidRender';
+            import { SkyboxRenderer } from './render/SkyboxRenderer';
+            import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes';
+            import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration';
+            import { ENHANCED_LOD_UI_TEMPLATE, ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_SCRIPT } from './src/core/EnhancedLODUI';
     async initWebGPU() {
         // Exact same WebGPU init as main.ts
         if (!navigator.gpu) {

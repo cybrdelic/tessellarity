@@ -11,6 +11,7 @@ import heightPhysical from './heightPhysical.wgsl'
 import normalizeThickness from './normalizeThickness.wgsl'
 import normalsFromThickness from './normalsFromThickness.wgsl'
 import temporalSurface from './temporalSurface.wgsl'
+import velocityFromHeight from './velocityFromHeight.wgsl'
 // velocity currently stubbed (returns zeros)
 // import velocityMap from './velocityMap.wgsl'
 import sphere from './sphere.wgsl'
@@ -31,6 +32,7 @@ export class FluidRenderer {
     heightPhysicalPipeline: GPUComputePipeline
     heightBlur2Pipeline?: GPUComputePipeline
     heightBlur4Pipeline?: GPUComputePipeline
+    velocityPipeline?: GPUComputePipeline
     spherePipeline: GPURenderPipeline
     normalizePipeline: GPUComputePipeline
 
@@ -105,9 +107,13 @@ export class FluidRenderer {
     _envView: GPUTextureView
     _frame: number = 0 // diagnostic frame counter
     _readbackBuffer?: GPUBuffer
+    _topReadbackBuffer?: GPUBuffer
+    _bottomReadbackBuffer?: GPUBuffer
     _debugReadTexture?: GPUTexture
     _accumReadBuffer?: GPUBuffer
     _surfaceMapPending: boolean = false
+    _topMapPending: boolean = false
+    _bottomMapPending: boolean = false
     _accumMapPending: boolean = false
     _normReadBuffer?: GPUBuffer
     _normReadBuffer2?: GPUBuffer
@@ -117,6 +123,8 @@ export class FluidRenderer {
     _normMapPending2: boolean = false
     _lastNormWriteToggle: boolean = false // false -> first buffer, true -> second buffer last written
     _surfaceCopyScheduled: boolean = false
+    _topCopyScheduled: boolean = false
+    _bottomCopyScheduled: boolean = false
     _accumCopyScheduled: boolean = false
     _normCopyScheduled: boolean = false
     _weightCopyScheduled: boolean = false
@@ -140,7 +148,6 @@ export class FluidRenderer {
         lightingControlsBuffer: GPUBuffer,
         effectParametersBuffer: GPUBuffer,
     compositionParamsBuffer: GPUBuffer,
-    foamAccumTextureView: GPUTextureView
     ) {
         this.device = device
     this.width = canvas.width
@@ -152,7 +159,6 @@ export class FluidRenderer {
         this.lightingControlsBuffer = lightingControlsBuffer
         this.effectParametersBuffer = effectParametersBuffer
         this.compositionParamsBuffer = compositionParamsBuffer
-    this.foamAccumTextureView = foamAccumTextureView
 
         const maxFilterSize = 100
         const blurdDepthScale = 10
@@ -189,6 +195,7 @@ export class FluidRenderer {
     const heightDiffuseModule = device.createShaderModule({ code: heightDiffuse })
     const heightPhysicalModule = device.createShaderModule({ code: heightPhysical })
     const heightBlurModule = device.createShaderModule({ code: heightBlur })
+    const velocityModule = device.createShaderModule({ code: velocityFromHeight })
 
         // pipelines
         this.spherePipeline = device.createRenderPipeline({
@@ -333,6 +340,11 @@ export class FluidRenderer {
             layout: 'auto',
             compute: { module: heightBlurModule, entryPoint: 'blur4' }
         });
+        this.velocityPipeline = device.createComputePipeline({
+            label: 'velocity from height compute',
+            layout: 'auto',
+            compute: { module: velocityModule }
+        });
         this.fluidPipeline = device.createRenderPipeline({
             label: 'fluid rendering pipeline',
             layout: 'auto',
@@ -444,6 +456,16 @@ export class FluidRenderer {
             size: 256, // bytesPerRow alignment requirement; we only read first 16 bytes
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
         });
+        this._topReadbackBuffer = device.createBuffer({
+            label: 'debug top row readback buffer',
+            size: 256,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
+        this._bottomReadbackBuffer = device.createBuffer({
+            label: 'debug bottom row readback buffer',
+            size: 256,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
         this._accumReadBuffer = device.createBuffer({
             label: 'accum readback buffer',
             size: 256,
@@ -477,9 +499,9 @@ export class FluidRenderer {
             format: 'rgba16float',
         });
         const velocityTexture = device.createTexture({
-            label: 'velocity texture (stub zeros)',
+            label: 'velocity texture (generated from height)',
             size: [canvas.width, canvas.height, 1],
-            usage: GPUTextureUsage.TEXTURE_BINDING,
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
             format: 'rgba16float',
         });
         const heightTexture = device.createTexture({
@@ -835,7 +857,7 @@ export class FluidRenderer {
         }
     const envView = cubemapTextureView!; // fallback created if null
     this._envView = envView;
-        this.fluidSurfaceBindGroup = device.createBindGroup({
+    this.fluidSurfaceBindGroup = device.createBindGroup({
             label: 'fluid surface bind group',
             layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
             entries: [
@@ -1048,6 +1070,9 @@ export class FluidRenderer {
             computePass.setBindGroup(0, this.normalizeBindGroup);
             const wgX = Math.ceil(this.width / 8);
             const wgY = Math.ceil(this.height / 8);
+            if (this._frame % 240 === 0) {
+                console.log(`[FluidRenderer] normalizeThickness dispatch wg=(${wgX},${wgY}) for (${this.width}x${this.height})`);
+            }
             computePass.dispatchWorkgroups(wgX, wgY, 1);
             computePass.end();
 
@@ -1112,6 +1137,8 @@ export class FluidRenderer {
             // After normals/coverage written, copy center pixel only on phase 0
             const cx = Math.min(this.width-1, Math.floor(this.width/2));
             const cy = Math.min(this.height-1, Math.floor(this.height/2));
+            const topY = 0;
+            const botY = this.height - 1;
             if (phase === 0 && this._readbackBuffer && !this._surfaceCopyScheduled) {
                 commandEncoder.copyTextureToBuffer(
                     { texture: this.surfaceTexture, origin: [cx, cy, 0] },
@@ -1120,6 +1147,42 @@ export class FluidRenderer {
                 );
                 this._surfaceCopyScheduled = true;
             }
+            if (phase === 0 && this._topReadbackBuffer && !this._topCopyScheduled) {
+                commandEncoder.copyTextureToBuffer(
+                    { texture: this.surfaceTexture, origin: [cx, topY, 0] },
+                    { buffer: this._topReadbackBuffer!, bytesPerRow: 256 },
+                    { width:1, height:1, depthOrArrayLayers:1 }
+                );
+                this._topCopyScheduled = true;
+            }
+            if (phase === 0 && this._bottomReadbackBuffer && !this._bottomCopyScheduled) {
+                commandEncoder.copyTextureToBuffer(
+                    { texture: this.surfaceTexture, origin: [cx, botY, 0] },
+                    { buffer: this._bottomReadbackBuffer!, bytesPerRow: 256 },
+                    { width:1, height:1, depthOrArrayLayers:1 }
+                );
+                this._bottomCopyScheduled = true;
+            }
+
+            // Schedule weighted thickness / weight debug copies if values look stuck at zero for several frames
+            if (this._frame % 120 === 0) {
+                if (this.weightedThicknessTexture && this._accumReadBuffer && !this._accumCopyScheduled) {
+                    commandEncoder.copyTextureToBuffer(
+                        { texture: this.weightedThicknessTexture, origin: [cx, cy, 0] },
+                        { buffer: this._accumReadBuffer!, bytesPerRow: 256 },
+                        { width:1, height:1, depthOrArrayLayers:1 }
+                    );
+                    this._accumCopyScheduled = true;
+                }
+                if (this.weightTexture && this._weightReadBuffer && !this._weightCopyScheduled) {
+                    commandEncoder.copyTextureToBuffer(
+                        { texture: this.weightTexture, origin: [cx, cy, 0] },
+                        { buffer: this._weightReadBuffer!, bytesPerRow: 256 },
+                        { width:1, height:1, depthOrArrayLayers:1 }
+                    );
+                    this._weightCopyScheduled = true;
+                }
+            }
 
             if (!this._firstFrame) {
                 const temporalPass = commandEncoder.beginComputePass();
@@ -1127,6 +1190,9 @@ export class FluidRenderer {
                 temporalPass.setBindGroup(0, this.temporalBindGroup);
                 const wgTX = Math.ceil(this.width / 8);
                 const wgTY = Math.ceil(this.height / 8);
+                if (this._frame % 240 === 0) {
+                    console.log(`[FluidRenderer] temporal pass dispatch wg=(${wgTX},${wgTY})`);
+                }
                 temporalPass.dispatchWorkgroups(wgTX, wgTY, 1);
                 temporalPass.end();
                 if (this._frame % 60 === 0) {
@@ -1150,6 +1216,9 @@ export class FluidRenderer {
             heightPass.setBindGroup(0, this.heightBindGroup);
             const hwgX = Math.ceil(this.width / 8);
             const hwgY = Math.ceil(this.height / 8);
+            if (this._frame % 240 === 0) {
+                console.log(`[FluidRenderer] heightFromDepth dispatch wg=(${hwgX},${hwgY})`);
+            }
             heightPass.dispatchWorkgroups(hwgX, hwgY, 1);
             heightPass.end();
 
@@ -1175,33 +1244,51 @@ export class FluidRenderer {
                 // Swap for next pass
                 const tmp = inTexView; inTexView = outTexView; outTexView = tmp;
             }
-            // Ensure fluid surface bind group samples the latest diffused result (inTexView now holds last write)
-            if (inTexView !== this.heightTextureDiffuseView) {
-                // Rebuild surface bind group to point at most diffused texture
-                this.fluidSurfaceBindGroup = this.device.createBindGroup({
-                    label: 'fluid surface bind group (post diffusion)',
-                    layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
+            // Always ensure surface bind group samples the final diffused height result.
+            // Previous logic only rebuilt when inTexView was NOT the diffused texture, leaving the
+            // bind group pointing at the original (pre-diffused) height on odd iteration counts.
+            this.fluidSurfaceBindGroup = this.device.createBindGroup({
+                label: 'fluid surface bind group (post diffusion)',
+                layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: this.sampler },
+                    { binding: 1, resource: { buffer: this.renderUniformBuffer } },
+                    { binding: 2, resource: inTexView },
+                    { binding: 3, resource: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView },
+                    { binding: 4, resource: this._envView },
+                    { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
+                    { binding: 6, resource: { buffer: this.debugModeBuffer } },
+                    { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
+                    { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
+                    { binding: 9, resource: { buffer: this.effectParametersBuffer } },
+                    { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
+                    { binding: 11, resource: this.physicalTextureView! },
+                    { binding: 12, resource: this.foamAccumTextureView! },
+                    { binding: 13, resource: this.velocityTextureView },
+                    { binding: 14, resource: this._backgroundTextureView! },
+                    { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
+                    { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
+                ]
+            });
+            // Generate velocity field from (possibly diffused) height before physical metrics so debug velocity has variation
+            if (this.velocityPipeline) {
+                const velBG = this.device.createBindGroup({
+                    label: 'velocity from height bind group (frame)',
+                    layout: this.velocityPipeline.getBindGroupLayout(0),
                     entries: [
-                        { binding: 0, resource: this.sampler },
-                        { binding: 1, resource: { buffer: this.renderUniformBuffer } },
-                        { binding: 2, resource: inTexView },
-                        { binding: 3, resource: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView },
-                        { binding: 4, resource: this._envView },
-                        { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
-                        { binding: 6, resource: { buffer: this.debugModeBuffer } },
-                        { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
-                        { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
-                        { binding: 9, resource: { buffer: this.effectParametersBuffer } },
-                        { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
-                        { binding: 11, resource: this.physicalTextureView! },
-                        { binding: 12, resource: this.foamAccumTextureView! },
-                        { binding: 13, resource: this.velocityTextureView },
-                        { binding: 14, resource: this._backgroundTextureView! },
-                        { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
-                        { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
-                        { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
+                        { binding: 0, resource: inTexView },
+                        { binding: 1, resource: this.velocityTextureView },
                     ]
                 });
+                const velPass = commandEncoder.beginComputePass();
+                velPass.setPipeline(this.velocityPipeline);
+                velPass.setBindGroup(0, velBG);
+                const vgx = Math.ceil(this.width/8), vgy = Math.ceil(this.height/8);
+                if (this._frame % 240 === 0) {
+                    console.log(`[FluidRenderer] velocityFromHeight dispatch wg=(${vgx},${vgy})`);
+                }
+                velPass.dispatchWorkgroups(vgx, vgy, 1);
+                velPass.end();
             }
             // Physical metrics compute (after diffusion)
             if (this._enablePhysicalMetrics) {
@@ -1225,10 +1312,17 @@ export class FluidRenderer {
                 });
                 physPass.setPipeline(this.heightBlur2Pipeline!);
                 physPass.setBindGroup(0, this.heightBlur2BindGroup!);
-                physPass.dispatchWorkgroups(Math.ceil(this.width/8), Math.ceil(this.height/8), 1);
+                const pgx = Math.ceil(this.width/8), pgy = Math.ceil(this.height/8);
+                if (this._frame % 240 === 0) {
+                    console.log(`[FluidRenderer] heightBlur2 dispatch wg=(${pgx},${pgy})`);
+                }
+                physPass.dispatchWorkgroups(pgx, pgy, 1);
                 physPass.setPipeline(this.heightBlur4Pipeline!);
                 physPass.setBindGroup(0, this.heightBlur4BindGroup!);
-                physPass.dispatchWorkgroups(Math.ceil(this.width/8), Math.ceil(this.height/8), 1);
+                if (this._frame % 240 === 0) {
+                    console.log(`[FluidRenderer] heightBlur4 dispatch wg=(${pgx},${pgy})`);
+                }
+                physPass.dispatchWorkgroups(pgx, pgy, 1);
                 this.physicalBindGroup = this.device.createBindGroup({
                     label: 'height physical metrics bind group (frame)',
                     layout: this.heightPhysicalPipeline.getBindGroupLayout(0),
@@ -1242,7 +1336,10 @@ export class FluidRenderer {
                 });
                 physPass.setPipeline(this.heightPhysicalPipeline);
                 physPass.setBindGroup(0, this.physicalBindGroup);
-                physPass.dispatchWorkgroups(Math.ceil(this.width/8), Math.ceil(this.height/8), 1);
+                if (this._frame % 240 === 0) {
+                    console.log(`[FluidRenderer] heightPhysical dispatch wg=(${pgx},${pgy})`);
+                }
+                physPass.dispatchWorkgroups(pgx, pgy, 1);
                 physPass.end();
             }
 
@@ -1262,7 +1359,11 @@ export class FluidRenderer {
                 const foamPass = commandEncoder.beginComputePass();
                 foamPass.setPipeline(this.foamTemporalPipeline);
                 foamPass.setBindGroup(0, foamBindGroup);
-                foamPass.dispatchWorkgroups(Math.ceil(this.width/8), Math.ceil(this.height/8), 1);
+                const fgx = Math.ceil(this.width/8), fgy = Math.ceil(this.height/8);
+                if (this._frame % 240 === 0) {
+                    console.log(`[FluidRenderer] foamTemporal dispatch wg=(${fgx},${fgy})`);
+                }
+                foamPass.dispatchWorkgroups(fgx, fgy, 1);
                 foamPass.end();
                 // Copy new accumulation into prev for next frame (blit via copyTextureToTexture)
                 commandEncoder.copyTextureToTexture({ texture: this.foamAccumTexture! }, { texture: this.foamPrevTexture! }, [this.width, this.height, 1]);
@@ -1287,6 +1388,28 @@ export class FluidRenderer {
                         this._surfaceMapPending = false;
                         this._surfaceCopyScheduled = false;
                     }).catch(()=>{ this._surfaceMapPending = false; });
+                }
+                if (this._topCopyScheduled && this._topReadbackBuffer && !this._topMapPending) {
+                    this._topMapPending = true;
+                    this._topReadbackBuffer.mapAsync(GPUMapMode.READ).then(()=>{
+                        const u16s = new Uint16Array(this._topReadbackBuffer!.getMappedRange());
+                        const decode = (h:number)=>{ const s=(h&0x8000)?-1:1; let e=(h&0x7C00)>>10; let m=h&0x03FF; if(e===0) return s*(m*(1/(1<<24))); if(e===31) return m?NaN:s*Infinity; return s*(1+m/1024)*Math.pow(2,e-15); };
+                        console.log(`[FluidRenderer] Sample topRow: octN=(${decode(u16s[0]).toFixed(3)},${decode(u16s[1]).toFixed(3)}) thickness=${decode(u16s[2]).toFixed(4)} coverage=${decode(u16s[3]).toFixed(4)}`);
+                        this._topReadbackBuffer!.unmap();
+                        this._topMapPending = false;
+                        this._topCopyScheduled = false;
+                    }).catch(()=>{ this._topMapPending = false; });
+                }
+                if (this._bottomCopyScheduled && this._bottomReadbackBuffer && !this._bottomMapPending) {
+                    this._bottomMapPending = true;
+                    this._bottomReadbackBuffer.mapAsync(GPUMapMode.READ).then(()=>{
+                        const u16s = new Uint16Array(this._bottomReadbackBuffer!.getMappedRange());
+                        const decode = (h:number)=>{ const s=(h&0x8000)?-1:1; let e=(h&0x7C00)>>10; let m=h&0x03FF; if(e===0) return s*(m*(1/(1<<24))); if(e===31) return m?NaN:s*Infinity; return s*(1+m/1024)*Math.pow(2,e-15); };
+                        console.log(`[FluidRenderer] Sample bottomRow: octN=(${decode(u16s[0]).toFixed(3)},${decode(u16s[1]).toFixed(3)}) thickness=${decode(u16s[2]).toFixed(4)} coverage=${decode(u16s[3]).toFixed(4)}`);
+                        this._bottomReadbackBuffer!.unmap();
+                        this._bottomMapPending = false;
+                        this._bottomCopyScheduled = false;
+                    }).catch(()=>{ this._bottomMapPending = false; });
                 }
                 // Accum
                 if (this._accumCopyScheduled && this._accumReadBuffer && !this._accumMapPending) {
@@ -1499,7 +1622,27 @@ export class FluidRenderer {
             'Surface Curvature',
             'Fresnel Effect',
             'Caustics Pattern',
-            'Refraction Vectors'
+            'Refraction Vectors',
+            'View Angle (N·V)',
+            'Layered Fresnel Scalar',
+            'Foam Probability',
+            'Height Field',
+            'Slope Magnitude',
+            'Raw Height',
+            'Fresnel Hotspots',
+            'Curvature Magnitude',
+            'Slope/Capillary/Foam',
+            'Height Variance',
+            'Mirror Difference',
+            'Mid Split Mask'
         ];
+    }
+
+    /**
+     * Clear temporal buffers to eliminate ghost artifacts when effects are toggled or resolution changes
+     */
+    clearTemporalBuffers() {
+        this._firstFrame = true;
+        console.log('[FluidRenderer] Temporal buffers cleared - ghost artifacts should be eliminated');
     }
 }

@@ -4,7 +4,8 @@
 
 struct GaussianFragmentInput {
     @location(0) uv: vec2f,
-    @location(1) iuv: vec2f
+    @location(1) iuv: vec2f, // legacy
+    @builtin(position) pos: vec4f,
 }
 
 struct FilterUniforms {
@@ -13,8 +14,10 @@ struct FilterUniforms {
 
 @fragment
 fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
-    // thickness は unfilterable か？
-    var thickness: f32 = textureLoad(texture, vec2u(input.iuv), 0).r;
+    // Use integer UV coordinates for pixel-perfect addressing, consistent with other passes
+    let dims = textureDimensions(texture);
+    let basePx = vec2f(clamp(vec2i(input.iuv), vec2i(0), vec2i(dims) - vec2i(1)));
+    var thickness: f32 = textureLoad(texture, vec2u(basePx), 0).r;
     // Removed early return on zero thickness so nearby non-zero splats can diffuse into empty pixels
     // Enhanced filter size for smoother surface reconstruction
     // Smaller kernel; we'll rely on multiple passes for isotropy to avoid long directional streaks
@@ -32,7 +35,7 @@ fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
 
     for (var x: i32 = -filter_size; x <= filter_size; x++) {
         var coords: vec2f = vec2f(f32(x));
-        var sample_pos = input.iuv + uniforms.blur_dir * coords;
+    var sample_pos = basePx + uniforms.blur_dir * coords;
 
         // Clamp sample position to valid texture bounds
     var clamped_pos = clamp(sample_pos, vec2f(0.0), texture_dims - vec2f(1.0));

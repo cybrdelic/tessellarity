@@ -29,19 +29,19 @@ fn vs(
     @builtin(vertex_index) vertex_index: u32,
     @builtin(instance_index) instance_index: u32
 ) -> VertexOutput {
-    var corner_positions = array(
-        vec2(0.5, 0.5),
-        vec2(0.5, -0.5),
-        vec2(-0.5, -0.5),
-        vec2(0.5, 0.5),
-        vec2(-0.5, -0.5),
-        vec2(-0.5, 0.5),
+    var corner_positions = array<vec2f, 6>(
+        vec2f(0.5, 0.5),
+        vec2f(0.5, -0.5),
+        vec2f(-0.5, -0.5),
+        vec2f(0.5, 0.5),
+        vec2f(-0.5, -0.5),
+        vec2f(-0.5, 0.5),
     );
 
 
     // let speed = sqrt(dot(particles[instance_index].velocity, particles[instance_index].velocity));
     // let sz = max(0., uniforms.size - 0.00 * speed);
-    let corner = vec3(corner_positions[vertex_index] * uniforms.sphere_size, 0.0);
+    let corner = vec3f(corner_positions[vertex_index] * uniforms.sphere_size, 0.0);
     let uv = corner_positions[vertex_index] + 0.5;
 
     let real_position = particles[instance_index].position;
@@ -62,8 +62,8 @@ fn fs(input: ThicknessFragmentInput) -> @location(0) vec4f {
     var thickness: f32 = sqrt(1.0 - r2);
 
     // Apply ultra-smooth kernel for perfect blending between particles
-    var smoothKernel = pow(thickness, 0.8); // Much smoother falloff for better blending
-    let particle_alpha = 0.18 * smoothKernel; // Increased opacity for better coverage
+    var smoothKernel = pow(thickness, 0.7); // Smoother falloff for better coverage
+    let particle_alpha = 0.22 * smoothKernel; // Increased opacity to eliminate gaps
 
     return vec4f(vec3f(particle_alpha), 1.0);
 }

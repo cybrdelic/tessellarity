@@ -2552,18 +2552,29 @@
           <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">Debug
             Mode</label>
           <select id="debug-mode-select">
-            <option value="0">None</option>
-            <option value="1">Depth Map</option>
-            <option value="2">Thickness Map</option>
-            <option value="3">Surface Normals</option>
-            <option value="4">Absorption Effects</option>
-            <option value="5">Velocity Field</option>
-            <option value="6">Pressure Distribution</option>
-            <option value="7">Surface Curvature</option>
-            <option value="8">Fresnel Effects</option>
-            <option value="9">Caustics Patterns</option>
-            <option value="10">Refraction Rays</option>
-            <option value="11">Combined Variation</option>
+            <option value="0">0 - None</option>
+            <option value="1">1 - Depth Map</option>
+            <option value="2">2 - Thickness Map</option>
+            <option value="3">3 - Surface Normals</option>
+            <option value="4">4 - Absorption Effects</option>
+            <option value="5">5 - Velocity Field</option>
+            <option value="6">6 - Pressure Distribution</option>
+            <option value="7">7 - Surface Curvature</option>
+            <option value="8">8 - Fresnel Effects</option>
+            <option value="9">9 - Caustics Patterns</option>
+            <option value="10">10 - Refraction Rays</option>
+            <option value="11">11 - View Angle (N·V)</option>
+            <option value="12">12 - Fresnel Layer Scalar</option>
+            <option value="13">13 - Foam Probability</option>
+            <option value="14">14 - Height Field</option>
+            <option value="15">15 - Slope Magnitude</option>
+            <option value="16">16 - Raw Height</option>
+            <option value="17">17 - Fresnel Hotspots</option>
+            <option value="18">18 - Curvature Magnitude</option>
+            <option value="19">19 - Slope/Capillary/Foam</option>
+            <option value="20">20 - Height Variance</option>
+            <option value="21">21 - Mirror Difference</option>
+            <option value="22">22 - Mid Split Mask</option>
           </select>
         </div>
 
@@ -5407,18 +5418,40 @@
           updateLODParameter('smoothTransition', this.checked);
           updateLODStatus();
         });
-      }      // Initialize with balanced preset
-      applyLODPreset('balanced');
+      }
 
-      // Start LOD status updates after a delay to ensure main.ts is loaded
-      setTimeout(() => {
-        console.log('Starting LOD status updates...');
-        setInterval(updateLODStatus, 500); // Update every 500ms for better performance
-      }, 2000); // Wait 2 seconds for main.ts to initialize
+      // Defer preset application & status updates until LOD API is available
+      const startLODStatusUpdates = () => {
+        if (!window.__lodStatusInterval) {
+          console.log('Starting LOD status updates');
+          window.__lodStatusInterval = setInterval(updateLODStatus, 750); // Slightly slower to reduce noise
+        }
+      };
 
-      lodControlsInitialized = true;
-      console.log('LOD controls initialized successfully');
-    }    // Apply LOD preset
+      const tryApplyInitialPreset = () => {
+        if (window.setLODConfig && window.getCurrentLODInfo) {
+          applyLODPreset('balanced');
+          startLODStatusUpdates();
+          lodControlsInitialized = true;
+          console.log('LOD controls initialized');
+          return true;
+        }
+        return false;
+      };
+
+      // Attempt immediately, then retry a limited number of times without spamming logs
+      if (!tryApplyInitialPreset()) {
+        let attempts = 0;
+        const maxAttempts = 20; // ~5s total at 250ms
+        const retry = () => {
+          if (tryApplyInitialPreset() || attempts >= maxAttempts) return;
+          attempts++;
+          setTimeout(retry, 250);
+        };
+        setTimeout(retry, 250);
+      }
+    }
+    // Apply LOD preset
     function applyLODPreset(presetName) {
       const preset = lodPresets[presetName];
       if (!preset) {
@@ -5452,19 +5485,13 @@
       if (window.setLODConfig) {
         window.setLODConfig(configData);
       } else {
-        console.log('LOD system not ready, will retry in 1 second...');
-        setTimeout(() => {
-          if (window.setLODConfig) {
-            window.setLODConfig(configData);
-            console.log('LOD configuration applied after delay');
-          } else {
-            console.error('LOD system still not available');
-          }
-        }, 1000);
+        // Caller is responsible for retrying; keep silent to avoid spam
+        return false;
       }
 
       currentLODPreset = presetName;
       updateLODStatus();
+      return true;
     }
 
     // Update LOD slider value
