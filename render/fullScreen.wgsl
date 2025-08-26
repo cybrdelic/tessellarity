@@ -1,37 +1,29 @@
-struct VertexOutput {
-  @builtin(position) position : vec4f,
-  @location(0) uv : vec2f,
-  @location(1) iuv : vec2f,
-}
+// Fullscreen triangle vertex shader (eliminates quad diagonal seam & per-triangle LOD divergence)
+// We no longer pass interpolated UVs; fragments reconstruct UV from builtin position.
+// Final minimal fullscreen vertex output: only clip-space position.
+// All fragments must now use @builtin(position) to derive pixel + uv.
+struct FSVertexOut { @builtin(position) position : vec4f };
 
-override screenWidth: f32;
-override screenHeight: f32;
+// Provide render target dimensions for integer uv (legacy paths)
+// Legacy overrides removed; per-fragment derive dims via textureDimensions of the target source.
 
 @vertex
-fn vs(@builtin(vertex_index) vertex_index : u32) -> VertexOutput {
-    var out: VertexOutput;
-
-    var pos = array(
-        vec2( 1.0,  1.0),
-        vec2( 1.0, -1.0),
-        vec2(-1.0, -1.0),
-        vec2( 1.0,  1.0),
-        vec2(-1.0, -1.0),
-        vec2(-1.0,  1.0),
-    );
-
-    var uv = array(
-        vec2(1.0, 0.0),
-        vec2(1.0, 1.0),
-        vec2(0.0, 1.0),
-        vec2(1.0, 0.0),
-        vec2(0.0, 1.0),
-        vec2(0.0, 0.0),
-    );
-
-    out.position = vec4(pos[vertex_index], 0.0, 1.0);
-    out.uv = uv[vertex_index];
-    out.iuv = out.uv * vec2f(screenWidth, screenHeight);
-
-    return out;
+fn vs(@builtin(vertex_index) vertex_index : u32) -> FSVertexOut {
+        var p: vec2f;
+        switch(vertex_index) {
+                case 0u: { p = vec2f(-1.0, -1.0); }
+                case 1u: { p = vec2f( 3.0, -1.0); }
+                default: { p = vec2f(-1.0,  3.0); }
+        }
+        return FSVertexOut(vec4f(p, 0.0, 1.0));
 }
+
+// Coordinate unification complete: no varying uv/iuv now exist.
+// Fragment pattern (example):
+//   struct FIn { @builtin(position) pos: vec4f };
+//   @fragment fn fs(input: FIn) -> ... {
+//       let dims = textureDimensions(sourceTex);
+//       let pix = min(vec2u(u32(input.pos.x), u32(input.pos.y)), dims-vec2u(1u,1u));
+//       let uv  = (vec2f(pix) + 0.5) / vec2f(f32(dims.x), f32(dims.y));
+//       ...
+//   }

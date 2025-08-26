@@ -26,8 +26,7 @@ struct DebugUniforms {
 }
 
 struct FragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f,
+    @builtin(position) pos: vec4f,
 }
 
 // Core surface data that effects can use
@@ -73,6 +72,8 @@ struct EffectsToggle {
     enableReynoldsPhysics: u32,
     enableCavitation: u32,
     enableFoam: u32,
+    enableSpray: u32,
+    enableBubbles: u32,
     enableTurbulentNormals: u32,
     enableSpecular: u32,
     enableSubsurface: u32,
@@ -187,10 +188,11 @@ struct EffectParameters {
     varianceStrength: f32,
     varianceRadius: f32,
     varianceThreshold: f32,
-    padding1: f32,
-    padding2: f32,
-    padding3: f32,
-    padding4: f32,
+    // Spray & Bubble parameters (formerly padding1..4) keep same layout/indices 64..67
+    sprayIntensity: f32,      // Index 64: overall spray energy scaling (0=off)
+    sprayDissipation: f32,    // Index 65: higher = faster spray fade (reduces steady energy)
+    bubbleIntensity: f32,     // Index 66: strength of subsurface bubble brightening
+    bubbleAlbedoLift: f32,    // Index 67: how much bubbles shift toward white (vs water tint)
 }
 
 // Configuration for runtime parameter overrides defined in config.wgsl

@@ -1,12 +1,11 @@
 import {
+    BoundingBox,
     Simulation,
     SimulationParameter,
-    BoundingBox,
-    Transform,
-    Vector3
+    Transform
 } from '../core/foundation';
-import { BasicBoundingBox } from '../core/spatial';
 import { ResourceManager } from '../core/resources';
+import { BasicBoundingBox } from '../core/spatial';
 
 export class SimpleOceanWaves implements Simulation {
     id = 'simple-ocean';

@@ -35,6 +35,8 @@ struct EffectsToggle {
   enableReynoldsPhysics: u32,
   enableCavitation: u32,
   enableFoam: u32,
+  enableSpray: u32,
+  enableBubbles: u32,
   enableTurbulentNormals: u32,
   enableSpecular: u32,
   enableSubsurface: u32,
@@ -82,7 +84,11 @@ struct EffectParameters {
   rimLightStrength: f32, rimLightPower: f32, rimLightScale: f32, rimLightContrast: f32,
   colorAbsorptionRed: f32, colorAbsorptionGreen: f32, colorAbsorptionBlue: f32, colorAbsorptionDepth: f32,
   varianceSamples: f32, varianceStrength: f32, varianceRadius: f32, varianceThreshold: f32,
-  padding1: f32, padding2: f32, padding3: f32, padding4: f32,
+  // Spray & Bubble parameters (indices 64..67 keep original layout)
+  sprayIntensity: f32,      // overall spray energy scaling (formerly padding1)
+  sprayDissipation: f32,    // higher = faster spray fade (formerly padding2)
+  bubbleIntensity: f32,     // subsurface bubble brightening (formerly padding3)
+  bubbleAlbedoLift: f32,    // bubble coloration toward white (formerly padding4)
 }
 struct CompositionParams {
   lightingBlendMode: u32, opticalBlendMode: u32, colorBlendMode: u32,
@@ -118,11 +124,38 @@ const DEFAULT_WIND_DIR: vec3f = vec3f(0.8, 0.0, 0.2);
 @group(0) @binding(15) var<uniform> transmissionParams: TransmissionParams;
 @group(0) @binding(16) var<uniform> sphereContain: SphereContain;
 
-struct FragmentInput {
-  @location(0) uv: vec2f,
-  @location(1) iuv: vec2f, // legacy (not used for primary pixel address anymore)
-  @builtin(position) pos: vec4f,
+struct FragmentInput { @builtin(position) pos: vec4f }
+
+// Seam probe (optional). Disabled by default. When true outputs discrepancy visualization early.
+override SEAM_PROBE: bool = false;
+
+// Local subset of screenspace helpers so file compiles standalone; wrapper will skip duplicate prepend.
+fn ss_dims(tex: texture_2d<f32>) -> vec2u { return textureDimensions(tex); }
+fn ss_pix(pos: vec4f, tex: texture_2d<f32>) -> vec2u {
+  let d = textureDimensions(tex);
+  return vec2u(clamp(pos.xy, vec2f(0.0), vec2f(f32(d.x-1u), f32(d.y-1u))));
 }
+fn ss_uv(pos: vec4f, tex: texture_2d<f32>) -> vec2f {
+  let d = vec2f(textureDimensions(tex));
+  return pos.xy / d;
+}
+fn ss_load(tex: texture_2d<f32>, pos: vec4f) -> vec4f { return textureLoad(tex, ss_pix(pos, tex), 0); }
+fn ss_sample0(tex: texture_2d<f32>, samp: sampler, pos: vec4f) -> vec4f {
+  let uv = clamp(ss_uv(pos, tex), vec2f(0.0), vec2f(1.0));
+  return textureSampleLevel(tex, samp, uv, 0.0);
+}
+fn ss_pix_remap(pos: vec4f, src: texture_2d<f32>, dst: texture_2d<f32>) -> vec2u {
+  let ds = vec2f(textureDimensions(src));
+  let dd = vec2f(textureDimensions(dst));
+  let uv = pos.xy / dd;
+  return vec2u(clamp(uv * ds, vec2f(0.0), ds - vec2f(1.0)));
+}
+fn ss_load_remap(src: texture_2d<f32>, dst: texture_2d<f32>, pos: vec4f) -> vec4f {
+  return textureLoad(src, ss_pix_remap(pos, src, dst), 0);
+}
+
+// Enable simple smoke test visualization of thickness (R) & coverage (G) pulled from surface texture
+override DEBUG_SMOKE_TEST: bool = false;
 
 fn unpackOctahedral(p: vec2f) -> vec3f {
   var f = p * 2.0 - 1.0;
@@ -232,7 +265,9 @@ fn marchRefraction(viewPos: vec3f, V_view: vec3f, N_world: vec3f, eta: f32, fx: 
     let ndcX = (P.x * fx)/(-P.z);
     let ndcY = (P.y * fy)/(-P.z);
     // Fix vertical mirroring: use consistent Y direction (no flip)
-    let uv = vec2f(ndcX * 0.5 + 0.5, ndcY * 0.5 + 0.5);
+  // Map NDC -> UV (0..1) explicitly; retain formula but annotate for clarity.
+  // This ray-march derived uv is independent of the fragment's own pixel; keep as-is.
+  let uv = vec2f(ndcX * 0.5 + 0.5, ndcY * 0.5 + 0.5);
     if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0))) { break; }
     let uvPixels = uv * dims;
     let maxCoord = dims - vec2f(1.0);
@@ -253,7 +288,7 @@ fn marchRefraction(viewPos: vec3f, V_view: vec3f, N_world: vec3f, eta: f32, fx: 
         let ndcXr = (Pref.x * fx)/(-Pref.z);
         let ndcYr = (Pref.y * fy)/(-Pref.z);
         // Fix vertical mirroring: use consistent Y direction (no flip)
-        lastUV = vec2f(ndcXr * 0.5 + 0.5, ndcYr * 0.5 + 0.5);
+  lastUV = vec2f(ndcXr * 0.5 + 0.5, ndcYr * 0.5 + 0.5); // refined NDC->UV
       } else {
         lastUV = uv;
       }
@@ -295,6 +330,25 @@ fn heightSampleClamped(x: i32, y: i32, dims: vec2u) -> f32 {
 // -----------------------------------------------------------------------------
 @fragment
 fn fs(input: FragmentInput) -> @location(0) vec4f {
+  // Early seam probe: compare point vs filtered sample difference on reconstructed surface texture
+  if (SEAM_PROBE) {
+    let A = ss_load(surface_texture, input.pos).r; // point thickness
+    let B = ss_sample0(surface_texture, texture_sampler, input.pos).r; // filtered thickness
+    let d = clamp(abs(A - B) * 16.0, 0.0, 1.0);
+    return vec4f(d, 0.0, 1.0 - d, 1.0);
+  }
+  // Foam / spray shaping intermediates declared first so any early fallback branches can assign them.
+  var slopeBoost: f32 = 0.0;
+  var curvBoost: f32 = 0.0;
+  var dynamicBoost: f32 = 0.0;
+  var foamIntensity: f32 = 0.0;
+  var wHi: f32 = 0.0;
+  // Effect parameter aliases lifted to function scope so they are visible to all debug paths
+  // (Previously declared inside a foam block causing unresolved identifiers in later debug sections.)
+  let sprayIntensity = effectParameters.sprayIntensity;               // expected 0..1.5
+  let sprayDissipation = max(0.05, effectParameters.sprayDissipation); // 0.1..3 controls fade speed
+  let bubbleIntensity = effectParameters.bubbleIntensity;             // 0..1
+  let bubbleAlbedoLift = effectParameters.bubbleAlbedoLift;           // 0..1
   // Legacy surface texture (particle-accumulated then blurred) still carries residual particle footprint.
   // We only use its packed normal as a fallback. Thickness & coverage from this texture are NOT used for shading.
   // Pixel coordinate: previously rounded (floor+0.5) introduced a subtle diagonal transition line.
@@ -302,7 +356,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // Use integer UV coordinates for pixel-perfect addressing, eliminating diagonal seams
   // consistent with all compute passes that use vec2i(gid.xy)
   let dimsPix = textureDimensions(height_texture);
-  let fragPx = vec2i(clamp(vec2i(input.iuv), vec2i(0), vec2i(dimsPix) - vec2i(1)));
+  let fragPx = vec2i(clamp(vec2i(input.pos.xy), vec2i(0), vec2i(dimsPix) - vec2i(1)));
   let pix = vec2u(fragPx);
   let surf = textureLoad(surface_texture, pix, 0);
   var N_view = unpackOctahedral(surf.xy);
@@ -347,17 +401,27 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   if (sphereContain.enabled != 0u) {
     // Project worldPos later; for now approximate using reconstructed worldPos after it is computed
   }
-  // Convert crest candidate into instantaneous foam candidate via shaping (narrower now after metric change)
-  // Foam candidate shaping: previous thresholds too conservative -> almost no visible foam.
-  // Incorporate curvature & slope energy to raise crest probability in dynamically energetic regions.
-  let slopeNorm_local = saturate(abs(slope) * 0.6);
-  let curvatureBoost = abs(curvatureDir) * 0.85; // curvature magnitude acts as additional trigger
-  let crestEnhanced = crestCand + curvatureBoost * 0.35 + slopeNorm_local * 0.25;
-  // Lowered thresholds expose early formation then ramp quickly to avoid blanket white.
-  var foamMask = smoothstep(0.008, 0.045, crestEnhanced);
-  // Use temporal accumulation if available (sample channel r)
-  let foamAccum = textureLoad(foamAccumTex, pix, 0).r;
-  foamMask = max(foamMask, foamAccum);
+  // Foam candidate & accumulation (fully gated by enableFoam to make effect strictly toggleable)
+  var foamMask = 0.0;
+  if (effectsToggle.enableFoam != 0u) {
+    // Convert crest candidate into instantaneous foam candidate via shaping (narrower now after metric change)
+    let slopeNorm_local = saturate(abs(slope) * 0.6);
+    let curvatureBoost = abs(curvatureDir) * 0.85; // curvature magnitude acts as additional trigger
+    let crestEnhanced = crestCand + curvatureBoost * 0.35 + slopeNorm_local * 0.25;
+    // Lowered thresholds expose early formation then ramp quickly to avoid blanket white.
+    foamMask = smoothstep(0.008, 0.045, crestEnhanced);
+    // Temporal accumulation channel (r)
+    let foamAccum = textureLoad(foamAccumTex, pix, 0).r;
+    foamMask = max(foamMask, foamAccum);
+  }
+  else {
+    // Provide benign defaults so debug visualizations that reference these still compile.
+  slopeBoost = clamp(slope * 0.9, 0.0, 1.2);
+  curvBoost = clamp(abs(curvatureDir) * 4.5, 0.0, 2.0);
+  dynamicBoost = 0.35 * slopeBoost + 0.45 * curvBoost;
+  foamIntensity = 0.0;
+  wHi = 0.0;
+  }
   // Tangent-space vectors (assuming screen x->+x, y->+y, view forward -z)
   // Base reconstructed normal
   var Nh = normalize(vec3f(-dhdx, -dhdy, 1.0));
@@ -445,6 +509,24 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   let filmMinBase = 0.42 * pow(coverage, 0.5); // legacy floor reused in new model
   // Coverage gating for diffuse only (specular reflection governed by Fresnel)
   let covSoft = pow(coverage, COV_GAMMA);
+  // -------------------------------------------------------------------------
+  // Master disable path: if ALL effect toggles are 0, short‑circuit to a minimal
+  // baseline shading (flat color * coverage/thickness alpha) to avoid residual
+  // Fresnel / turbidity / tone mapping influence. Keeps debug overlays intact.
+  let togglesSum =
+    effectsToggle.enableReynoldsPhysics + effectsToggle.enableCavitation + effectsToggle.enableFoam +
+    effectsToggle.enableTurbulentNormals + effectsToggle.enableSpecular + effectsToggle.enableSubsurface +
+    effectsToggle.enableFresnel + effectsToggle.enableReflection + effectsToggle.enableRefraction +
+    effectsToggle.enableCaustics + effectsToggle.enableDispersion + effectsToggle.enableAbsorption +
+    effectsToggle.enableDepthColoring + effectsToggle.enableVelocityColoring + effectsToggle.enableRimLighting +
+    effectsToggle.enableColorAbsorption + effectsToggle.enableVarianceLightTransport;
+  if (togglesSum == 0u && debug.mode == 0u) {
+    // Minimal alpha model: geometric film approximation only.
+    let baseAlphaSimple = clamp(coverage * syntheticThickness * 2.2, 0.0, 1.0);
+    // Direct water color (no Fresnel/specular). Preserve user color rgb.
+    let baseColSimple = waterAppearance.color.rgb;
+    return vec4f(baseColSimple * baseAlphaSimple, baseAlphaSimple);
+  }
   let covGate = smoothstep(MIN_COV, 1.0, covSoft);
 
   // --- Physically-inspired micro surface perturbation (capillary / ripples) ---
@@ -659,7 +741,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   let vel = textureLoad(velocityTex, pix, 0).xy; // unified coordinate source
         let velMag = length(vel);
         let velDamp = 1.0 / (1.0 + velMag * 4.0);
-        let uvBG = clamp(input.uv + refrOffset * velDamp, vec2f(0.0), vec2f(1.0));
+  // Reconstruct normalized screen uv for this pixel (since we removed varying uv)
+  let dimsF2 = vec2f(f32(dimsPix.x), f32(dimsPix.y));
+  let uvScreen2 = (vec2f(fragPx) + vec2f(0.5)) / dimsF2;
+  let uvBG = clamp(uvScreen2 + refrOffset * velDamp, vec2f(0.0), vec2f(1.0));
   var bgCol = textureSampleLevel(backgroundTex, texture_sampler, uvBG, 0.0).rgb;
   // If background looks like an empty/placeholder texture (very dark), fallback to neutral black explicitly
   if (all(bgCol < vec3f(0.001))) { bgCol = vec3f(0.0); }
@@ -685,6 +770,11 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
   }
 
+  // Smoke test early-out (after we have surf & pix) to visualize base data
+  if (DEBUG_SMOKE_TEST) {
+    let surfDbg = textureLoad(surface_texture, vec2u(fragPx), 0);
+    return vec4f(surfDbg.z, surfDbg.w, 0.0, 1.0);
+  }
   // Absorption / color attenuation (apply ONLY to transmitted components) -----
   var absorptionAtten = vec3f(1.0);
   if (effectsToggle.enableAbsorption != 0u) {
@@ -716,9 +806,12 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // Energy partition using Fview: specular gets F, remainder splits into diffuse + transmission.
   let Favg = (Fview.x + Fview.y + Fview.z) / 3.0;
   // Limit Fresnel-driven specular dominance when user opacity indicates strong absorption
-  var specEnergy = (specCol + reflection) * Fview;
-  let fresnelLimiter = mix(1.0, 0.55, oCurve); // higher opacity reduces specular share
-  specEnergy *= fresnelLimiter;
+  var specEnergy = vec3f(0.0);
+  if (effectsToggle.enableSpecular != 0u || effectsToggle.enableReflection != 0u) {
+    specEnergy = (specCol + reflection) * Fview;
+    let fresnelLimiter = mix(1.0, 0.55, oCurve); // higher opacity reduces specular share
+    specEnergy *= fresnelLimiter;
+  }
   let transmissionWeight = transmissionParams.transmissionWeight;
   // Initial (pre user-opacity) energies
   var transEnergy = transmission * (1.0 - Fview) * transmissionWeight;
@@ -764,16 +857,18 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   var litCore = specEnergy + diffuseEnergy + transEnergy + turbidityFog * (1.0 - Fview);
   // Foam contribution: physically separate layer approximation (modulates Fresnel & roughness implicitly earlier)
   var foamSpecPortion = vec3f(0.0);
+  // Precompute foam shaping terms (already declared earlier) so debug modes can reference them safely.
+  var foamIntensityRaw = 0.0;
   if (effectsToggle.enableFoam != 0u) {
     // Instantaneous + temporal accumulation combined mask already in foamMask
   // Enhanced shaping: raise early visibility and dynamic range of mature foam.
   // We treat crest foam as highly reflective diffuse micro-bubble layer + a subsurface scattering halo.
-  let foamIntensityRaw = pow(foamMask, 0.65) * effectParameters.foamIntensity;
+  foamIntensityRaw = pow(foamMask, 0.65) * effectParameters.foamIntensity;
   // Curvature & slope boost (promotes bright foam on breaking crests per typical PDF references)
-  let slopeBoost = clamp(slope * 0.9, 0.0, 1.2);
-  let curvBoost = clamp(abs(curvatureDir) * 4.5, 0.0, 2.0);
-  let dynamicBoost = 0.35 * slopeBoost + 0.45 * curvBoost;
-  let foamIntensity = clamp(foamIntensityRaw + dynamicBoost * 0.6, 0.0, 3.5);
+  slopeBoost = clamp(slope * 0.9, 0.0, 1.2);
+  curvBoost = clamp(abs(curvatureDir) * 4.5, 0.0, 2.0);
+  dynamicBoost = 0.35 * slopeBoost + 0.45 * curvBoost;
+  foamIntensity = clamp(foamIntensityRaw + dynamicBoost * 0.6, 0.0, 3.5);
   // Base albedo (near white) with faint warm shift to avoid cold bleach; allow water color to tint deep foam slightly.
   let waterTint = mix(vec3f(1.0), waterAppearance.color.rgb, 0.15);
   let foamAlbedo = mix(vec3f(0.94,0.96,0.97), vec3f(1.0), 0.55) * waterTint;
@@ -796,7 +891,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   let foamDiffuseCombined = foamDiffuseLambert + foamSubsurface;
   // Apply intensity & clamp to avoid NaNs
   let w = clamp(foamIntensity, 0.0, 1.0);
-  let wHi = clamp((foamIntensity - 1.0) * 0.5, 0.0, 1.0); // extra brightening for very strong crests
+  wHi = clamp((foamIntensity - 1.0) * 0.5, 0.0, 1.0); // extra brightening for very strong crests
   // Attenuate existing lit core (water layer) beneath foam; keep some specular glints
   let occlusion = mix(0.55, 0.25, wHi); // stronger occlusion for explosive foam
   litCore *= (1.0 - w * occlusion);
@@ -812,6 +907,35 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // Edge amplification: enhance grazing foam brightness (thin film forward scatter)
   let graze = pow(1.0 - NoV, 3.0);
   litCore += foamAlbedo * graze * w * 0.25;
+  // --- Spray & Bubbles Extensions -------------------------------------------------------
+  // Now using dedicated named parameters (sprayIntensity, sprayDissipation, bubbleIntensity, bubbleAlbedoLift)
+  // Spray: bright forward / rim oriented micro droplets at energetic crests (high slope+curvBoost)
+  if (effectsToggle.enableSpray != 0u && sprayIntensity > 0.001) {
+    // Proxy spray emission metric: dynamicBoost (already curvature & slope based) and high wHi (mature foam)
+    let spraySeed = dynamicBoost * (0.4 + 0.6 * wHi);
+    // Angle falloff: strongest toward view grazing and light direction alignment
+    let viewGraze = pow(1.0 - NoV, 2.5);
+  // Use previously defined main light direction (L)
+  let lightAlign = pow(saturate(dot(N_world, L)), 4.0);
+    let sprayMask = clamp(spraySeed * (0.35 + 0.65 * viewGraze) + lightAlign * 0.15, 0.0, 1.0);
+    // Temporal style fade approximation using frame-space noise from curvature variations
+  var sprayEnergy = sprayMask * sprayIntensity; // mutable for dissipation scaling
+    // Dissipation reduces contribution (simulate rapid fade)
+    sprayEnergy *= 1.0 / (1.0 + sprayDissipation * 0.75);
+    // Add as sparkling specular-like veil (broad white) with slight bluish atmospheric tint
+    let sprayTint = mix(vec3f(1.0), mix(TURBIDITY_COLOR, waterAppearance.color.rgb, 0.2), 0.25);
+    let spraySheen = sprayTint * sprayEnergy;
+    litCore += spraySheen;
+  }
+  // Sub-surface bubbles: elevate translucency & brighten subsurface under thick persistent foam
+  if (effectsToggle.enableBubbles != 0u && bubbleIntensity > 0.001) {
+    let bubbleMask = pow(foamMask, 1.2) * (0.3 + 0.7 * wHi); // only strong where foam matured
+    let bubbleLift = bubbleMask * bubbleIntensity;
+    // Lift diffuse/transmission (subsurface) by adding a soft white + water tint mix
+    let bubbleColor = mix(waterAppearance.color.rgb, vec3f(1.0), bubbleAlbedoLift);
+    litCore += bubbleColor * bubbleLift * 0.35; // modest energy to avoid washing contrast
+  }
+  // --------------------------------------------------------------------------------------
   }
   // Apply absorption at end (acts on transmitted + reflected for our simplified model)
   // (Absorption already applied to appropriate components)
@@ -910,25 +1034,82 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   }
   if debugMode == 9u {
     // Caustics placeholder: show clarity vs turbidityFog balance
+    // Helper: simple stable hash from pixel + normal variation for sub-pixel sparkle (frame-invariant)
+    // (Avoid temporal flicker until a frame index uniform is available.)
+  let pix = ss_pix(input.pos, foamAccumTex);
+    let h = fract(sin(dot(vec2f(pix) + N_world.xy * 57.13, vec2f(12.9898,78.233))) * 43758.5453123);
+    let h2 = fract(sin(dot(vec2f(pix) * 1.37 + N_world.yz * 91.7, vec2f(25.425,17.173))) * 96243.12357);
     let clarityProxy = exp(-syntheticThickness * 12.0);
-    return vec4f(vec3f(clarityProxy), 1.0);
-  }
-  if debugMode == 10u {
-    let pathLen = select(syntheticThickness / max(NoV,0.1), marchedPath, marchedPath > 0.0);
-    let vis = clamp(pathLen * 0.3, 0.0, 1.0);
-    return vec4f(vec3f(vis), 1.0);
-  }
-  if debugMode == 11u {
-    // NoV visualization
-    return vec4f(vec3f(NoV), 1.0);
-  }
-  // Note: Debug modes 23u, 24u, 25u handled early in skipShading section to avoid coordinate inconsistencies
-  if debugMode == 12u {
-    // Layered Fresnel scalar before tempering
-    return vec4f(vec3f(F_layer_debug), 1.0);
+    if (effectsToggle.enableSpray != 0u && sprayIntensity > 0.001) {
+      // Base emission metric: dynamicBoost + matured foam plus slope energy (prevents spray on flat areas)
+      let spraySeedRaw = dynamicBoost * (0.35 + 0.65 * wHi) + slopeBoost * 0.2;
+      // Add stochastic micro-burst variation & clamp
+      let microJitter = (h * 1.4 - 0.4) * 0.6; // centered jitter
+      let spraySeed = clamp(spraySeedRaw + microJitter, 0.0, 2.5);
+      // Angle falloff: strong at grazing view, moderate with light alignment for sparkle
+      let viewGraze = pow(1.0 - NoV, 2.2);
+      let lightAlign = pow(saturate(dot(N_world, L)), 3.0);
+      // Curvature accentuation (breaking crest edges)
+      let curvEdge = clamp(curvBoost * 0.55, 0.0, 1.2);
+      let sprayMaskBase = spraySeed * (0.25 + 0.55 * viewGraze) + lightAlign * 0.18 + curvEdge * 0.25;
+      // Multi-stage shaping for broader dynamic range
+      let sprayMask = clamp(pow(sprayMaskBase, 0.85), 0.0, 3.0);
+      // Normalize & scale by intensity
+      var sprayEnergy = sprayMask * sprayIntensity * 0.9;
+      // Dissipation scaling (faster fade -> lower steady state energy)
+      sprayEnergy *= 1.0 / (1.0 + sprayDissipation * 0.6);
+      // Sparkle modulation: random micro specular bursts using hashed noise
+      let sparkle = pow(h, 8.0) * 6.0 + pow(h2, 5.0) * 3.0; // rare bright flashes
+      let sparkleMod = 1.0 + sparkle * 0.35 * (0.4 + 0.6 * viewGraze);
+      sprayEnergy *= sparkleMod;
+      // Color: slight cool shift vs foam core + faint absorption tint; clamp to avoid pure white burn
+      let sprayTintBase = mix(vec3f(1.0), mix(TURBIDITY_COLOR, waterAppearance.color.rgb, 0.15), 0.2);
+      let sprayTint = clamp(sprayTintBase + vec3f(0.02,0.03,0.05) * lightAlign, vec3f(0.0), vec3f(1.2));
+      // Sheen forms mostly additive brightening with subtle self-tonemap
+      let spraySheenRaw = sprayTint * sprayEnergy;
+      let spraySheen = spraySheenRaw / (spraySheenRaw + vec3f(1.5));
+      // Blend into lit core (spray acts as forward scattered veil; slight weighting to spec energy)
+      litCore += spraySheen * 0.85;
+    }
   }
   if debugMode == 13u {
-    return vec4f(vec3f(foamProb), 1.0);
+    // Local hashes for bubble/spray mask visualization
+  let pix = ss_pix(input.pos, foamAccumTex);
+    let h = fract(sin(dot(vec2f(pix) + N_world.xy * 57.13, vec2f(12.9898,78.233))) * 43758.5453123);
+    let h2 = fract(sin(dot(vec2f(pix) * 1.37 + N_world.yz * 91.7, vec2f(25.425,17.173))) * 96243.12357);
+    let curvBoost = clamp(abs(curvatureDir) * 4.5, 0.0, 2.0);
+    let dynamicBoost = 0.35 * slopeBoost + 0.45 * curvBoost;
+    let wHi = clamp((pow(foamMask,0.65)*effectParameters.foamIntensity - 1.0) * 0.5, 0.0, 1.0);
+    if (effectsToggle.enableBubbles != 0u && bubbleIntensity > 0.001) {
+      // Gate by synthetic thickness (avoid bubbles on ultra thin film) & foam maturity
+      let thickGate = smoothstep(0.04, 0.25, syntheticThickness);
+  var bubbleMask = pow(foamMask, 1.15) * (0.25 + 0.75 * wHi) * thickGate;
+      // Add subtle random sparsity so bubbles aren't uniform
+      let sparsity = step(h, 0.85); // 15% of pixels culled to create porous look
+      bubbleMask *= sparsity;
+      // Slight curvature weighting (convex crest faces catch more illuminated bubbles)
+      bubbleMask *= 0.7 + 0.3 * clamp(curvBoost * 0.5, 0.0, 1.0);
+      let bubbleLift = bubbleMask * bubbleIntensity;
+      // Color lift toward white with retained water tint depth influence (use absorptionAtten for subtle coloration)
+      let tintedWater = mix(waterAppearance.color.rgb, absorptionAtten.rgb, 0.4);
+      let bubbleColorBase = mix(tintedWater, vec3f(1.0), bubbleAlbedoLift);
+      // Local contrast shaping: emphasize mid-range bubble density without flattening highlights
+      let bubbleColor = bubbleColorBase * (0.6 + 0.4 * h2);
+      // Add luminous soft component (approx internal scattering) with mild tone mapping
+      let bubbleEnergy = bubbleColor * bubbleLift * 0.8;
+      let bubbleTone = bubbleEnergy / (bubbleEnergy + vec3f(1.2));
+      litCore += bubbleTone * 0.65; // stronger than previous 0.35 to increase visibility
+    }
+  // Include enableSpray toggle directly (1 if enabled else 0)
+  let spraySeed = dynamicBoost * (0.4 + 0.6 * wHi) * sprayIntensity * select(0.0, 1.0, effectsToggle.enableSpray != 0u);
+    return vec4f(vec3f(clamp(spraySeed,0.0,1.0)), 1.0);
+  }
+  if debugMode == 15u {
+    // Bubble visualization: show bubble mask (foam maturity based)
+    let bubbleIntensity = effectParameters.bubbleIntensity;
+    let wHi = clamp((pow(foamMask,0.65)*effectParameters.foamIntensity - 1.0) * 0.5, 0.0, 1.0);
+    let bubbleMask = pow(foamMask, 1.2) * (0.3 + 0.7 * wHi) * bubbleIntensity;
+    return vec4f(vec3f(clamp(bubbleMask,0.0,1.0)), 1.0);
   }
   if debugMode == 16u {
     // Height field raw (normalized by simple global heuristic); white blocks may indicate uninitialized areas (near zero variance)

@@ -1,9 +1,10 @@
+import { makeShaderModule } from '../render/makeShaderModule';
 import clearGrid from './clearGrid.wgsl';
+import copyPosition from './copyPosition.wgsl';
+import g2p from './g2p.wgsl';
 import p2g_1 from './p2g_1.wgsl';
 import p2g_2 from './p2g_2.wgsl';
 import updateGrid from './updateGrid.wgsl';
-import g2p from './g2p.wgsl';
-import copyPosition from './copyPosition.wgsl'
 
 import { numParticlesMax, renderUniformsViews } from '../common';
 import { ISimulator } from '../src/core/SimulatorRegistry';
@@ -43,12 +44,12 @@ export class MLSMPMSimulator implements ISimulator {
     constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice) {
         this.device = device
         this.renderDiameter = renderDiameter
-        const clearGridModule = device.createShaderModule({ code: clearGrid });
-        const p2g1Module = device.createShaderModule({ code: p2g_1 });
-        const p2g2Module = device.createShaderModule({ code: p2g_2 });
-        const updateGridModule = device.createShaderModule({ code: updateGrid });
-        const g2pModule = device.createShaderModule({ code: g2p });
-        const copyPositionModule = device.createShaderModule({ code: copyPosition });
+    const clearGridModule = makeShaderModule(device, clearGrid);
+    const p2g1Module = makeShaderModule(device, p2g_1);
+    const p2g2Module = makeShaderModule(device, p2g_2);
+    const updateGridModule = makeShaderModule(device, updateGrid);
+    const g2pModule = makeShaderModule(device, g2p);
+    const copyPositionModule = makeShaderModule(device, copyPosition);
 
         const constants = {
             stiffness: 3.,
@@ -198,9 +199,9 @@ export class MLSMPMSimulator implements ISimulator {
 
         this.numParticles = 0;
 
-        for (let j = 0; j < initBoxSize[1] * 0.80 && this.numParticles < numParticles; j += spacing) {
-            for (let i = 3; i < initBoxSize[0] - 4 && this.numParticles < numParticles; i += spacing) {
-                for (let k = 3; k < initBoxSize[2] / 2 && this.numParticles < numParticles; k += spacing) {
+        for (let j = 0; j < initBoxSize[1]! * 0.80 && this.numParticles < numParticles; j += spacing) {
+            for (let i = 3; i < initBoxSize[0]! - 4 && this.numParticles < numParticles; i += spacing) {
+                for (let k = 3; k < initBoxSize[2]! / 2 && this.numParticles < numParticles; k += spacing) {
                     const offset = mlsmpmParticleStructSize * this.numParticles;
                     const particleViews = {
                         position: new Float32Array(particlesBuf, offset + 0, 3),
@@ -226,7 +227,7 @@ export class MLSMPMSimulator implements ISimulator {
         renderUniformsViews.sphere_size.set([this.renderDiameter])
         const particleData = this.initDambreak(initBoxSize, numParticles);
         const maxGridCount = this.max_x_grids * this.max_y_grids * this.max_z_grids;
-        this.gridCount = Math.ceil(initBoxSize[0]) * Math.ceil(initBoxSize[1]) * Math.ceil(initBoxSize[2]);
+    this.gridCount = Math.ceil(initBoxSize[0]!) * Math.ceil(initBoxSize[1]!) * Math.ceil(initBoxSize[2]!);
         if (this.gridCount > maxGridCount) {
             throw new Error("gridCount should be equal to or less than maxGridCount")
         }

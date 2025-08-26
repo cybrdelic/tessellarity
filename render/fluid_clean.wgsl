@@ -14,12 +14,13 @@
 
 // === SHARED DATA STRUCTURES ===
 struct RenderUniforms {
-    texel_size: vec2f,
+    @align(8) texel_size: vec2f,
     sphere_size: f32,
-    inv_projection_matrix: mat4x4f,
-    projection_matrix: mat4x4f,
-    view_matrix: mat4x4f,
-    inv_view_matrix: mat4x4f,
+    padding0: f32,
+    @align(16) inv_projection_matrix: mat4x4<f32>,
+    projection_matrix: mat4x4<f32>,
+    view_matrix: mat4x4<f32>,
+    inv_view_matrix: mat4x4<f32>,
 }
 
 struct WaterAppearance {
@@ -152,10 +153,8 @@ struct EffectParameters {
     padding4: f32,
 }
 
-struct FluidCleanFragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f,
-}
+// Screen-Space ABI: fragment input only carries builtin position.
+struct FluidCleanFragmentInput { @builtin(position) pos: vec4f };
 
 // === MODULAR DATA STRUCTURES ===
 struct SurfaceData {
@@ -195,7 +194,7 @@ struct PhysicsData {
 // === SURFACE CALCULATIONS (Independent) ===
 fn computeViewPosFromUVDepth(tex_coord: vec2f, depth: f32) -> vec3f {
     var ndc: vec4f = vec4f(tex_coord.x * 2.0 - 1.0, 1.0 - 2.0 * tex_coord.y, 0.0, 1.0);
-    ndc.z = -uniforms.projection_matrix[2].z + uniforms.projection_matrix[3].z / depth;
+    ndc.z = -uniforms.projection_matrix[2].z + uniforms.projection_matrix[3].z / depth; // replicate formula from migrated fluid.wgsl
     ndc.w = 1.0;
     var eye_pos: vec4f = uniforms.inv_projection_matrix * ndc;
     return eye_pos.xyz / eye_pos.w;
@@ -207,24 +206,25 @@ fn getViewPosFromTexCoord(tex_coord: vec2f, iuv: vec2f) -> vec3f {
 }
 
 fn safeThicknessSample(coords: vec2f) -> f32 {
-    var texture_dims = textureDimensions(thickness_texture);
-    var clamped_coords = clamp(coords, vec2f(0.0), vec2f(f32(texture_dims.x - 1), f32(texture_dims.y - 1)));
+    let texture_dims = textureDimensions(thickness_texture);
+    let maxCoord = vec2f(f32(texture_dims.x - 1u), f32(texture_dims.y - 1u));
+    let clamped_coords = clamp(coords, vec2f(0.0), maxCoord);
     return textureLoad(thickness_texture, vec2u(clamped_coords), 0).r;
 }
 
-fn createSurfaceData(input: FluidCleanFragmentInput) -> SurfaceData {
+fn createSurfaceData(uv: vec2f, iuv: vec2f) -> SurfaceData {
     var surface: SurfaceData;
 
-    var depth = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
-    surface.position = computeViewPosFromUVDepth(input.uv, depth);
+    var depth = abs(textureLoad(texture, vec2u(iuv), 0).r);
+    surface.position = computeViewPosFromUVDepth(uv, depth);
     surface.depth = abs(surface.position.z);
     surface.rayDir = normalize(surface.position);
 
     // Calculate smooth surface normal
-    var ddx = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0)) - surface.position;
-    var ddy = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0)) - surface.position;
-    var ddx2 = surface.position - getViewPosFromTexCoord(input.uv + vec2f(-uniforms.texel_size.x, 0.), input.iuv + vec2f(-1.0, 0.0));
-    var ddy2 = surface.position - getViewPosFromTexCoord(input.uv + vec2f(0., -uniforms.texel_size.y), input.iuv + vec2f(0.0, -1.0));
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0., uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
+    var ddx2 = surface.position - getViewPosFromTexCoord(uv + vec2f(-uniforms.texel_size.x, 0.), iuv + vec2f(-1.0, 0.0));
+    var ddy2 = surface.position - getViewPosFromTexCoord(uv + vec2f(0., -uniforms.texel_size.y), iuv + vec2f(0.0, -1.0));
 
     // Choose smoothest gradients
     if abs(ddx.z) > abs(ddx2.z) { ddx = ddx2; }
@@ -241,11 +241,11 @@ fn createSurfaceData(input: FluidCleanFragmentInput) -> SurfaceData {
     surface.normal = -normalize(cross(ddx, ddy));
 
     // Calculate smooth thickness
-    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
-    var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
-    var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
-    var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
-    var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
+    var thickness = textureLoad(thickness_texture, vec2u(iuv), 0).r;
+    var thicknessL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    var thicknessR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    var thicknessU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    var thicknessD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
 
     var smoothedThickness = (thickness * 4.0 + thicknessL + thicknessR + thicknessU + thicknessD) / 8.0;
     surface.thickness = mix(thickness, smoothedThickness, 0.8);
@@ -296,9 +296,9 @@ fn createLightingEnvironment() -> LightingEnvironment {
     lighting.ambientIntensity = lightingControls.ambientIntensity;
 
     // Background color
-    var rayDir = normalize(computeViewPosFromUVDepth(vec2f(0.5), 1000.0));
-    var worldRayDir = (uniforms.inv_view_matrix * vec4f(rayDir, 0.0)).xyz;
-    lighting.backgroundColor = textureSampleLevel(envmap_texture, texture_sampler, worldRayDir, 0.).rgb;
+    let rayDir = normalize(computeViewPosFromUVDepth(vec2f(0.5), 1000.0));
+    let worldRayDir = (uniforms.inv_view_matrix * vec4f(rayDir, 0.0)).xyz;
+    lighting.backgroundColor = textureSampleLevel(envmap_texture, texture_sampler, worldRayDir, 0.0).rgb;
 
     return lighting;
 }
@@ -434,13 +434,13 @@ fn calculateAbsorption(surface: SurfaceData, waterColor: vec3f, absorptionStreng
     return clamp(attenuation, vec3f(0.6), vec3f(1.0));
 }
 
-fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, input: FluidCleanFragmentInput, causticsStrength: f32, causticsScale: f32) -> f32 {
+fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, iuv: vec2f, causticsStrength: f32, causticsScale: f32) -> f32 {
     if causticsStrength <= 0.0 { return 0.0; }
 
-    var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
-    var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
-    var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
-    var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
+    var thicknessL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    var thicknessR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    var thicknessU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    var thicknessD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
     var curvatureX = (thicknessR + thicknessL - 2.0 * surface.thickness) * 0.5;
     var curvatureY = (thicknessD + thicknessU - 2.0 * surface.thickness) * 0.5;
 
@@ -504,7 +504,15 @@ fn calculateColorAbsorption(surface: SurfaceData, baseColor: vec3f, waterColor: 
 // === MAIN FRAGMENT SHADER ===
 @fragment
 fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
-    var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
+    // Derive pixel + uv from builtin(position)
+    let dims = textureDimensions(texture);
+    let maxPixF = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let pixF = clamp(floor(input.pos.xy), vec2f(0.0), maxPixF);
+    let pix = vec2u(pixF);
+    let iuv = vec2f(pix);
+    let uv = (pixF + 0.5) / vec2f(f32(dims.x), f32(dims.y));
+
+    var depth: f32 = abs(textureLoad(texture, pix, 0).r);
 
     // Early return for non-water pixels
     if depth >= 1e4 || depth <= 0.0 {
@@ -512,7 +520,7 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
     }
 
     // === INDEPENDENT CALCULATIONS ===
-    var surface = createSurfaceData(input);
+    var surface = createSurfaceData(uv, iuv);
     var lighting = createLightingEnvironment();
 
     // Physics calculations (independent)
@@ -521,8 +529,8 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
     var cavitation = 1.0;
 
     if effectsToggle.enableReynoldsPhysics != 0u {
-        var ddx = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0)) - surface.position;
-        var ddy = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0)) - surface.position;
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0., uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
         var velocity = vec3f(length(ddx), length(vec3f(ddx.y, ddy.y, 0.0)), length(ddy));
 
         physics = calculateReynoldsPhysics(velocity, uniforms.sphere_size, effectParams.viscosityFactor,
@@ -548,6 +556,11 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableFoam != 0u {
         foam = calculateFoam(physics, cavitation, effectParams.foamIntensity, effectParams.foamThreshold);
+        // Enhanced foam: combine procedural foam with thickness and grazing-angle contributions
+        let thicknessFactor = clamp(surface.thickness * effectParams.foamCoverage, 0.0, 1.0);
+        let angleFactor = pow(1.0 - surface.viewDotNormal, 1.5);
+        // Weight original foam (60%), thickness (25%), angle (40%) then normalize (cap at 1)
+        foam = clamp(foam * 0.6 + thicknessFactor * 0.25 + angleFactor * 0.4, 0.0, 1.0);
     }
 
     // Optical effects (independent)
@@ -565,7 +578,7 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
     }
 
     if effectsToggle.enableCaustics != 0u {
-        caustics = calculateCaustics(surface, lighting, input, effectParams.causticsStrength, effectParams.causticsScale);
+    caustics = calculateCaustics(surface, lighting, iuv, effectParams.causticsStrength, effectParams.causticsScale);
     }
 
     // Lighting effects (independent)
@@ -660,6 +673,7 @@ fn fs(input: FluidCleanFragmentInput) -> @location(0) vec4f {
             case 4u: { return vec4f(vec3f((1.0 - length(absorption)) * debug.intensity), 1.0); }
             case 5u: { return vec4f(vec3f(physics.velocityMagnitude * debug.intensity), 1.0); }
             case 6u: { return vec4f(vec3f(physics.density * debug.intensity * 0.1), 1.0); }
+            case 7u: { return vec4f(vec3f(foam), 1.0); } // Foam mask: water black, foam white
             case 8u: { return vec4f(vec3f(fresnel), 1.0); }
             case 10u: { let tNorm = 1.0 - exp(-surface.thickness * 0.6); return vec4f(vec3f(tNorm), 1.0); }
             case 11u: { return vec4f(rimLighting, 1.0); }

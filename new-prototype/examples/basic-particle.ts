@@ -1,12 +1,11 @@
 import {
+    BoundingBox,
     Simulation,
     SimulationParameter,
-    BoundingBox,
-    Transform,
-    Vector3
+    Transform
 } from '../core/foundation';
-import { BasicBoundingBox } from '../core/spatial';
 import { ResourceManager } from '../core/resources';
+import { BasicBoundingBox } from '../core/spatial';
 
 // Simplest possible simulation to validate architecture
 export class BasicParticleSystem implements Simulation {

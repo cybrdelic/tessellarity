@@ -2,10 +2,7 @@
 @group(0) @binding(1) var texture: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> uniforms: FilterUniforms;
 
-struct BilateralNewFragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f,
-}
+struct BilateralNewFragmentInput { @builtin(position) pos: vec4f };
 
 override depth_threshold: f32;  // これは何？
 override projected_particle_constant: f32; // これは Babylon.js で計算していたやつか．
@@ -17,8 +14,10 @@ struct FilterUniforms {
 
 @fragment
 fn fs(input: BilateralNewFragmentInput) -> @location(0) vec4f {
+    let dims = textureDimensions(texture);
+    let pix = min(vec2u(u32(input.pos.x), u32(input.pos.y)), dims - vec2u(1u,1u));
     // 正かどうかを確かめる
-    var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
+    var depth: f32 = abs(textureLoad(texture, pix, 0).r);
 
     // ここが有効になるためには，背景の depth を適切に設定しなきゃいけないな．
     if depth >= 1e4 || depth <= 0. {
@@ -44,10 +43,11 @@ fn fs(input: BilateralNewFragmentInput) -> @location(0) vec4f {
     // Enhanced filtering for ultra-smooth results with proper boundary handling
     for (var x: i32 = -adaptive_filter_size; x <= adaptive_filter_size; x++) {
         var coords: vec2f = vec2f(f32(x));
-        var sample_pos = input.iuv + coords * uniforms.blur_dir;
+        var sample_pos = vec2f(pix) + coords * uniforms.blur_dir;
 
         // Clamp sample position to valid texture bounds
-        var clamped_pos = clamp(sample_pos, vec2f(0.0), vec2f(f32(texture_dims.x - 1), f32(texture_dims.y - 1)));
+        let maxCoord = vec2f(f32(texture_dims.x) - 1.0, f32(texture_dims.y) - 1.0);
+        var clamped_pos = clamp(sample_pos, vec2f(0.0), maxCoord);
         var sampled_depth: f32 = abs(textureLoad(texture, vec2u(clamped_pos), 0).r);
 
         // Check if we're sampling outside bounds and adjust weight accordingly
@@ -85,9 +85,7 @@ fn fs(input: BilateralNewFragmentInput) -> @location(0) vec4f {
                 continue;
             }
 
-            var neighbor_coord = input.iuv + vec2f(f32(dx), f32(dy));
-
-            // Check if neighbor is within bounds
+            var neighbor_coord = vec2f(pix) + vec2f(f32(dx), f32(dy));
             if neighbor_coord.x >= 0.0 && neighbor_coord.x < f32(texture_dims.x) && neighbor_coord.y >= 0.0 && neighbor_coord.y < f32(texture_dims.y) {
 
                 var neighbor_depth = abs(textureLoad(texture, vec2u(neighbor_coord), 0).r);

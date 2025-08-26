@@ -1,6 +1,7 @@
 import { BoidsSimulator, boidsParticleStructSize } from './boids/boids';
 import { Camera } from './camera';
 import { compositionParamsValues, debugModeValues, debugModeViews, effectParametersValues, effectParametersViews, effectsToggleValues, effectsToggleViews, initializeCompositionDefaults, lightingControlsValues, lightingControlsViews, numParticlesMax, renderUniformsValues, renderUniformsViews, waterAppearanceValues, waterAppearanceViews } from './common';
+import { enableWebGPUDebug } from './gpu-debug';
 import { MLSMPMSimulator, mlsmpmParticleStructSize } from './mls-mpm/mls-mpm';
 import { FluidRenderer } from './render/fluidRender';
 import { SkyboxRenderer } from './render/SkyboxRenderer';
@@ -23,6 +24,8 @@ let hud: DebugHUD | undefined;
 async function main() {
 	const canvas = document.querySelector('canvas') as HTMLCanvasElement;
 	const { device, presentationFormat, context } = await initWebGPU(canvas);
+	// Enable WebGPU debug wrapper (non-production) to diagnose pipeline failures
+	enableWebGPUDebug(device);
 
 	console.log("initialization done")
 	context.configure({
@@ -120,6 +123,8 @@ async function main() {
 	effectsToggleViews.enableReynoldsPhysics[0] = 1;
 	effectsToggleViews.enableCavitation[0] = 1;
 	effectsToggleViews.enableFoam[0] = 1;
+	effectsToggleViews.enableSpray[0] = 1; // default on
+	effectsToggleViews.enableBubbles[0] = 1; // default on
 	effectsToggleViews.enableTurbulentNormals[0] = 1;
 	effectsToggleViews.enableSpecular[0] = 1;
 	effectsToggleViews.enableSubsurface[0] = 1;
@@ -265,6 +270,12 @@ async function main() {
 	effectParametersViews.varianceRadius[0] = 3.0;   // Increased from 2.0 for larger sampling area
 	effectParametersViews.varianceThreshold[0] = 0.02; // Decreased from 0.05 for easier activation
 
+	// Spray & Bubble (repurposed padding slots) defaults
+	effectParametersViews.sprayIntensity[0] = 0.9;
+	effectParametersViews.sprayDissipation[0] = 0.8;
+	effectParametersViews.bubbleIntensity[0] = 0.6;
+	effectParametersViews.bubbleAlbedoLift[0] = 0.5;
+
 	device.queue.writeBuffer(effectParametersBuffer, 0, effectParametersValues);
 
 	// Initialize composition parameters with default values
@@ -343,21 +354,6 @@ async function main() {
 		lightingControlsBuffer,
 		effectParametersBuffer,
 		compositionParamsBuffer,
-	); const sphRenderer = new FluidRenderer(
-		device,
-		canvas,
-		presentationFormat,
-		sphRadius,
-		sphFov,
-		posvelBuffer,
-		renderUniformBuffer,
-		cubemapTextureViews[currentEnvironmentIndex]!,
-		waterAppearanceBuffer,
-		debugModeBuffer,
-		effectsToggleBuffer,
-		lightingControlsBuffer,
-		effectParametersBuffer,
-		compositionParamsBuffer
 	); const boidsRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -392,7 +388,6 @@ async function main() {
 	// --- Enhanced LOD Integration ---
 	const lodIntegration = {
 		'mls-mpm': new EnhancedLODIntegration('mls-mpm'),
-		'sph': new EnhancedLODIntegration('sph'),
 		'boids': new EnhancedLODIntegration('boids')
 	};
 
@@ -487,7 +482,6 @@ async function main() {
 	// Initialize UI with default mode
 	updateUILabels(defaultMode)
 	let sphereRenderFl = false;
-	let sphFl = false;
 	let boidsFl = false;
 	let boxWidthRatio = 1.;
 	let lodUpdateFrameCount = 0; // For periodic LOD status updates
@@ -497,15 +491,9 @@ async function main() {
 		const start = performance.now();
 		// Handle simulation mode changes
 		if (simulationModePressed) {
-			// Clean, configuration-driven mode switching
 			if (simulationModePressedButton == "mls-mpm") {
-				sphFl = false
-				boidsFl = false
-			} else if (simulationModePressedButton == "sph") {
-				sphFl = true
 				boidsFl = false
 			} else if (simulationModePressedButton == "boids") {
-				sphFl = false
 				boidsFl = true
 			}
 
@@ -518,7 +506,7 @@ async function main() {
 
 		// Handle particle count changes with debouncing
 		if (particleCountChanged) {
-			const currentMode = boidsFl ? 'boids' : (sphFl ? 'sph' : 'mls-mpm');
+			const currentMode = boidsFl ? 'boids' : 'mls-mpm';
 			const config = getCurrentConfig(currentMode);
 
 			// Clamp particle count to valid range for current simulation
@@ -533,11 +521,6 @@ async function main() {
 				boidsSimulator.reset(clampedCount, initBoxSize);
 				camera.reset(canvasElement, boidsInitDistances[defaultSizeIndex] ?? 100, [initBoxSize[0]! / 2, initBoxSize[1]! / 2, initBoxSize[2]! / 2],
 					boidsFov, boidsZoomRate);
-			} else if (sphFl) {
-				initBoxSize = sphInitBoxSizes[defaultSizeIndex] ?? initBoxSize;
-				sphSimulator.reset(clampedCount, initBoxSize);
-				camera.reset(canvasElement, sphInitDistances[defaultSizeIndex] ?? 3.0, [0, -initBoxSize[1]! + 0.1, 0],
-					sphFov, sphZoomRate);
 			} else {
 				initBoxSize = mlsmpmInitBoxSizes[defaultSizeIndex] ?? initBoxSize;
 				mlsmpmSimulator.reset(clampedCount, initBoxSize);
@@ -564,7 +547,7 @@ async function main() {
 		const particle = document.getElementById("particle") as HTMLInputElement
 		sphereRenderFl = particle.checked
 		let curBoxWidthRatio = parseInt(slider.value) / 200 + 0.5
-		const minClosingSpeed = sphFl ? -0.015 : (boidsFl ? -0.01 : -0.007)
+		const minClosingSpeed = boidsFl ? -0.01 : -0.007
 		const dVal = Math.max(curBoxWidthRatio - boxWidthRatio, minClosingSpeed)
 		boxWidthRatio += dVal
 
@@ -572,8 +555,6 @@ async function main() {
 		realBoxSize[2] = initBoxSize[2]! * boxWidthRatio
 		if (boidsFl) {
 			boidsSimulator.changeBoxSize(realBoxSize)
-		} else if (sphFl) {
-			sphSimulator.changeBoxSize(realBoxSize)
 		} else {
 			mlsmpmSimulator.changeBoxSize(realBoxSize)
 		} device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues)
@@ -615,16 +596,6 @@ async function main() {
 			);
 			effectiveParticleCount = lodResult.effectiveParticleCount;
 			boidsRenderer.execute(context, commandEncoder, effectiveParticleCount, sphereRenderFl);
-		} else if (sphFl) {
-			sphSimulator.execute(commandEncoder)
-			lodResult = lodIntegration['sph'].getEnhancedLODSettings(
-				sphSimulator.numParticles,
-				camera,
-				realBoxSize,
-				currentFrameTime
-			);
-			effectiveParticleCount = lodResult.effectiveParticleCount;
-			sphRenderer.execute(context, commandEncoder, effectiveParticleCount, sphereRenderFl);
 		} else {
 			mlsmpmSimulator.execute(commandEncoder)
 			lodResult = lodIntegration['mls-mpm'].getEnhancedLODSettings(
@@ -642,9 +613,6 @@ async function main() {
 		if (lodResult && lodResult.particleSizeScale !== 1.0) {
 			if (boidsFl) {
 				const scaledDiameter = boidsSimulator.renderDiameter * lodResult.particleSizeScale;
-				renderUniformsViews.sphere_size.set([scaledDiameter]);
-			} else if (sphFl) {
-				const scaledDiameter = sphSimulator.renderDiameter * lodResult.particleSizeScale;
 				renderUniformsViews.sphere_size.set([scaledDiameter]);
 			} else {
 				const scaledDiameter = mlsmpmSimulator.renderDiameter * lodResult.particleSizeScale;
@@ -702,7 +670,6 @@ async function main() {
 			const center: [number,number,number] = [0,0,0];
 			const radius = 3.5; // default radius; adjust later via UI if needed
 			mlsmpmRenderer.setSphereContain(sphereContainEnabled, center, radius);
-			sphRenderer.setSphereContain(sphereContainEnabled, center, radius);
 			boidsRenderer.setSphereContain(sphereContainEnabled, center, radius);
 			console.log(`[SphereContain] ${sphereContainEnabled ? 'Enabled' : 'Disabled'} (radius ${radius})`);
 		}
@@ -712,14 +679,10 @@ async function main() {
 	environmentSelect.addEventListener('change', (e) => {
 		currentEnvironmentIndex = parseInt((e.target as HTMLSelectElement).value);		// Update renderers with new environment
 		if (currentEnvironmentIndex === -1) {
-			// Use white background (no environment map)
 			mlsmpmRenderer.updateEnvironment(null);
-			sphRenderer.updateEnvironment(null);
 			boidsRenderer.updateEnvironment(null);
-			// For skybox, we could create a white cubemap or skip rendering
 		} else {
 			mlsmpmRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]!);
-			sphRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]!);
 			boidsRenderer.updateEnvironment(cubemapTextureViews[currentEnvironmentIndex]!);
 			skyboxRenderer.updateCubemap(cubemapTextureViews[currentEnvironmentIndex]!);
 		}
@@ -751,7 +714,7 @@ async function main() {
 	(function ensureDebugModeOptions() {
 		const modeNamesFull = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
-			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
+			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Spray Mask', 'Bubble Mask', 'Height Field', 'Slope Magnitude',
 			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask',
 			'Raw NoV', 'Lifted NoV', 'NoV Delta'];
 		if (debugModeSelect.options.length !== modeNamesFull.length) {
@@ -762,7 +725,7 @@ async function main() {
 	function updateDebugInfo() {
 		const modeNames = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
-			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
+			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Spray Mask', 'Bubble Mask', 'Height Field', 'Slope Magnitude',
 			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask'];
 		const layerNames = ['Raw Data', 'Filtered Data', 'Differential'];
 
@@ -795,7 +758,6 @@ async function main() {
 
 		// Update all renderer instances
 		mlsmpmRenderer.setDebugMode(debugModeViews.mode[0]!, debugModeViews.layer[0]!, debugModeViews.intensity[0]!);
-		sphRenderer.setDebugMode(debugModeViews.mode[0]!, debugModeViews.layer[0]!, debugModeViews.intensity[0]!);
 		boidsRenderer.setDebugMode(debugModeViews.mode[0]!, debugModeViews.layer[0]!, debugModeViews.intensity[0]!);
 
 		updateDebugInfo();
@@ -849,7 +811,7 @@ async function main() {
 
 			// Get current debug mode info for filename
 			const modeNames = ['none', 'depth', 'thickness', 'normals', 'absorption',
-				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction', 'nov', 'f_layer', 'foam_prob', 'height', 'slope',
+				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction', 'nov', 'f_layer', 'foam_prob', 'spray', 'bubbles', 'height', 'slope',
 				'raw_height', 'f_layer_hot', 'curvature_mag', 'slope_cap_foam', 'height_var', 'mirror_diff', 'mid_split'];
 			const layerNames = ['raw', 'filtered', 'differential'];
 
@@ -908,7 +870,7 @@ async function main() {
 	(window as any).updateEffectsToggle = (index: number, enabled: boolean) => {
 		// Update the specific effect in the effects toggle buffer
 		const effectKeys = [
-			'enableReynoldsPhysics', 'enableCavitation', 'enableFoam', 'enableTurbulentNormals',
+			'enableReynoldsPhysics', 'enableCavitation', 'enableFoam', 'enableSpray', 'enableBubbles', 'enableTurbulentNormals',
 			'enableSpecular', 'enableSubsurface', 'enableFresnel', 'enableReflection',
 			'enableRefraction', 'enableCaustics', 'enableDispersion', 'enableAbsorption',
 			'enableDepthColoring', 'enableVelocityColoring', 'enableRimLighting', 'enableColorAbsorption',
@@ -924,7 +886,6 @@ async function main() {
 
 			// Update all renderer instances with the current effects toggle buffer
 			mlsmpmRenderer.updateEffectsToggles(effectsToggleValues);
-			sphRenderer.updateEffectsToggles(effectsToggleValues);
 			boidsRenderer.updateEffectsToggles(effectsToggleValues); console.log(`Updated effect ${effectKey} (index ${index}) to ${enabled ? 'enabled' : 'disabled'}`);
 		} else {
 			console.error(`Invalid effect index: ${index}`);
@@ -1010,7 +971,6 @@ async function main() {
 
 			// Update all renderer instances with the current lighting controls buffer
 			mlsmpmRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]!);
-			sphRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]!);
 			boidsRenderer.updateEnvironment(currentEnvironmentIndex === -1 ? null : cubemapTextureViews[currentEnvironmentIndex]!); console.log(`Updated lighting parameter ${parameter} to ${value}`);
 		} catch (error) {
 			console.error(`Error updating lighting parameter ${parameter}:`, error);
@@ -1043,9 +1003,6 @@ async function main() {
 			if (boidsFl) {
 				currentLODIntegration = lodIntegration['boids'];
 				totalParticles = boidsSimulator.numParticles;
-			} else if (sphFl) {
-				currentLODIntegration = lodIntegration['sph'];
-				totalParticles = sphSimulator.numParticles;
 			} else {
 				currentLODIntegration = lodIntegration['mls-mpm'];
 				totalParticles = mlsmpmSimulator.numParticles;
@@ -1066,7 +1023,7 @@ async function main() {
 				cameraDistance: lodResult.cameraDistance,
 				ratio: lodResult.particleRatio,
 				enabled: lodInfo.enabled,
-				simulationMode: boidsFl ? 'boids' : sphFl ? 'sph' : 'mls-mpm',
+				simulationMode: boidsFl ? 'boids' : 'mls-mpm',
 				// Enhanced LOD info
 				shaderMode: lodResult.shaderMode,
 				lightingMode: lodResult.lightingMode,
@@ -1135,7 +1092,6 @@ async function main() {
 	(window as any).clearTemporalBuffers = function () {
 		try {
 			boidsRenderer.clearTemporalBuffers();
-			sphRenderer.clearTemporalBuffers();
 			mlsmpmRenderer.clearTemporalBuffers();
 			console.log('All temporal buffers cleared - ghost artifacts eliminated');
 		} catch (error) {

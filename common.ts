@@ -58,30 +58,33 @@ export const compositionParamsViews = {
 };
 
 // Effects toggle buffer - individual effect controls
-export const effectsToggleValues = new ArrayBuffer(68); // 17 toggles * 4 bytes each (u32)
+// WGSL uniform struct size is rounded up to 16-byte alignment; 19 * 4 = 76 -> pad to 80.
+export const effectsToggleValues = new ArrayBuffer(80); // 76 bytes data + 4 bytes padding
 export const effectsToggleViews = {
   // Core water effects
   enableReynoldsPhysics: new Uint32Array(effectsToggleValues, 0, 1),    // Reynolds number turbulence
   enableCavitation: new Uint32Array(effectsToggleValues, 4, 1),         // Cavitation physics
   enableFoam: new Uint32Array(effectsToggleValues, 8, 1),               // Foam generation
-  enableTurbulentNormals: new Uint32Array(effectsToggleValues, 12, 1),  // Turbulent surface deformation
+  enableSpray: new Uint32Array(effectsToggleValues, 12, 1),             // Spray rendering
+  enableBubbles: new Uint32Array(effectsToggleValues, 16, 1),           // Bubble subsurface lift
+  enableTurbulentNormals: new Uint32Array(effectsToggleValues, 20, 1),  // Turbulent surface deformation
 
   // Surface and lighting effects
-  enableSpecular: new Uint32Array(effectsToggleValues, 16, 1),          // Specular highlights
-  enableSubsurface: new Uint32Array(effectsToggleValues, 20, 1),        // Subsurface scattering
-  enableFresnel: new Uint32Array(effectsToggleValues, 24, 1),           // Fresnel reflection
-  enableReflection: new Uint32Array(effectsToggleValues, 28, 1),        // Environment reflection
+  enableSpecular: new Uint32Array(effectsToggleValues, 24, 1),          // Specular highlights
+  enableSubsurface: new Uint32Array(effectsToggleValues, 28, 1),        // Subsurface scattering
+  enableFresnel: new Uint32Array(effectsToggleValues, 32, 1),           // Fresnel reflection
+  enableReflection: new Uint32Array(effectsToggleValues, 36, 1),        // Environment reflection
   // Advanced optical effects
-  enableRefraction: new Uint32Array(effectsToggleValues, 32, 1),        // Refraction
-  enableCaustics: new Uint32Array(effectsToggleValues, 36, 1),          // Caustics patterns
-  enableDispersion: new Uint32Array(effectsToggleValues, 40, 1),        // Chromatic dispersion
-  enableAbsorption: new Uint32Array(effectsToggleValues, 44, 1),        // Depth-based absorption
+  enableRefraction: new Uint32Array(effectsToggleValues, 40, 1),        // Refraction
+  enableCaustics: new Uint32Array(effectsToggleValues, 44, 1),          // Caustics patterns
+  enableDispersion: new Uint32Array(effectsToggleValues, 48, 1),        // Chromatic dispersion
+  enableAbsorption: new Uint32Array(effectsToggleValues, 52, 1),        // Depth-based absorption
   // Color and depth effects
-  enableDepthColoring: new Uint32Array(effectsToggleValues, 48, 1),     // Depth-based color variation
-  enableVelocityColoring: new Uint32Array(effectsToggleValues, 52, 1),  // Velocity-based color shifts
-  enableRimLighting: new Uint32Array(effectsToggleValues, 56, 1),       // Rim lighting for edges
-  enableColorAbsorption: new Uint32Array(effectsToggleValues, 60, 1),   // Depth-based wavelength color absorption
-  enableVarianceLightTransport: new Uint32Array(effectsToggleValues, 64, 1), // Variance-based light transport
+  enableDepthColoring: new Uint32Array(effectsToggleValues, 56, 1),     // Depth-based color variation
+  enableVelocityColoring: new Uint32Array(effectsToggleValues, 60, 1),  // Velocity-based color shifts
+  enableRimLighting: new Uint32Array(effectsToggleValues, 64, 1),       // Rim lighting for edges
+  enableColorAbsorption: new Uint32Array(effectsToggleValues, 68, 1),   // Depth-based wavelength color absorption
+  enableVarianceLightTransport: new Uint32Array(effectsToggleValues, 72, 1), // Variance-based light transport
 };
 
 // Comprehensive lighting controls buffer
@@ -227,6 +230,11 @@ export const effectParametersViews = {
   varianceStrength: new Float32Array(effectParametersValues, 244, 1),   // Variance reduction strength
   varianceRadius: new Float32Array(effectParametersValues, 248, 1),     // Variance sampling radius
   varianceThreshold: new Float32Array(effectParametersValues, 252, 1),  // Variance activation threshold
+  // Spray & Bubble Parameters (formerly padding slots 64..67)
+  sprayIntensity: new Float32Array(effectParametersValues, 256, 1),      // Overall spray energy scaling
+  sprayDissipation: new Float32Array(effectParametersValues, 260, 1),    // Spray fade speed
+  bubbleIntensity: new Float32Array(effectParametersValues, 264, 1),     // Subsurface bubble brightening strength
+  bubbleAlbedoLift: new Float32Array(effectParametersValues, 268, 1),    // Bubble coloration toward white
 };
 
 // Initialize composition defaults for clean effect blending

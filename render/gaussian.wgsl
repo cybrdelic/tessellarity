@@ -3,8 +3,6 @@
 @group(0) @binding(2) var<uniform> uniforms: FilterUniforms;
 
 struct GaussianFragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f, // legacy
     @builtin(position) pos: vec4f,
 }
 
@@ -14,9 +12,10 @@ struct FilterUniforms {
 
 @fragment
 fn fs(input: GaussianFragmentInput) -> @location(0) vec4f {
-    // Use integer UV coordinates for pixel-perfect addressing, consistent with other passes
-    let dims = textureDimensions(texture);
-    let basePx = vec2f(clamp(vec2i(input.iuv), vec2i(0), vec2i(dims) - vec2i(1)));
+    let dimsU = textureDimensions(texture);
+    let dimsF = vec2f(f32(dimsU.x), f32(dimsU.y));
+    let basePix = min(vec2u(u32(input.pos.x), u32(input.pos.y)), dimsU - vec2u(1u,1u));
+    let basePx = vec2f(basePix);
     var thickness: f32 = textureLoad(texture, vec2u(basePx), 0).r;
     // Removed early return on zero thickness so nearby non-zero splats can diffuse into empty pixels
     // Enhanced filter size for smoother surface reconstruction

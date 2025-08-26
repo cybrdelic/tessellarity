@@ -11,9 +11,16 @@ const COV_GAMMA: f32 = 0.9;       // gentler lift (closer to linear)
 // Removed gradient-based normal derivation; surface shader now uses height field normals.
 
 struct FragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f, // legacy (not used for pixel addressing anymore)
     @builtin(position) pos: vec4f,
+}
+
+// Local minimal screenspace helpers (skipped by wrapper since they define ss_dims).
+// These mirror definitions in screenspace.wgsl to satisfy standalone compilation.
+fn ss_dims(tex: texture_2d<f32>) -> vec2u { return textureDimensions(tex); }
+fn ss_pix(pos: vec4f, tex: texture_2d<f32>) -> vec2u {
+    let d = textureDimensions(tex);
+    let p = vec2u(clamp(pos.xy, vec2f(0.0), vec2f(f32(d.x-1u), f32(d.y-1u))));
+    return p;
 }
 
 // TEMPORARY DIAGNOSTIC SWITCH
@@ -94,17 +101,20 @@ fn computeSmoothedCoverage(coord: vec2u) -> f32 {
 
 fn smoothNormal(n: vec3f, coord: vec2u) -> vec3f { return n; }
 
+// screenspace.wgsl helpers are auto-prepended by build (wgsl-screenspace-prepend plugin).
+
 @fragment
 fn fs(input: FragmentInput) -> @location(0) vec4f {
-    // Use integer UV coordinates for pixel-perfect addressing, eliminating diagonal seams
-    let dims = textureDimensions(thickness_texture);
-    let pixI = clamp(vec2i(input.iuv), vec2i(0), vec2i(dims) - vec2i(1));
-    let coord = vec2u(pixI);
+    // Unified screenspace helpers (provided by prepend). If absent, manual fallback not needed now.
+    let coord = ss_pix(input.pos, thickness_texture);
+    let dimsU = ss_dims(thickness_texture);
+    let dims = vec2i(dimsU);
+    let pixI = vec2i(coord);
 
     if (DEBUG_FORCE_VIS) {
         // Simple gradient + thickness/weight probe so a non-zero image appears if this pass runs.
-        let dimsF = vec2f(dims);
-        let uv = (vec2f(pixI) + 0.5) / dimsF;
+    let dimsF = vec2f(dims);
+    let uv = (vec2f(pixI) + 0.5) / dimsF;
         let thicknessProbe = sampleThickness(vec2i(coord));
         // Local 3x3 average weight (duplicating small portion of computeSmoothedCoverage for visibility)
         var wAccum = 0.0;

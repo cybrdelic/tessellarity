@@ -1,9 +1,10 @@
+import { makeShaderModule } from './makeShaderModule';
 import skyboxShader from './skybox.wgsl';
 
 export class SkyboxRenderer {
     private device: GPUDevice;
     private pipeline: GPURenderPipeline;
-    private bindGroup: GPUBindGroup;
+    private bindGroup!: GPUBindGroup;
     private uniformBuffer: GPUBuffer;
     private sampler: GPUSampler;
 
@@ -27,9 +28,7 @@ export class SkyboxRenderer {
         });
 
         // Create shader module
-        const shaderModule = device.createShaderModule({
-            code: skyboxShader
-        });
+    const shaderModule = makeShaderModule(device, skyboxShader);
 
         // Create render pipeline
         this.pipeline = device.createRenderPipeline({

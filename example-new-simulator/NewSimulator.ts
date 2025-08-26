@@ -1,5 +1,5 @@
 // Example template for a new simulator class
-import { numParticlesMax, renderUniformsViews } from '../common';
+import { renderUniformsViews } from '../common';
 
 // Define your particle structure size in bytes
 export const newSimulatorParticleStructSize = 64; // Adjust based on your particle data

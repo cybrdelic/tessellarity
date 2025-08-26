@@ -1,3 +1,4 @@
+import { makeShaderModule } from '../../render/makeShaderModule';
 /**
  * GPU-Based LOD Culling Manager
  * Performs high-performance particle culling and spatial distribution on GPU
@@ -48,8 +49,7 @@ export class GPUCullingManager {
 
     private initializeComputeShaders() {
         // Frustum culling compute shader
-        this.frustumCullShader = this.device.createShaderModule({
-            code: `
+    this.frustumCullShader = makeShaderModule(this.device, `
                 struct Particle {
                     position: vec3<f32>,
                     velocity: vec3<f32>,
@@ -96,12 +96,10 @@ export class GPUCullingManager {
 
                     visibility[index] = 1u;
                 }
-            `
-        });
+            `);
 
         // Screen space culling shader
-        this.screenSpaceCullShader = this.device.createShaderModule({
-            code: `
+    this.screenSpaceCullShader = makeShaderModule(this.device, `
                 struct Particle {
                     position: vec3<f32>,
                     velocity: vec3<f32>,
@@ -124,8 +122,7 @@ export class GPUCullingManager {
 
                     screenSpaceData[index] = screenSize;
                 }
-            `
-        });
+            `);
 
         // Create compute pipelines
         this.frustumCullPipeline = this.device.createComputePipeline({

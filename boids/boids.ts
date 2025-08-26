@@ -1,4 +1,5 @@
 import { numParticlesMax, renderUniformsViews } from '../common';
+import { makeShaderModule } from '../render/makeShaderModule';
 import { ISimulator } from '../src/core/SimulatorRegistry';
 
 export const boidsParticleStructSize = 64; // position(16) + velocity(16) + padding(32)
@@ -22,8 +23,7 @@ export class BoidsSimulator implements ISimulator {
         this.renderDiameter = renderDiameter;
 
         // WGSL compute shader for boids behavior
-        const boidsUpdateModule = device.createShaderModule({
-            code: `
+    const boidsUpdateModule = makeShaderModule(this.device, `
                 struct Particle {
                     position: vec3f,
                     velocity: vec3f,
@@ -116,12 +116,10 @@ export class BoidsSimulator implements ISimulator {
                     particles[id.x].position = new_position;
                     particles[id.x].velocity = new_velocity;
                 }
-            `
-        });
+            `);
 
         // Copy position shader (similar to existing simulators)
-        const copyPositionModule = device.createShaderModule({
-            code: `
+    const copyPositionModule = makeShaderModule(this.device, `
                 struct Particle {
                     position: vec3f,
                     velocity: vec3f,
@@ -142,8 +140,7 @@ export class BoidsSimulator implements ISimulator {
                         posvel[id.x].velocity = particles[id.x].velocity;
                     }
                 }
-            `
-        });
+            `);
 
         this.updatePipeline = device.createComputePipeline({
             label: "boids update pipeline",
@@ -196,9 +193,9 @@ export class BoidsSimulator implements ISimulator {
         paramsView[5] = 1.5;   // alignment_strength - stronger alignment
         paramsView[6] = 1.2;   // cohesion_strength - good cohesion
         paramsView[7] = 0.016; // dt (60 FPS)
-        paramsView[8] = boxSize[0];  // box_size.x
-        paramsView[9] = boxSize[1];  // box_size.y
-        paramsView[10] = boxSize[2]; // box_size.z
+    paramsView[8] = boxSize[0]!;  // box_size.x
+    paramsView[9] = boxSize[1]!;  // box_size.y
+    paramsView[10] = boxSize[2]!; // box_size.z
 
         const nParticles = new Uint32Array(paramsData, 44, 1);
         nParticles[0] = this.numParticles;
@@ -241,9 +238,9 @@ export class BoidsSimulator implements ISimulator {
 
             // Position (random within box, avoiding edges)
             const position = new Float32Array(particlesBuf, offset, 3);
-            position[0] = 5 + Math.random() * (initBoxSize[0] - 10);
-            position[1] = 5 + Math.random() * (initBoxSize[1] - 10);
-            position[2] = 5 + Math.random() * (initBoxSize[2] - 10);
+            position[0] = 5 + Math.random() * (initBoxSize[0]! - 10);
+            position[1] = 5 + Math.random() * (initBoxSize[1]! - 10);
+            position[2] = 5 + Math.random() * (initBoxSize[2]! - 10);
 
             // Velocity (random direction, limited speed)
             const velocity = new Float32Array(particlesBuf, offset + 16, 3);

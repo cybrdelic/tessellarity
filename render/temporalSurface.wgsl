@@ -6,9 +6,8 @@
 @group(0) @binding(0) var currentSurface  : texture_2d<f32>;    // RGBA16F: current frame
 @group(0) @binding(1) var prevSurface     : texture_2d<f32>;    // RGBA16F: previous frame
 @group(0) @binding(2) var velocityTex     : texture_2d<f32>;    // RG16F: screen-space motion vectors
-@group(0) @binding(3) var sampLinear      : sampler;
-@group(0) @binding(4) var<uniform> params : TempParams;
-@group(0) @binding(5) var outSurface      : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(3) var<uniform> params : TempParams;         // temporal params (invRes, alpha, etc)
+@group(0) @binding(4) var outSurface      : texture_storage_2d<rgba16float, write>;
 
 struct TempParams {
   invRes        : vec2<f32>, // 8 bytes
@@ -44,7 +43,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (gid.x >= dims.x || gid.y >= dims.y) { return; }
 
   let coord = vec2<i32>(gid.xy);
-  let uv = (vec2<f32>(coord) + 0.5) * params.invRes;
+  let uv = (vec2<f32>(coord) + 0.5) * params.invRes; // current-surface normalized UV
+  let prevDims = textureDimensions(prevSurface);
 
   // Sample current frame
   let current = textureLoad(currentSurface, coord, 0);
@@ -60,7 +60,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   // Sample screen-space velocity
   let velocity = textureLoad(velocityTex, coord, 0).xy;
-  let prevUV = uv - velocity * params.invRes;
+  let prevUV = uv - velocity * params.invRes; // still in current-surface UV space
+
+  // Remap to previous surface pixel coords explicitly (supports resolution changes)
+  let prevCoordF = prevUV * vec2<f32>(prevDims);
+  let prevCoord = vec2<i32>(clamp(vec2<i32>(prevCoordF), vec2<i32>(0), vec2<i32>(prevDims) - vec2<i32>(1)));
 
   // Check if reprojection is valid (within bounds)
   if (any(prevUV < vec2<f32>(0.0)) || any(prevUV > vec2<f32>(1.0))) {
@@ -68,8 +72,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     return;
   }
 
-  // Sample previous frame with bilinear filtering
-  let prevSample = textureSampleLevel(prevSurface, sampLinear, prevUV, 0.0);
+  // Discrete load from remapped previous coordinate (avoid mixed sample/load policy causing seams)
+  let prevSample = textureLoad(prevSurface, prevCoord, 0); // Previous frame (point load after remap to avoid sampler dependency & LOD variance)
   let prevN = unpackOct(prevSample.xy);
   let prevT = prevSample.z;
   let prevC = prevSample.w;

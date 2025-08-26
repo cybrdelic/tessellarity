@@ -176,8 +176,13 @@ struct EffectParameters {
 }
 
 struct FluidFragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) iuv: vec2f,
+    @builtin(position) pos: vec4f }
+
+// Derive clamped integer pixel coords & normalized uv
+fn deriveCoords(pos: vec4f, dims: vec2u) -> vec2u {
+    let maxF = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let clamped = clamp(pos.xy, vec2f(0.0), maxF);
+    return vec2u(clamped);
 }
 
 // === MODULAR DATA STRUCTURES ===
@@ -237,19 +242,19 @@ fn safeThicknessSample(coords: vec2f) -> f32 {
     return textureLoad(thickness_texture, vec2u(clamped_coords), 0).r;
 }
 
-fn createSurfaceData(input: FluidFragmentInput) -> SurfaceData {
+fn createSurfaceData(uv: vec2f, iuv: vec2f) -> SurfaceData {
     var surface: SurfaceData;
 
-    var depth = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
-    surface.position = computeViewPosFromUVDepth(input.uv, depth);
+    var depth = abs(textureLoad(texture, vec2u(iuv), 0).r);
+    surface.position = computeViewPosFromUVDepth(uv, depth);
     surface.depth = abs(surface.position.z);
     surface.rayDir = normalize(surface.position);
 
     // Calculate smooth surface normal
-    var ddx = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0)) - surface.position;
-    var ddy = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0)) - surface.position;
-    var ddx2 = surface.position - getViewPosFromTexCoord(input.uv + vec2f(-uniforms.texel_size.x, 0.), input.iuv + vec2f(-1.0, 0.0));
-    var ddy2 = surface.position - getViewPosFromTexCoord(input.uv + vec2f(0., -uniforms.texel_size.y), input.iuv + vec2f(0.0, -1.0));
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0., uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
+    var ddx2 = surface.position - getViewPosFromTexCoord(uv + vec2f(-uniforms.texel_size.x, 0.), iuv + vec2f(-1.0, 0.0));
+    var ddy2 = surface.position - getViewPosFromTexCoord(uv + vec2f(0., -uniforms.texel_size.y), iuv + vec2f(0.0, -1.0));
 
     // Choose smoothest gradients
     if abs(ddx.z) > abs(ddx2.z) { ddx = ddx2; }
@@ -266,15 +271,15 @@ fn createSurfaceData(input: FluidFragmentInput) -> SurfaceData {
     surface.normal = -normalize(cross(ddx, ddy));
 
     // Extended neighborhood sampling for continuity (9-tap + diagonals)
-    let center = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
-    let L  = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
-    let R  = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
-    let U  = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
-    let D  = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
-    let UL = safeThicknessSample(input.iuv + vec2f(-1.0, -1.0));
-    let UR = safeThicknessSample(input.iuv + vec2f(1.0, -1.0));
-    let DL = safeThicknessSample(input.iuv + vec2f(-1.0, 1.0));
-    let DR = safeThicknessSample(input.iuv + vec2f(1.0, 1.0));
+    let center = textureLoad(thickness_texture, vec2u(iuv), 0).r;
+    let L  = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    let R  = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    let U  = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    let D  = safeThicknessSample(iuv + vec2f(0.0, 1.0));
+    let UL = safeThicknessSample(iuv + vec2f(-1.0, -1.0));
+    let UR = safeThicknessSample(iuv + vec2f(1.0, -1.0));
+    let DL = safeThicknessSample(iuv + vec2f(-1.0, 1.0));
+    let DR = safeThicknessSample(iuv + vec2f(1.0, 1.0));
 
     var weightedSum = center * 4.0 + (L + R + U + D) * 2.0 + (UL + UR + DL + DR) * 1.0;
     var weightTotal = 4.0 + 4.0 * 2.0 + 4.0 * 1.0; // 4 + 8 + 4 = 16
@@ -473,71 +478,71 @@ fn continuityEnhancedThickness(centerCoord: vec2f, centerValue: f32, coverage: f
 }
 
 // Compute a blurred normal for specular/rim lighting decoupled from silhouette normal.
-fn computeBlurredNormal(input: FluidFragmentInput, basePos: vec3f) -> vec3f {
+fn computeBlurredNormal(uv: vec2f, iuv: vec2f, basePos: vec3f) -> vec3f {
     // Larger smoothing factor & wider taps reduce per-particle faceting.
     var accum = vec3f(0.0);
     var count = 0.0;
     // Manually unrolled to satisfy WGSL constant index requirements.
     {
         let off = vec2f(1.0, 0.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(-1.0, 0.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(0.0, 1.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(0.0, -1.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(1.0, 1.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(-1.0, 1.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(1.0, -1.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
     }
     {
         let off = vec2f(-1.0, -1.0);
-        let pos = getViewPosFromTexCoord(input.uv + off * uniforms.texel_size, input.iuv + off);
-        let pos2 = getViewPosFromTexCoord(input.uv - off * uniforms.texel_size, input.iuv - off);
+    let pos = getViewPosFromTexCoord(uv + off * uniforms.texel_size, iuv + off);
+    let pos2 = getViewPosFromTexCoord(uv - off * uniforms.texel_size, iuv - off);
         let grad = pos - pos2;
         accum += normalize(vec3f(-grad.x, -grad.y, grad.z));
         count += 1.0;
@@ -636,13 +641,13 @@ fn calculateAbsorption(surface: SurfaceData, waterColor: vec3f, absorptionStreng
     return clamp(attenuation, vec3f(0.6), vec3f(1.0));
 }
 
-fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, input: FluidFragmentInput, causticsStrength: f32, causticsScale: f32) -> f32 {
+fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, iuv: vec2f, causticsStrength: f32, causticsScale: f32) -> f32 {
     if causticsStrength <= 0.0 { return 0.0; }
 
-    var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0));
-    var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0));
-    var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0));
-    var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0));
+    var thicknessL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    var thicknessR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    var thicknessU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    var thicknessD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
     var curvatureX = (thicknessR + thicknessL - 2.0 * surface.thickness) * 0.5;
     var curvatureY = (thicknessD + thicknessU - 2.0 * surface.thickness) * 0.5;
 
@@ -706,7 +711,11 @@ fn calculateColorAbsorption(surface: SurfaceData, baseColor: vec3f, waterColor: 
 // === MAIN FRAGMENT SHADER ===
 @fragment
 fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
-    var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
+    let dims = textureDimensions(texture);
+    let pix = deriveCoords(input.pos, dims);
+    let uv = (vec2f(pix) + 0.5) / vec2f(f32(dims.x), f32(dims.y));
+    let iuv = vec2f(pix);
+    var depth: f32 = abs(textureLoad(texture, pix, 0).r);
 
     // Early return for non-water pixels
     if depth >= 1e4 || depth <= 0.0 {
@@ -714,9 +723,9 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
     }
 
     // === INDEPENDENT CALCULATIONS ===
-    var surface = createSurfaceData(input);
+    var surface = createSurfaceData(uv, iuv);
     // Continuity enhancement: heavier smoothing of thickness for low coverage before lighting.
-    let enhancedThickness = continuityEnhancedThickness(input.iuv, surface.thickness, surface.coverage);
+    let enhancedThickness = continuityEnhancedThickness(iuv, surface.thickness, surface.coverage);
     surface.thickness = enhancedThickness;
     var lighting = createLightingEnvironment();    // Physics calculations (independent)
     var physics: PhysicsData;
@@ -733,8 +742,8 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
     var cavitation = 1.0;
 
     if effectsToggle.enableReynoldsPhysics != 0u {
-        var ddx = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0)) - surface.position;
-        var ddy = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0)) - surface.position;
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0., uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
         var velocity = vec3f(length(ddx), length(vec3f(ddx.y, ddy.y, 0.0)), length(ddy));
 
         physics = calculateReynoldsPhysics(velocity, uniforms.sphere_size, effectParams.viscosityFactor,
@@ -777,7 +786,7 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
     }
 
     if effectsToggle.enableCaustics != 0u {
-        caustics = calculateCaustics(surface, lighting, input, effectParams.causticsStrength, effectParams.causticsScale);
+    caustics = calculateCaustics(surface, lighting, iuv, effectParams.causticsStrength, effectParams.causticsScale);
     }
 
     // Lighting effects (independent)
@@ -786,7 +795,7 @@ fn fs(input: FluidFragmentInput) -> @location(0) vec4f {
     var rimLighting = vec3f(0.0);
     var reflection = vec3f(0.0);
     // Blurred normal for highlight continuity (keeps silhouettes from blurring)
-    let blurredNormal = computeBlurredNormal(input, surface.position);
+    let blurredNormal = computeBlurredNormal(uv, iuv, surface.position);
 
     if effectsToggle.enableSpecular != 0u {
         let specNormal = mix(surface.normal, blurredNormal, 0.6); // stronger smoothing for specular only

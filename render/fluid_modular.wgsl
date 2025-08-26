@@ -1,13 +1,8 @@
 // MODULAR FLUID SHADER - Clean separation of concerns
 // Each effect is independent and can be toggled/modified without affecting others
 
-// Include all effect modules
-#include "effects/types.wgsl"
-#include "effects/surface.wgsl"
-#include "effects/physics.wgsl"
-#include "effects/lighting.wgsl"
-#include "effects/optical.wgsl"
-#include "effects/coloring.wgsl"
+// (Inlined) Previously included effect modules replaced for standalone validation.
+// Minimal shared struct set & helpers will be defined locally below.
 
 // Bindings - same as before for compatibility
 @group(0) @binding(0) var texture_sampler: sampler;
@@ -137,6 +132,245 @@ struct EffectParameters {
     padding4: f32,
 }
 
+// Core uniform & shared structs (mirrored from fluid_clean)
+struct RenderUniforms {
+    @align(8) texel_size: vec2f,
+    sphere_size: f32,
+    padding0: f32,
+    @align(16) inv_projection_matrix: mat4x4<f32>,
+    projection_matrix: mat4x4<f32>,
+    view_matrix: mat4x4<f32>,
+    inv_view_matrix: mat4x4<f32>,
+}
+
+struct WaterAppearance { color: vec4f, transparency: f32, reflectivity: f32, waveHeight: f32, padding: f32 }
+struct DebugUniforms { mode: u32, layer: u32, intensity: f32, padding: f32 }
+
+struct SurfaceData { position: vec3f, normal: vec3f, thickness: f32, depth: f32, rayDir: vec3f, viewDotNormal: f32, coverage: f32 }
+struct LightingEnvironment { mainLightDir: vec3f, mainLightColor: vec3f, mainLightIntensity: f32, fillLightDir: vec3f, fillLightColor: vec3f, fillLightIntensity: f32, rimLightDir: vec3f, rimLightColor: vec3f, rimLightIntensity: f32, ambientColor: vec3f, ambientIntensity: f32, backgroundColor: vec3f }
+struct PhysicsData { velocity: vec3f, velocityMagnitude: f32, pressure: f32, density: f32, turbulence: f32, cavitation: f32, vorticity: vec3f }
+
+// Basic math helpers
+fn computeViewPosFromUVDepth(tex: texture_2d<f32>, uv: vec2f, depth: f32) -> vec3f {
+    var ndc: vec4f = vec4f(uv.x * 2.0 - 1.0, 1.0 - 2.0 * uv.y, 0.0, 1.0);
+    ndc.z = -uniforms.projection_matrix[2].z + uniforms.projection_matrix[3].z / depth;
+    ndc.w = 1.0;
+    let eye_pos: vec4f = uniforms.inv_projection_matrix * ndc;
+    return eye_pos.xyz / eye_pos.w;
+}
+
+fn getViewPosFromTexCoord(uv: vec2f, iuv: vec2f) -> vec3f {
+    let d = abs(textureLoad(texture, vec2u(iuv), 0).x);
+    return computeViewPosFromUVDepth(texture, uv, d);
+}
+
+fn safeThicknessSample(iuv: vec2f) -> f32 {
+    let dims = textureDimensions(thickness_texture);
+    let maxC = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let c = clamp(iuv, vec2f(0.0), maxC);
+    return textureLoad(thickness_texture, vec2u(c), 0).r;
+}
+
+fn createSurfaceData(uv: vec2f, iuv: vec2f) -> SurfaceData {
+    var s: SurfaceData;
+    let depth = abs(textureLoad(texture, vec2u(iuv), 0).r);
+    s.position = computeViewPosFromUVDepth(texture, uv, depth);
+    s.depth = abs(s.position.z);
+    s.rayDir = normalize(s.position);
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.0), iuv + vec2f(1.0, 0.0)) - s.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0.0, uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - s.position;
+    var ddx2 = s.position - getViewPosFromTexCoord(uv + vec2f(-uniforms.texel_size.x, 0.0), iuv + vec2f(-1.0, 0.0));
+    var ddy2 = s.position - getViewPosFromTexCoord(uv + vec2f(0.0, -uniforms.texel_size.y), iuv + vec2f(0.0, -1.0));
+    if abs(ddx.z) > abs(ddx2.z) { ddx = ddx2; }
+    if abs(ddy.z) > abs(ddy2.z) { ddy = ddy2; }
+    let smoothing = 0.65; ddx *= smoothing; ddy *= smoothing; let avg = (ddx + ddy) * 0.5; ddx = mix(ddx, avg, 0.2); ddy = mix(ddy, avg, 0.2);
+    s.normal = -normalize(cross(ddx, ddy));
+    let t = textureLoad(thickness_texture, vec2u(iuv), 0).r;
+    let tL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    let tR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    let tU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    let tD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
+    let smoothT = (t * 4.0 + tL + tR + tU + tD) / 8.0;
+    s.thickness = mix(t, smoothT, 0.8);
+    s.viewDotNormal = max(dot(s.normal, -s.rayDir), 0.0);
+    s.coverage = 1.0;
+    return s;
+}
+
+// === EFFECT IMPLEMENTATIONS (inlined minimal subset) ===
+fn calculateSpecular(surface: SurfaceData, lighting: LightingEnvironment, specularPower: f32, specularIntensity: f32) -> f32 {
+    var specular = 0.0;
+    if lighting.mainLightIntensity > 0.0 {
+        let H = normalize(lighting.mainLightDir - surface.rayDir);
+        specular += pow(max(0.0, dot(H, surface.normal)), specularPower) * specularIntensity * lighting.mainLightIntensity;
+    }
+    if lighting.fillLightIntensity > 0.0 {
+        let H = normalize(lighting.fillLightDir - surface.rayDir);
+        specular += pow(max(0.0, dot(H, surface.normal)), specularPower * 0.7) * specularIntensity * 0.4 * lighting.fillLightIntensity;
+    }
+    if lighting.rimLightIntensity > 0.0 {
+        let H = normalize(lighting.rimLightDir - surface.rayDir);
+        specular += pow(max(0.0, dot(H, surface.normal)), specularPower * 0.5) * specularIntensity * 0.3 * lighting.rimLightIntensity;
+    }
+    return specular;
+}
+
+fn calculateSubsurface(surface: SurfaceData, lighting: LightingEnvironment, subsurfaceIntensity: f32) -> vec3f {
+    let tNorm = 1.0 - exp(-surface.thickness * 0.6);
+    let viewAtten = clamp(surface.viewDotNormal * 1.2, 0.25, 1.0);
+    var subsurface = vec3f(0.0);
+    if lighting.mainLightIntensity > 0.0 {
+        let backLighting = max(0.0, dot(-lighting.mainLightDir, surface.normal));
+        subsurface += lighting.mainLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.mainLightIntensity;
+    }
+    if lighting.fillLightIntensity > 0.0 {
+        let backLighting = max(0.0, dot(-lighting.fillLightDir, surface.normal));
+        subsurface += lighting.fillLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.fillLightIntensity * 0.45;
+    }
+    if lighting.rimLightIntensity > 0.0 {
+        let backLighting = max(0.0, dot(-lighting.rimLightDir, surface.normal));
+        subsurface += lighting.rimLightColor * backLighting * tNorm * subsurfaceIntensity * lighting.rimLightIntensity * 0.25;
+    }
+    subsurface = min(subsurface, vec3f(1.1)) * viewAtten;
+    return subsurface;
+}
+
+fn calculateFresnel(surface: SurfaceData, fresnelPower: f32, fresnelScale: f32, fresnelBias: f32, reflectivity: f32) -> f32 {
+    let fresnelEffect = pow(1.0 - surface.viewDotNormal, fresnelPower);
+    let fresnel = fresnelEffect * reflectivity * fresnelScale;
+    return clamp(fresnel + fresnelBias, 0.0, 0.5);
+}
+
+fn calculateAbsorption(surface: SurfaceData, waterColor: vec3f, absorptionStrength: f32, absorptionDepth: f32) -> vec3f {
+    var coeffs = vec3f(0.03, 0.025, 0.02) * absorptionStrength;
+    let pathLength = surface.thickness * absorptionDepth * 0.05 / max(surface.viewDotNormal, 0.15);
+    let attenuation = exp(-coeffs * pathLength);
+    return clamp(attenuation, vec3f(0.6), vec3f(1.0));
+}
+
+fn calculateTransmission(surface: SurfaceData, waterColor: vec3f, absorptionStrength: f32) -> vec3f {
+    if absorptionStrength <= 0.0 { return vec3f(1.0); }
+    let opticalPath = surface.thickness * 0.08 / max(surface.viewDotNormal, 0.15);
+    let coeffs = vec3f(0.2, 0.08, 0.03) * absorptionStrength;
+    return clamp(exp(-coeffs * opticalPath), vec3f(0.7), vec3f(1.0));
+}
+
+fn calculateReflection(surface: SurfaceData, lighting: LightingEnvironment, envmap: texture_cube<f32>, sampler: sampler,
+    view_matrix: mat4x4<f32>, inv_view_matrix: mat4x4<f32>, reflectionStrength: f32, fresnel: f32) -> vec3f {
+    let reflectDir = reflect(surface.rayDir, surface.normal);
+    let worldDir = (inv_view_matrix * vec4f(reflectDir, 0.0)).xyz;
+    let env = textureSampleLevel(envmap, sampler, worldDir, 0.0).rgb;
+    let baseReflection = reflectionStrength * 0.25;
+    let totalReflectivity = clamp(baseReflection + fresnel, 0.0, 0.5);
+    return env * totalReflectivity;
+}
+
+fn calculateCaustics(surface: SurfaceData, lighting: LightingEnvironment, curvatureX: f32, curvatureY: f32,
+    causticsStrength: f32, causticsScale: f32) -> f32 {
+    let surfaceCurvature = abs(curvatureX) + abs(curvatureY);
+    let focus = clamp(surfaceCurvature * causticsScale, 0.0, 1.0);
+    var penetration = 0.0;
+    if lighting.mainLightIntensity > 0.0 { penetration += max(0.0, -dot(surface.normal, lighting.mainLightDir)) * lighting.mainLightIntensity; }
+    if lighting.fillLightIntensity > 0.0 { penetration += max(0.0, -dot(surface.normal, lighting.fillLightDir)) * lighting.fillLightIntensity * 0.5; }
+    if lighting.rimLightIntensity > 0.0 { penetration += max(0.0, -dot(surface.normal, lighting.rimLightDir)) * lighting.rimLightIntensity * 0.3; }
+    return focus * penetration * causticsStrength;
+}
+
+fn calculateDepthColoring(surface: SurfaceData, waterColor: vec3f, sphereSize: f32, depthColorStrength: f32) -> vec3f {
+    if depthColorStrength <= 0.0 { return vec3f(1.0); }
+    let depthM = surface.depth * sphereSize * 0.1;
+    let depthColor = vec3f(exp(-depthM * 0.5), exp(-depthM * 0.15), exp(-depthM * 0.05));
+    let tint = mix(vec3f(1.0), waterColor * vec3f(0.3, 0.8, 1.2), clamp(depthM * 0.2, 0.0, 0.8));
+    return mix(vec3f(1.0), depthColor * tint, depthColorStrength);
+}
+
+fn calculateVelocityColoring(physics: PhysicsData, waterColor: vec3f, velocityColorStrength: f32) -> vec3f {
+    if velocityColorStrength <= 0.0 { return vec3f(1.0); }
+    let factor = clamp(physics.velocityMagnitude * 0.5, 0.0, 1.0);
+    let tint = mix(vec3f(1.0), waterColor, 0.3);
+    return mix(vec3f(1.0), tint, factor * velocityColorStrength);
+}
+
+fn calculateColorAbsorption(surface: SurfaceData, baseColor: vec3f, waterColor: vec3f, colorAbsorptionDepth: f32, sphereSize: f32) -> vec3f {
+    let depthFactor = clamp(surface.depth * 0.15, 0.0, 1.0);
+    let absorptionFactors = vec3f(exp(-depthFactor * 0.4), exp(-depthFactor * 0.2), exp(-depthFactor * 0.05));
+    var shifted = baseColor * absorptionFactors;
+    if depthFactor > 0.8 {
+        let coolTint = mix(vec3f(1.0), waterColor * vec3f(0.9,0.95,1.05), 0.1);
+        shifted = mix(shifted, shifted * coolTint, (depthFactor - 0.8) * 0.25);
+    }
+    return mix(baseColor, shifted, depthFactor * 0.3);
+}
+
+fn calculateFoam(physics: PhysicsData, cavitation: f32, foamIntensity: f32, foamThreshold: f32) -> f32 {
+    let turbulence = physics.velocityMagnitude * 0.05;
+    let foam = cavitation * turbulence * foamIntensity;
+    return clamp(foam - foamThreshold, 0.0, 1.0);
+}
+
+fn calculateFoamColor(baseColor: vec3f, foam: f32, foamColor: vec3f) -> vec3f {
+    return mix(baseColor, vec3f(1.0), foam * 0.8);
+}
+
+fn calculateReynoldsPhysics(velocity: vec3f, characteristicLength: f32, viscosity: f32, reynoldsScale: f32, turbulenceStrength: f32) -> PhysicsData {
+    var physics: PhysicsData;
+    physics.velocity = velocity;
+    physics.velocityMagnitude = length(velocity);
+    let nu = viscosity * 0.001;
+    let Re = physics.velocityMagnitude * characteristicLength / nu;
+    let onset = 4000.0;
+    physics.turbulence = clamp((Re - onset) / onset, 0.0, 1.0) * turbulenceStrength;
+    let kol = pow(pow(nu,3.0)/(physics.velocityMagnitude*physics.velocityMagnitude*physics.velocityMagnitude + 1e-6),0.25);
+    let cascade = reynoldsScale / (1.0 + kol * 10.0);
+    physics.turbulence *= cascade;
+    physics.pressure = physics.velocityMagnitude * 0.1;
+    physics.density = 1.0 + physics.pressure * 0.3;
+    physics.cavitation = 1.0;
+    physics.vorticity = vec3f(0.0);
+    return physics;
+}
+
+fn calculateCavitation(surface: SurfaceData, physics: PhysicsData, cavitationThreshold: f32, cavitationStrength: f32) -> f32 {
+    let hydro = surface.depth * 9.81 * 1000.0;
+    let dyn = physics.velocityMagnitude * physics.velocityMagnitude * 500.0;
+    let total = hydro + dyn;
+    return clamp((cavitationThreshold - total) / cavitationThreshold, 0.0, 1.0) * cavitationStrength;
+}
+
+fn calculateVorticity(ddx: vec3f, ddy: vec3f, physics: PhysicsData) -> vec3f { return cross(ddx, ddy); }
+fn calculateTurbulentSurfaceOffset(surface: SurfaceData, physics: PhysicsData, vorticity: vec3f, waveHeight: f32, normalStrength: f32) -> vec3f {
+    return vorticity * physics.turbulence * waveHeight * normalStrength * 0.02;
+}
+
+fn calculateRimLighting(surface: SurfaceData, lighting: LightingEnvironment, rimPower: f32, rimIntensity: f32) -> vec3f {
+    let effectivePower = max(rimPower, 1.4);
+    let combinedStrength = rimIntensity * lighting.rimLightIntensity;
+    if combinedStrength <= 0.0 { return vec3f(0.0); }
+    let fres = pow(1.0 - surface.viewDotNormal, effectivePower);
+    var rim = vec3f(0.0);
+    if lighting.mainLightIntensity > 0.0 {
+        let align = max(0.0, dot(surface.normal, -lighting.mainLightDir));
+        rim += lighting.mainLightColor * fres * align * combinedStrength * lighting.mainLightIntensity * 0.7;
+    }
+    if lighting.fillLightIntensity > 0.0 {
+        let align = max(0.0, dot(surface.normal, -lighting.fillLightDir));
+        rim += lighting.fillLightColor * fres * align * combinedStrength * lighting.fillLightIntensity * 0.4;
+    }
+    if lighting.rimLightIntensity > 0.0 {
+        let align = max(0.0, dot(surface.normal, -lighting.rimLightDir));
+        rim += lighting.rimLightColor * fres * align * combinedStrength * 0.5;
+    }
+    return rim / (vec3f(1.0) + rim);
+}
+
+fn calculateVolumetricLighting(surface: SurfaceData, lighting: LightingEnvironment, intensity: f32) -> vec3f {
+    return lighting.backgroundColor * intensity * (1.0 - surface.viewDotNormal) * 0.5;
+}
+
+fn calculateAmbientLighting(surface: SurfaceData, lighting: LightingEnvironment) -> vec3f {
+    return lighting.ambientColor * lighting.ambientIntensity;
+}
+
 // Create lighting environment from uniforms
 fn createLightingEnvironment() -> LightingEnvironment {
     var lighting: LightingEnvironment;
@@ -176,16 +410,78 @@ fn createLightingEnvironment() -> LightingEnvironment {
     lighting.ambientIntensity = lightingControls.ambientIntensity;
 
     // Background color from environment map
-    var rayDir = normalize(computeViewPosFromUVDepth(vec2f(0.5), 1000.0, uniforms.projection_matrix, uniforms.inv_projection_matrix));
+    var rayDir = normalize(computeViewPosFromUVDepth(vec2f(0.5), 1000.0)); // already uses current signature
     var worldRayDir = (uniforms.inv_view_matrix * vec4f(rayDir, 0.0)).xyz;
     lighting.backgroundColor = textureSampleLevel(envmap_texture, texture_sampler, worldRayDir, 0.).rgb;
 
     return lighting;
 }
 
+// Screen-Space ABI migration helpers (derive UV/iUV from builtin position)
+struct FSIn { @builtin(position) pos: vec4f };
+
+fn computeViewPosFromUVDepth(tex_coord: vec2f, depth: f32) -> vec3f {
+    var ndc: vec4f = vec4f(tex_coord.x * 2.0 - 1.0, 1.0 - 2.0 * tex_coord.y, 0.0, 1.0);
+    ndc.z = -uniforms.projection_matrix[2].z + uniforms.projection_matrix[3].z / depth;
+    ndc.w = 1.0;
+    let eye_pos: vec4f = uniforms.inv_projection_matrix * ndc;
+    return eye_pos.xyz / eye_pos.w;
+}
+
+fn getViewPosFromTexCoord(tex_coord: vec2f, iuv: vec2f) -> vec3f {
+    let depth = abs(textureLoad(texture, vec2u(iuv), 0).x);
+    return computeViewPosFromUVDepth(tex_coord, depth);
+}
+
+fn safeThicknessSample(coords: vec2f) -> f32 {
+    let dims = textureDimensions(thickness_texture);
+    let maxCoord = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let clamped = clamp(coords, vec2f(0.0), maxCoord);
+    return textureLoad(thickness_texture, vec2u(clamped), 0).r;
+}
+
+fn createSurfaceData(uv: vec2f, iuv: vec2f) -> SurfaceData {
+    var surface: SurfaceData;
+    let depth = abs(textureLoad(texture, vec2u(iuv), 0).r);
+    surface.position = computeViewPosFromUVDepth(uv, depth);
+    surface.depth = abs(surface.position.z);
+    surface.rayDir = normalize(surface.position);
+
+    // Gradients for normal
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.0), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0.0, uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
+    var ddx2 = surface.position - getViewPosFromTexCoord(uv + vec2f(-uniforms.texel_size.x, 0.0), iuv + vec2f(-1.0, 0.0));
+    var ddy2 = surface.position - getViewPosFromTexCoord(uv + vec2f(0.0, -uniforms.texel_size.y), iuv + vec2f(0.0, -1.0));
+    if abs(ddx.z) > abs(ddx2.z) { ddx = ddx2; }
+    if abs(ddy.z) > abs(ddy2.z) { ddy = ddy2; }
+    let smoothing = 0.65;
+    ddx *= smoothing; ddy *= smoothing;
+    let avg = (ddx + ddy) * 0.5;
+    ddx = mix(ddx, avg, 0.2); ddy = mix(ddy, avg, 0.2);
+    surface.normal = -normalize(cross(ddx, ddy));
+
+    // Thickness & smoothing
+    let thickness = textureLoad(thickness_texture, vec2u(iuv), 0).r;
+    let tL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    let tR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    let tU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    let tD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
+    let smoothed = (thickness * 4.0 + tL + tR + tU + tD) / 8.0;
+    surface.thickness = mix(thickness, smoothed, 0.8);
+    surface.viewDotNormal = max(dot(surface.normal, -surface.rayDir), 0.0);
+    surface.coverage = 1.0;
+    return surface;
+}
+
 @fragment
-fn fs(input: FragmentInput) -> @location(0) vec4f {
-    var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
+fn fs(input: FSIn) -> @location(0) vec4f {
+    let dims = textureDimensions(texture);
+    let maxPix = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let pixF = clamp(floor(input.pos.xy), vec2f(0.0), maxPix);
+    let pix = vec2u(pixF);
+    let iuv = vec2f(pix);
+    let uv = (pixF + 0.5) / vec2f(f32(dims.x), f32(dims.y));
+    var depth: f32 = abs(textureLoad(texture, pix, 0).r);
 
     // Early return for non-water pixels
     if depth >= 1e4 || depth <= 0.0 {
@@ -193,7 +489,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // === SURFACE COMPUTATION (Independent) ===
-    var surface = createSurfaceData(input, uniforms, texture, thickness_texture);
+    var surface = createSurfaceData(uv, iuv);
 
     // === LIGHTING ENVIRONMENT (Independent) ===
     var lighting = createLightingEnvironment();
@@ -205,10 +501,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableReynoldsPhysics != 0u {
         // Calculate velocity from surface gradients
-        var ddx = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.), input.iuv + vec2f(1.0, 0.0),
-                                        texture, uniforms.projection_matrix, uniforms.inv_projection_matrix) - surface.position;
-        var ddy = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y), input.iuv + vec2f(0.0, 1.0),
-                                        texture, uniforms.projection_matrix, uniforms.inv_projection_matrix) - surface.position;
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.0), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0.0, uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
 
         var velocity = vec3f(length(ddx), length(vec3f(ddx.y, ddy.y, 0.0)), length(ddy));
         physics = calculateReynoldsPhysics(velocity, uniforms.sphere_size, effectParams.viscosityFactor,
@@ -255,10 +549,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableCaustics != 0u {
         // Calculate surface curvature for caustics
-        var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0), thickness_texture);
-        var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0), thickness_texture);
-        var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0), thickness_texture);
-        var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0), thickness_texture);
+    var thicknessL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    var thicknessR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    var thicknessU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    var thicknessD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
         var curvatureX = (thicknessR + thicknessL - 2.0 * surface.thickness) * 0.5;
         var curvatureY = (thicknessD + thicknessU - 2.0 * surface.thickness) * 0.5;
 

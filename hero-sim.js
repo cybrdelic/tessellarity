@@ -1,9 +1,9 @@
 // Hero simulation using the exact same setup as main demo
 import { mat4 } from 'https://cdn.skypack.dev/wgpu-matrix';
 import { Camera } from './camera.ts';
+import { numParticlesMax, renderUniformsValues, renderUniformsViews, waterAppearanceValues, waterAppearanceViews } from './common.ts';
 import { MLSMPMSimulator, mlsmpmParticleStructSize } from './mls-mpm/mls-mpm.ts';
 import { FluidRenderer } from './render/fluidRender.ts';
-import { renderUniformsViews, renderUniformsValues, waterAppearanceValues, waterAppearanceViews, numParticlesMax } from './common.ts';
 
 export class HeroSimulation {
     constructor() {
@@ -51,12 +51,6 @@ export class HeroSimulation {
             return false;
         }
     }
-            import { renderUniformsViews, renderUniformsValues, numParticlesMax, waterAppearanceValues, waterAppearanceViews, debugModeValues, debugModeViews, effectsToggleValues, effectsToggleViews, lightingControlsValues, lightingControlsViews, effectParametersValues, effectParametersViews, compositionParamsValues, compositionParamsViews, initializeCompositionDefaults } from './common';
-            import { FluidRenderer } from './render/fluidRender';
-            import { SkyboxRenderer } from './render/SkyboxRenderer';
-            import { DebugVisualizationMode, DebugLayer } from './src/debug/DebugModes';
-            import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLODIntegration';
-            import { ENHANCED_LOD_UI_TEMPLATE, ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_SCRIPT } from './src/core/EnhancedLODUI';
     async initWebGPU() {
         // Exact same WebGPU init as main.ts
         if (!navigator.gpu) {

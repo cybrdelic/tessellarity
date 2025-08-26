@@ -147,9 +147,66 @@ fn debugVisualization(mode: u32, surface: SurfaceData, physics: PhysicsData,
     }
 }
 
+// Screen-Space ABI: fragment input only position; derive pixel, uv, iuv locally.
+struct FSIn { @builtin(position) pos: vec4f };
+
+fn computeViewPosFromUVDepth(tex_coord: vec2f, depth: f32) -> vec3f {
+    var ndc: vec4f = vec4f(tex_coord.x * 2.0 - 1.0, 1.0 - 2.0 * tex_coord.y, 0.0, 1.0);
+    ndc.z = -uniforms.projection_matrix[2].z + uniforms.projection_matrix[3].z / depth;
+    ndc.w = 1.0;
+    let eye_pos: vec4f = uniforms.inv_projection_matrix * ndc;
+    return eye_pos.xyz / eye_pos.w;
+}
+
+fn getViewPosFromTexCoord(tex_coord: vec2f, iuv: vec2f) -> vec3f {
+    let d = abs(textureLoad(texture, vec2u(iuv), 0).x);
+    return computeViewPosFromUVDepth(tex_coord, d);
+}
+
+fn safeThicknessSample(coords: vec2f) -> f32 {
+    let dims = textureDimensions(thickness_texture);
+    let maxC = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let c = clamp(coords, vec2f(0.0), maxC);
+    return textureLoad(thickness_texture, vec2u(c), 0).r;
+}
+
+fn createSurfaceData(uv: vec2f, iuv: vec2f) -> SurfaceData {
+    var surface: SurfaceData;
+    let depth = abs(textureLoad(texture, vec2u(iuv), 0).r);
+    surface.position = computeViewPosFromUVDepth(uv, depth);
+    surface.depth = abs(surface.position.z);
+    surface.rayDir = normalize(surface.position);
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.0), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0.0, uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
+    var ddx2 = surface.position - getViewPosFromTexCoord(uv + vec2f(-uniforms.texel_size.x, 0.0), iuv + vec2f(-1.0, 0.0));
+    var ddy2 = surface.position - getViewPosFromTexCoord(uv + vec2f(0.0, -uniforms.texel_size.y), iuv + vec2f(0.0, -1.0));
+    if abs(ddx.z) > abs(ddx2.z) { ddx = ddx2; }
+    if abs(ddy.z) > abs(ddy2.z) { ddy = ddy2; }
+    let smoothing = 0.65;
+    ddx *= smoothing; ddy *= smoothing;
+    let avg = (ddx + ddy) * 0.5; ddx = mix(ddx, avg, 0.2); ddy = mix(ddy, avg, 0.2);
+    surface.normal = -normalize(cross(ddx, ddy));
+    let thickness = textureLoad(thickness_texture, vec2u(iuv), 0).r;
+    let tL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    let tR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    let tU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    let tD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
+    let smoothT = (thickness * 4.0 + tL + tR + tU + tD) / 8.0;
+    surface.thickness = mix(thickness, smoothT, 0.8);
+    surface.viewDotNormal = max(dot(surface.normal, -surface.rayDir), 0.0);
+    surface.coverage = 1.0;
+    return surface;
+}
+
 @fragment
-fn fs(input: FragmentInput) -> @location(0) vec4f {
-    var depth: f32 = abs(textureLoad(texture, vec2u(input.iuv), 0).r);
+fn fs(input: FSIn) -> @location(0) vec4f {
+    let dims = textureDimensions(texture);
+    let maxPix = vec2f(f32(dims.x - 1u), f32(dims.y - 1u));
+    let pixF = clamp(floor(input.pos.xy), vec2f(0.0), maxPix);
+    let pix = vec2u(pixF);
+    let iuv = vec2f(pix);
+    let uv = (pixF + 0.5) / vec2f(f32(dims.x), f32(dims.y));
+    var depth: f32 = abs(textureLoad(texture, pix, 0).r);
 
     // Early exit for non-water pixels
     if depth >= 1e4 || depth <= 0.0 {
@@ -157,7 +214,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // ===== PHASE 1: SURFACE CALCULATION (Independent) =====
-    var surface = createSurfaceData(input, uniforms, texture, thickness_texture);    // ===== PHASE 2: LIGHTING ENVIRONMENT (Independent) =====
+    var surface = createSurfaceData(uv, iuv);    // ===== PHASE 2: LIGHTING ENVIRONMENT (Independent) =====
     var lighting = createLightingEnvironment(lightingControls, uniforms,
         envmap_texture, texture_sampler);
 
@@ -177,12 +234,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableReynoldsPhysics != 0u {
         // Calculate velocity from surface gradients (independent calculation)
-        var ddx = getViewPosFromTexCoord(input.uv + vec2f(uniforms.texel_size.x, 0.),
-            input.iuv + vec2f(1.0, 0.0), texture,
-            uniforms.projection_matrix, uniforms.inv_projection_matrix) - surface.position;
-        var ddy = getViewPosFromTexCoord(input.uv + vec2f(0., uniforms.texel_size.y),
-            input.iuv + vec2f(0.0, 1.0), texture,
-            uniforms.projection_matrix, uniforms.inv_projection_matrix) - surface.position;
+    var ddx = getViewPosFromTexCoord(uv + vec2f(uniforms.texel_size.x, 0.0), iuv + vec2f(1.0, 0.0)) - surface.position;
+    var ddy = getViewPosFromTexCoord(uv + vec2f(0.0, uniforms.texel_size.y), iuv + vec2f(0.0, 1.0)) - surface.position;
 
         var velocity = (ddx + ddy) * 0.5 * uniforms.sphere_size;
         physics = calculateReynoldsPhysics(velocity, uniforms.sphere_size,
@@ -226,7 +279,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var varianceTransport = vec3f(1.0);    // Variance Light Transport - reduces lighting noise
     if effectsToggle.enableVarianceLightTransport != 0u {
         varianceTransport = calculateVarianceLightTransport(surface, lighting,
-            texture, input.uv, uniforms.texel_size,
+            texture, uv, uniforms.texel_size,
             effectParams.varianceSamples, effectParams.varianceStrength,
             effectParams.varianceRadius, effectParams.varianceThreshold);
     }
@@ -245,10 +298,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     if effectsToggle.enableCaustics != 0u {
         // Calculate surface curvature for caustics
-        var thicknessL = safeThicknessSample(input.iuv + vec2f(-1.0, 0.0), thickness_texture);
-        var thicknessR = safeThicknessSample(input.iuv + vec2f(1.0, 0.0), thickness_texture);
-        var thicknessU = safeThicknessSample(input.iuv + vec2f(0.0, -1.0), thickness_texture);
-        var thicknessD = safeThicknessSample(input.iuv + vec2f(0.0, 1.0), thickness_texture);
+    var thicknessL = safeThicknessSample(iuv + vec2f(-1.0, 0.0));
+    var thicknessR = safeThicknessSample(iuv + vec2f(1.0, 0.0));
+    var thicknessU = safeThicknessSample(iuv + vec2f(0.0, -1.0));
+    var thicknessD = safeThicknessSample(iuv + vec2f(0.0, 1.0));
 
         var curvatureX = (thicknessR + thicknessL - 2.0 * surface.thickness) * 0.5;
         var curvatureY = (thicknessD + thicknessU - 2.0 * surface.thickness) * 0.5;

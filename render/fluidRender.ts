@@ -8,6 +8,7 @@ import heightBlur from './heightBlur.wgsl'
 import heightDiffuse from './heightDiffuse.wgsl'
 import heightFromDepth from './heightFromDepth.wgsl'
 import heightPhysical from './heightPhysical.wgsl'
+import { makeShaderModule } from './makeShaderModule'
 import normalizeThickness from './normalizeThickness.wgsl'
 import normalsFromThickness from './normalsFromThickness.wgsl'
 import temporalSurface from './temporalSurface.wgsl'
@@ -24,7 +25,7 @@ export class FluidRenderer {
     thicknessMapPipeline: GPURenderPipeline
     thicknessFilterPipeline: GPURenderPipeline
     fluidPipeline: GPURenderPipeline
-    fluidSurfacePipeline: GPURenderPipeline
+    fluidSurfacePipeline!: GPURenderPipeline
     normalsPipeline: GPURenderPipeline
     temporalPipeline: GPUComputePipeline
     heightPipeline: GPUComputePipeline
@@ -133,6 +134,10 @@ export class FluidRenderer {
     _enablePhysicalMetrics: boolean = true
     _transmissionParamsBuffer?: GPUBuffer
     _sphereContainBuffer?: GPUBuffer
+    // Internal version to force pipeline rebuild when shader binding schema changes at runtime (e.g. HMR)
+    private _fluidSurfacePipelineVersion: number = 0;
+    // If the debug pipeline creation is async, stash initial bind group params until pipeline arrives
+    private _pendingSurfaceBindGroupOpts?: { heightTexView: GPUTextureView, surfaceTexView: GPUTextureView, envView?: GPUTextureView };
 
     constructor(
         device: GPUDevice,
@@ -165,10 +170,8 @@ export class FluidRenderer {
         const diameter = 2 * radius
         const blurFilterSize = 12
 
-        const screenConstants = {
-            'screenHeight': canvas.height,
-            'screenWidth': canvas.width,
-        }
+    // Removed legacy overridable screen dimension constants.
+    // Shaders now derive pixel coords from @builtin(position) and textureDimensions.
         // TODO : filter size を設定できるようにする
         const filterConstants = {
             'depth_threshold': radius * blurdDepthScale,
@@ -180,22 +183,22 @@ export class FluidRenderer {
             minFilter: 'linear'
         });
 
-        const vertexModule = device.createShaderModule({ code: fullScreen })
-        const depthMapModule = device.createShaderModule({ code: depthMap })
-        const depthFilterModule = device.createShaderModule({ code: depthFilter })
-    const fluidModule = device.createShaderModule({ code: fluid })
-    const fluidSurfaceModule = device.createShaderModule({ code: fluidSurface })
-        const sphereModule = device.createShaderModule({ code: sphere })
-    const thicknessMapModule = device.createShaderModule({ code: thicknessMap })
-    const thicknessFilterModule = device.createShaderModule({ code: gaussian })
-    const normalsModule = device.createShaderModule({ code: normalsFromThickness })
-    const normalizeModule = device.createShaderModule({ code: normalizeThickness })
-    const temporalModule = device.createShaderModule({ code: temporalSurface })
-    const heightModule = device.createShaderModule({ code: heightFromDepth })
-    const heightDiffuseModule = device.createShaderModule({ code: heightDiffuse })
-    const heightPhysicalModule = device.createShaderModule({ code: heightPhysical })
-    const heightBlurModule = device.createShaderModule({ code: heightBlur })
-    const velocityModule = device.createShaderModule({ code: velocityFromHeight })
+    const vertexModule = makeShaderModule(device, fullScreen); // vertex - helpers harmless
+    const depthMapModule = makeShaderModule(device, depthMap)
+    const depthFilterModule = makeShaderModule(device, depthFilter)
+    const fluidModule = makeShaderModule(device, fluid)
+    const fluidSurfaceModule = makeShaderModule(device, fluidSurface)
+    const sphereModule = makeShaderModule(device, sphere) // particle billboards: helpers unused
+    const thicknessMapModule = makeShaderModule(device, thicknessMap)
+    const thicknessFilterModule = makeShaderModule(device, gaussian)
+    const normalsModule = makeShaderModule(device, normalsFromThickness)
+    const normalizeModule = makeShaderModule(device, normalizeThickness)
+    const temporalModule = makeShaderModule(device, temporalSurface)
+    const heightModule = makeShaderModule(device, heightFromDepth)
+    const heightDiffuseModule = makeShaderModule(device, heightDiffuse)
+    const heightPhysicalModule = makeShaderModule(device, heightPhysical)
+    const heightBlurModule = makeShaderModule(device, heightBlur)
+    const velocityModule = makeShaderModule(device, velocityFromHeight)
 
         // pipelines
         this.spherePipeline = device.createRenderPipeline({
@@ -243,10 +246,7 @@ export class FluidRenderer {
         this.depthFilterPipeline = device.createRenderPipeline({
             label: 'filter pipeline',
             layout: 'auto',
-            vertex: {
-                module: vertexModule,
-                constants: screenConstants
-            },
+            vertex: { module: vertexModule },
             fragment: {
                 module: depthFilterModule,
                 constants: filterConstants,
@@ -284,10 +284,7 @@ export class FluidRenderer {
     this.thicknessFilterPipeline = device.createRenderPipeline({
             label: 'thickness filter pipeline',
             layout: 'auto',
-            vertex: {
-                module: vertexModule,
-                constants: screenConstants
-            },
+            vertex: { module: vertexModule },
             fragment: {
                 module: thicknessFilterModule,
                 targets: [
@@ -301,7 +298,7 @@ export class FluidRenderer {
         this.normalsPipeline = device.createRenderPipeline({
             label: 'surface normals pipeline',
             layout: 'auto',
-            vertex: { module: vertexModule, constants: screenConstants },
+            vertex: { module: vertexModule },
             fragment: { module: normalsModule, targets: [ { format: 'rgba16float' } ] },
             primitive: { topology: 'triangle-list' },
         });
@@ -348,10 +345,7 @@ export class FluidRenderer {
         this.fluidPipeline = device.createRenderPipeline({
             label: 'fluid rendering pipeline',
             layout: 'auto',
-            vertex: {
-                module: vertexModule,
-                constants: screenConstants
-            }, fragment: {
+            vertex: { module: vertexModule }, fragment: {
                 module: fluidModule,
                 targets: [
                     {
@@ -375,18 +369,31 @@ export class FluidRenderer {
                 topology: 'triangle-list',
             },
         });
-        this.fluidSurfacePipeline = device.createRenderPipeline({
+        const surfaceDesc: GPURenderPipelineDescriptor = {
             label: 'fluid surface pipeline',
             layout: 'auto',
-            vertex: { module: vertexModule, constants: screenConstants },
-            fragment: { module: fluidSurfaceModule, targets: [ { format: presentationFormat, blend: {
-                // Premultiplied output: color.rgb already multiplied by alpha for transmissive part; specular is additive.
-                // Use src=one (keep premultiplied) and dst=one-minus-src-alpha to composite over background.
+            vertex: { module: vertexModule },
+            fragment: { module: fluidSurfaceModule, entryPoint: 'fs', targets: [ { format: presentationFormat, blend: {
                 color: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' },
                 alpha: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' } } } ] },
             primitive: { topology: 'triangle-list' },
-            depthStencil: undefined // full screen composite: no depth test
-        });
+        };
+        const dbgCreator = (device as any).__dbgCreateRenderPipeline as ((d: GPURenderPipelineDescriptor)=>Promise<GPURenderPipeline>)|undefined;
+        if (dbgCreator) {
+            // Defer pipeline-dependent work until promise resolves
+            dbgCreator(surfaceDesc).then(p => {
+                this.fluidSurfacePipeline = p;
+                this._fluidSurfacePipelineVersion++;
+                if (this._pendingSurfaceBindGroupOpts) {
+                    // Now safe to create the initially requested bind group
+                    this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup(this._pendingSurfaceBindGroupOpts);
+                    this._pendingSurfaceBindGroupOpts = undefined;
+                }
+            }).catch(e => { console.error('[FluidRenderer] Debug pipeline creation failed', e); });
+        } else {
+            this.fluidSurfacePipeline = device.createRenderPipeline(surfaceDesc);
+            this._fluidSurfacePipelineVersion++;
+        }
 
         // textures
         const depthMapTexture = device.createTexture({
@@ -713,12 +720,11 @@ export class FluidRenderer {
         label: 'temporal surface bind group',
         layout: this.temporalPipeline.getBindGroupLayout(0),
         entries: [
-            { binding: 0, resource: this.surfaceTextureView },
-            { binding: 1, resource: this.prevSurfaceTextureView },
-            { binding: 2, resource: this.velocityTextureView },
-            { binding: 3, resource: this.sampler },
-            { binding: 4, resource: { buffer: temporalParamsBuffer } },
-            { binding: 5, resource: this.temporalSurfaceTextureView },
+            { binding: 0, resource: this.surfaceTextureView },          // currentSurface
+            { binding: 1, resource: this.prevSurfaceTextureView },      // prevSurface
+            { binding: 2, resource: this.velocityTextureView },         // velocityTex
+            { binding: 3, resource: { buffer: temporalParamsBuffer } }, // params uniform
+            { binding: 4, resource: this.temporalSurfaceTextureView },  // outSurface (storage)
         ]
     });
     // Normalization compute bind group (no params needed)
@@ -813,7 +819,7 @@ export class FluidRenderer {
         this.foamTemporalPipeline = device.createComputePipeline({
             label: 'foam temporal pipeline',
             layout: 'auto',
-            compute: { module: device.createShaderModule({ code: foamTemporalSource }), entryPoint: 'main' }
+            compute: { module: makeShaderModule(device, foamTemporalSource), entryPoint: 'main' }
         });
         // Foam params uniform
     const foamParamsArr = new Float32Array([0.9, 0.12, 0.28, 0.18, 0.55, 0.45, 0.4, 0.0]); // extended params
@@ -857,29 +863,21 @@ export class FluidRenderer {
         }
     const envView = cubemapTextureView!; // fallback created if null
     this._envView = envView;
-    this.fluidSurfaceBindGroup = device.createBindGroup({
-            label: 'fluid surface bind group',
-            layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: this.sampler },
-                { binding: 1, resource: { buffer: renderUniformBuffer } },
-                { binding: 2, resource: this.heightTextureDiffuseView ?? this.heightTextureView },
-                { binding: 3, resource: this.surfaceTextureView }, // first frame: raw surface
-                { binding: 4, resource: envView },
-                { binding: 5, resource: { buffer: waterAppearanceBuffer } },
-                { binding: 6, resource: { buffer: debugModeBuffer } },
-                { binding: 7, resource: { buffer: effectsToggleBuffer } },
-                { binding: 8, resource: { buffer: lightingControlsBuffer } },
-                { binding: 9, resource: { buffer: effectParametersBuffer } },
-                { binding: 10, resource: { buffer: compositionParamsBuffer } },
-                    { binding: 11, resource: this.physicalTextureView! },
-                    { binding: 12, resource: this.foamAccumTextureView! },
-                { binding: 13, resource: this.velocityTextureView },
-                { binding: 14, resource: this._backgroundTextureView! },
-                { binding: 15, resource: { buffer: this._transmissionParamsBuffer = this._transmissionParamsBuffer || (()=>{ const b = device.createBuffer({label:'transmission params', size:16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST}); device.queue.writeBuffer(b,0,new Float32Array([1.0,0,0,0])); return b; })() } },
-                { binding: 16, resource: { buffer: this._sphereContainBuffer } },
-            ]
-        })
+        // Create initial surface bind group with helper (guards against layout mismatch on live shader edits)
+        if (this.fluidSurfacePipeline) {
+            this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+                heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+                surfaceTexView: this.surfaceTextureView,
+                envView,
+            });
+        } else {
+            // Pipeline not ready yet (async debug creator). Defer creation.
+            this._pendingSurfaceBindGroupOpts = {
+                heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+                surfaceTexView: this.surfaceTextureView,
+                envView,
+            };
+        }
 
         this.sphereBindGroup = device.createBindGroup({
             label: 'ball bind group',
@@ -889,6 +887,83 @@ export class FluidRenderer {
                 { binding: 1, resource: { buffer: renderUniformBuffer } },
             ]
         })
+    }
+
+    /**
+     * Internal helper: (re)create the fluid surface bind group robustly.
+     * If creation fails due to an Invalid BindGroupLayout (common after hot-reloading WGSL
+     * where auto layout changed), we rebuild the pipeline and retry once with the updated shader.
+     */
+    private _createFluidSurfaceBindGroup(opts: { heightTexView: GPUTextureView, surfaceTexView: GPUTextureView, envView?: GPUTextureView }): GPUBindGroup {
+        const device = this.device;
+        const attempt = (tag: string): GPUBindGroup => device.createBindGroup({
+            label: `fluid surface bind group${tag}`,
+            layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: this.sampler },
+                { binding: 1, resource: { buffer: this.renderUniformBuffer } },
+                { binding: 2, resource: opts.heightTexView },
+                { binding: 3, resource: opts.surfaceTexView },
+                { binding: 4, resource: opts.envView ?? this._envView },
+                { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
+                { binding: 6, resource: { buffer: this.debugModeBuffer } },
+                { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
+                { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
+                { binding: 9, resource: { buffer: this.effectParametersBuffer } },
+                { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
+                { binding: 11, resource: this.physicalTextureView! },
+                { binding: 12, resource: this.foamAccumTextureView! },
+                { binding: 13, resource: this.velocityTextureView },
+                { binding: 14, resource: this._backgroundTextureView! },
+                { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
+                { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
+            ],
+        });
+        try {
+            const bg = attempt('');
+            (bg as any)._pipelineVersion = this._fluidSurfacePipelineVersion;
+            return bg;
+        } catch (e) {
+            console.warn('[FluidRenderer] Initial bind group creation failed, attempting pipeline rebuild...', e);
+            try {
+                // Rebuild pipeline with latest WGSL (imported module string stays current via bundler HMR)
+                // NOTE: we cannot re-import easily here; reuse original source via dynamic import fallback if needed.
+                // For now, recreate pipeline from cached shader module (makeShaderModule on fluidSurface again).
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const fluidSurfaceSource = (fluidSurface as unknown as string);
+                const newModule = makeShaderModule(this.device, fluidSurfaceSource);
+                const rebuildFormat: GPUTextureFormat = (typeof navigator !== 'undefined' && (navigator as any).gpu && (navigator as any).gpu.getPreferredCanvasFormat)
+                    ? (navigator as any).gpu.getPreferredCanvasFormat()
+                    : 'bgra8unorm';
+                this.fluidSurfacePipeline = this.device.createRenderPipeline({
+                    label: 'fluid surface pipeline (rebuild)',
+                    layout: 'auto',
+                    vertex: { module: makeShaderModule(this.device, fullScreen) }, // fullscreen vertex
+                    fragment: { module: newModule, entryPoint: 'fs', targets: [ { format: rebuildFormat, blend: { color: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' }, alpha: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' } } } ] },
+                    primitive: { topology: 'triangle-list' },
+                });
+                this._fluidSurfacePipelineVersion++;
+                const bg2 = attempt(' (rebuild)');
+                (bg2 as any)._pipelineVersion = this._fluidSurfacePipelineVersion;
+                return bg2;
+            } catch (e2) {
+                console.error('[FluidRenderer] Failed to rebuild fluid surface pipeline; surface rendering disabled this frame.', e2);
+                // Fallback: create minimal dummy bind group with only mandatory first entries (avoids crash downstream)
+                const dummy = this.device.createBindGroup({
+                    label: 'fluid surface bind group (dummy)',
+                    layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: this.sampler },
+                        { binding: 1, resource: { buffer: this.renderUniformBuffer } },
+                        { binding: 2, resource: opts.heightTexView },
+                        { binding: 3, resource: opts.surfaceTexView },
+                        { binding: 4, resource: opts.envView ?? this._envView },
+                    ],
+                });
+                (dummy as any)._pipelineVersion = this._fluidSurfacePipelineVersion;
+                return dummy;
+            }
+        }
     }
 
     setSphereContain(enabled: boolean, center: [number,number,number], radius: number) {
@@ -1023,15 +1098,15 @@ export class FluidRenderer {
             depthMapPassEncoder.draw(6, numParticles);
             depthMapPassEncoder.end();
             for (var iter = 0; iter < 4; iter++) {
-                const depthFilterPassEncoderX = commandEncoder.beginRenderPass(depthFilterPassDescriptors[0]);
-                depthFilterPassEncoderX.setBindGroup(0, this.depthFilterBindGroups[0]);
+                const depthFilterPassEncoderX = commandEncoder.beginRenderPass(depthFilterPassDescriptors[0]!);
+                depthFilterPassEncoderX.setBindGroup(0, this.depthFilterBindGroups[0]!);
                 depthFilterPassEncoderX.setPipeline(this.depthFilterPipeline);
-                depthFilterPassEncoderX.draw(6);
+                depthFilterPassEncoderX.draw(3);
                 depthFilterPassEncoderX.end();
-                const filterPassEncoderY = commandEncoder.beginRenderPass(depthFilterPassDescriptors[1]);
-                filterPassEncoderY.setBindGroup(0, this.depthFilterBindGroups[1]);
+                const filterPassEncoderY = commandEncoder.beginRenderPass(depthFilterPassDescriptors[1]!);
+                filterPassEncoderY.setBindGroup(0, this.depthFilterBindGroups[1]!);
                 filterPassEncoderY.setPipeline(this.depthFilterPipeline);
-                filterPassEncoderY.draw(6);
+                filterPassEncoderY.draw(3);
                 filterPassEncoderY.end();
             }
 
@@ -1091,15 +1166,15 @@ export class FluidRenderer {
                 }
             }
             for (var iter = 0; iter < this._blurIterations; iter++) {
-                const thicknessFilterPassEncoderX = commandEncoder.beginRenderPass(thicknessFilterPassDescriptors[0]);
-                thicknessFilterPassEncoderX.setBindGroup(0, this.thicknessFilterBindGroups[0]);
+                const thicknessFilterPassEncoderX = commandEncoder.beginRenderPass(thicknessFilterPassDescriptors[0]!);
+                thicknessFilterPassEncoderX.setBindGroup(0, this.thicknessFilterBindGroups[0]!);
                 thicknessFilterPassEncoderX.setPipeline(this.thicknessFilterPipeline);
-                thicknessFilterPassEncoderX.draw(6);
+                thicknessFilterPassEncoderX.draw(3);
                 thicknessFilterPassEncoderX.end();
-                const thicknessFilterPassEncoderY = commandEncoder.beginRenderPass(thicknessFilterPassDescriptors[1]);
-                thicknessFilterPassEncoderY.setBindGroup(0, this.thicknessFilterBindGroups[1]);
+                const thicknessFilterPassEncoderY = commandEncoder.beginRenderPass(thicknessFilterPassDescriptors[1]!);
+                thicknessFilterPassEncoderY.setBindGroup(0, this.thicknessFilterBindGroups[1]!);
                 thicknessFilterPassEncoderY.setPipeline(this.thicknessFilterPipeline);
-                thicknessFilterPassEncoderY.draw(6);
+                thicknessFilterPassEncoderY.draw(3);
                 thicknessFilterPassEncoderY.end();
             }
 
@@ -1115,15 +1190,15 @@ export class FluidRenderer {
             });
             // Pass X
             for (var witer = 0; witer < this._blurIterations; witer++) {
-                const weightBlurPassX = commandEncoder.beginRenderPass(weightBlurPassDescriptors[0]);
+                const weightBlurPassX = commandEncoder.beginRenderPass(weightBlurPassDescriptors[0]!);
                 weightBlurPassX.setBindGroup(0, weightFilterX);
                 weightBlurPassX.setPipeline(this.thicknessFilterPipeline);
-                weightBlurPassX.draw(6);
+                weightBlurPassX.draw(3);
                 weightBlurPassX.end();
-                const weightBlurPassY = commandEncoder.beginRenderPass(weightBlurPassDescriptors[1]);
+                const weightBlurPassY = commandEncoder.beginRenderPass(weightBlurPassDescriptors[1]!);
                 weightBlurPassY.setBindGroup(0, weightFilterY);
                 weightBlurPassY.setPipeline(this.thicknessFilterPipeline);
-                weightBlurPassY.draw(6);
+                weightBlurPassY.draw(3);
                 weightBlurPassY.end();
             }
 
@@ -1131,7 +1206,7 @@ export class FluidRenderer {
             const normalsPass = commandEncoder.beginRenderPass(normalsPassDescriptor);
             normalsPass.setBindGroup(0, this.normalsBindGroup);
             normalsPass.setPipeline(this.normalsPipeline);
-            normalsPass.draw(6);
+            normalsPass.draw(3);
             normalsPass.end();
 
             // After normals/coverage written, copy center pixel only on phase 0
@@ -1247,28 +1322,9 @@ export class FluidRenderer {
             // Always ensure surface bind group samples the final diffused height result.
             // Previous logic only rebuilt when inTexView was NOT the diffused texture, leaving the
             // bind group pointing at the original (pre-diffused) height on odd iteration counts.
-            this.fluidSurfaceBindGroup = this.device.createBindGroup({
-                label: 'fluid surface bind group (post diffusion)',
-                layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
-                entries: [
-                    { binding: 0, resource: this.sampler },
-                    { binding: 1, resource: { buffer: this.renderUniformBuffer } },
-                    { binding: 2, resource: inTexView },
-                    { binding: 3, resource: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView },
-                    { binding: 4, resource: this._envView },
-                    { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
-                    { binding: 6, resource: { buffer: this.debugModeBuffer } },
-                    { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
-                    { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
-                    { binding: 9, resource: { buffer: this.effectParametersBuffer } },
-                    { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
-                    { binding: 11, resource: this.physicalTextureView! },
-                    { binding: 12, resource: this.foamAccumTextureView! },
-                    { binding: 13, resource: this.velocityTextureView },
-                    { binding: 14, resource: this._backgroundTextureView! },
-                    { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
-                    { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
-                ]
+            this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+                heightTexView: inTexView,
+                surfaceTexView: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView,
             });
             // Generate velocity field from (possibly diffused) height before physical metrics so debug velocity has variation
             if (this.velocityPipeline) {
@@ -1369,62 +1425,47 @@ export class FluidRenderer {
                 commandEncoder.copyTextureToTexture({ texture: this.foamAccumTexture! }, { texture: this.foamPrevTexture! }, [this.width, this.height, 1]);
             }
 
-            const fluidPassEncoder = commandEncoder.beginRenderPass(fluidPassDescriptor);
-            fluidPassEncoder.setBindGroup(0, this.fluidSurfaceBindGroup);
-            fluidPassEncoder.setPipeline(this.fluidSurfacePipeline);
-            fluidPassEncoder.draw(6);
-            fluidPassEncoder.end();
+            if (this.fluidSurfacePipeline && this.fluidSurfaceBindGroup) {
+                const fluidPassEncoder = commandEncoder.beginRenderPass(fluidPassDescriptor);
+                // Ensure bind group matches current pipeline version; rebuild if stale
+                if ((this.fluidSurfaceBindGroup as any)?._pipelineVersion !== this._fluidSurfacePipelineVersion) {
+                    this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+                        heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+                        surfaceTexView: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView,
+                    });
+                }
+                fluidPassEncoder.setPipeline(this.fluidSurfacePipeline);
+                fluidPassEncoder.setBindGroup(0, this.fluidSurfaceBindGroup);
+                fluidPassEncoder.draw(3);
+                fluidPassEncoder.end();
+            } else {
+                // Skip surface draw this frame; will resume once pipeline async creation completes
+                if (this._frame < 120 && (this._frame % 30 === 0)) {
+                    console.warn('[FluidRenderer] fluidSurfacePipeline not ready; skipping surface render frame', this._frame);
+                }
+            }
 
             // Deferred map phase (phase 1) reads buffers copied in phase 0
             if (phase === 1) {
                 // Surface
-                if (this._surfaceCopyScheduled && this._readbackBuffer && !this._surfaceMapPending) {
-                    this._surfaceMapPending = true;
-                    this._readbackBuffer.mapAsync(GPUMapMode.READ).then(()=>{
-                        const u16s = new Uint16Array(this._readbackBuffer!.getMappedRange());
-                        const decode = (h:number)=>{ const s=(h&0x8000)?-1:1; let e=(h&0x7C00)>>10; let m=h&0x03FF; if(e===0) return s*(m*(1/(1<<24))); if(e===31) return m?NaN:s*Infinity; return s*(1+m/1024)*Math.pow(2,e-15); };
-                        console.log(`[FluidRenderer] Sample center: octN=(${decode(u16s[0]).toFixed(3)},${decode(u16s[1]).toFixed(3)}) thickness=${decode(u16s[2]).toFixed(4)} coverage=${decode(u16s[3]).toFixed(4)}`);
-                        this._readbackBuffer!.unmap();
-                        this._surfaceMapPending = false;
-                        this._surfaceCopyScheduled = false;
-                    }).catch(()=>{ this._surfaceMapPending = false; });
-                }
-                if (this._topCopyScheduled && this._topReadbackBuffer && !this._topMapPending) {
-                    this._topMapPending = true;
-                    this._topReadbackBuffer.mapAsync(GPUMapMode.READ).then(()=>{
-                        const u16s = new Uint16Array(this._topReadbackBuffer!.getMappedRange());
-                        const decode = (h:number)=>{ const s=(h&0x8000)?-1:1; let e=(h&0x7C00)>>10; let m=h&0x03FF; if(e===0) return s*(m*(1/(1<<24))); if(e===31) return m?NaN:s*Infinity; return s*(1+m/1024)*Math.pow(2,e-15); };
-                        console.log(`[FluidRenderer] Sample topRow: octN=(${decode(u16s[0]).toFixed(3)},${decode(u16s[1]).toFixed(3)}) thickness=${decode(u16s[2]).toFixed(4)} coverage=${decode(u16s[3]).toFixed(4)}`);
-                        this._topReadbackBuffer!.unmap();
-                        this._topMapPending = false;
-                        this._topCopyScheduled = false;
-                    }).catch(()=>{ this._topMapPending = false; });
-                }
-                if (this._bottomCopyScheduled && this._bottomReadbackBuffer && !this._bottomMapPending) {
-                    this._bottomMapPending = true;
-                    this._bottomReadbackBuffer.mapAsync(GPUMapMode.READ).then(()=>{
-                        const u16s = new Uint16Array(this._bottomReadbackBuffer!.getMappedRange());
-                        const decode = (h:number)=>{ const s=(h&0x8000)?-1:1; let e=(h&0x7C00)>>10; let m=h&0x03FF; if(e===0) return s*(m*(1/(1<<24))); if(e===31) return m?NaN:s*Infinity; return s*(1+m/1024)*Math.pow(2,e-15); };
-                        console.log(`[FluidRenderer] Sample bottomRow: octN=(${decode(u16s[0]).toFixed(3)},${decode(u16s[1]).toFixed(3)}) thickness=${decode(u16s[2]).toFixed(4)} coverage=${decode(u16s[3]).toFixed(4)}`);
-                        this._bottomReadbackBuffer!.unmap();
-                        this._bottomMapPending = false;
-                        this._bottomCopyScheduled = false;
-                    }).catch(()=>{ this._bottomMapPending = false; });
-                }
+                // Surface readback logs removed for brevity; reinstate if detailed per-frame sampling is needed.
+                this._surfaceCopyScheduled = false; this._topCopyScheduled = false; this._bottomCopyScheduled = false;
                 // Accum
                 if (this._accumCopyScheduled && this._accumReadBuffer && !this._accumMapPending) {
                     this._accumMapPending = true;
                     this._accumReadBuffer.mapAsync(GPUMapMode.READ).then(()=>{
                         const u16 = new Uint16Array(this._accumReadBuffer!.getMappedRange());
-                        const half = u16[0];
-                        const sign = (half & 0x8000) ? -1 : 1;
-                        let exp = (half & 0x7C00) >> 10;
-                        let mant = half & 0x03FF;
-                        let val: number;
-                        if (exp === 0) { val = sign * (mant * (1 / (1 << 24))); }
-                        else if (exp === 0x1F) { val = mant ? NaN : sign * Infinity; }
-                        else { val = sign * (1 + mant / 1024) * Math.pow(2, exp - 15); }
-                        console.log(`[FluidRenderer] Accum center (weightedThickness=${isNaN(val) ? 'NaN' : val.toExponential(3)})`);
+                        if (u16.length>0) {
+                            const half: number = u16[0] as number;
+                            const sign = (half & 0x8000) ? -1 : 1;
+                            let exp = (half & 0x7C00) >> 10;
+                            let mant = half & 0x03FF;
+                            let val: number;
+                            if (exp === 0) { val = sign * (mant * (1 / (1 << 24))); }
+                            else if (exp === 0x1F) { val = mant ? NaN : sign * Infinity; }
+                            else { val = sign * (1 + mant / 1024) * Math.pow(2, exp - 15); }
+                            console.log(`[FluidRenderer] Accum center (weightedThickness=${isNaN(val) ? 'NaN' : val.toExponential(3)})`);
+                        }
                         this._accumReadBuffer!.unmap();
                         this._accumMapPending = false;
                         this._accumCopyScheduled = false;
@@ -1437,15 +1478,17 @@ export class FluidRenderer {
                     this._normMapPending = true;
                     this._normReadBuffer!.mapAsync(GPUMapMode.READ).then(()=>{
                         const u16 = new Uint16Array(this._normReadBuffer!.getMappedRange());
-                        const half = u16[0];
-                        const sign = (half & 0x8000) ? -1 : 1;
-                        let exp = (half & 0x7C00) >> 10;
-                        let mant = half & 0x03FF;
-                        let val: number;
-                        if (exp == 0) { val = sign * (mant * (1 / (1 << 24))); }
-                        else if (exp == 0x1F) { val = mant ? NaN : sign * Infinity; }
-                        else { val = sign * (1 + mant / 1024) * Math.pow(2, exp - 15); }
-                        console.log(`[FluidRenderer] Normalized center thickness=${isNaN(val)?'NaN':val.toExponential(3)}`);
+                        if (u16.length>0) {
+                            const half: number = u16[0] as number;
+                            const sign = (half & 0x8000) ? -1 : 1;
+                            let exp = (half & 0x7C00) >> 10;
+                            let mant = half & 0x03FF;
+                            let val: number;
+                            if (exp == 0) { val = sign * (mant * (1 / (1 << 24))); }
+                            else if (exp == 0x1F) { val = mant ? NaN : sign * Infinity; }
+                            else { val = sign * (1 + mant / 1024) * Math.pow(2, exp - 15); }
+                            console.log(`[FluidRenderer] Normalized center thickness=${isNaN(val)?'NaN':val.toExponential(3)}`);
+                        }
                         this._normReadBuffer!.unmap();
                         this._normMapPending = false;
                         this._normCopyScheduled = false;
@@ -1454,15 +1497,17 @@ export class FluidRenderer {
                     this._normMapPending2 = true;
                     this._normReadBuffer2!.mapAsync(GPUMapMode.READ).then(()=>{
                         const u16 = new Uint16Array(this._normReadBuffer2!.getMappedRange());
-                        const half = u16[0];
-                        const sign = (half & 0x8000) ? -1 : 1;
-                        let exp = (half & 0x7C00) >> 10;
-                        let mant = half & 0x03FF;
-                        let val: number;
-                        if (exp == 0) { val = sign * (mant * (1 / (1 << 24))); }
-                        else if (exp == 0x1F) { val = mant ? NaN : sign * Infinity; }
-                        else { val = sign * (1 + mant / 1024) * Math.pow(2, exp - 15); }
-                        console.log(`[FluidRenderer] Normalized center thickness=${isNaN(val)?'NaN':val.toExponential(3)}`);
+                        if (u16.length>0) {
+                            const half: number = u16[0] as number;
+                            const sign = (half & 0x8000) ? -1 : 1;
+                            let exp = (half & 0x7C00) >> 10;
+                            let mant = half & 0x03FF;
+                            let val: number;
+                            if (exp == 0) { val = sign * (mant * (1 / (1 << 24))); }
+                            else if (exp == 0x1F) { val = mant ? NaN : sign * Infinity; }
+                            else { val = sign * (1 + mant / 1024) * Math.pow(2, exp - 15); }
+                            console.log(`[FluidRenderer] Normalized center thickness=${isNaN(val)?'NaN':val.toExponential(3)}`);
+                        }
                         this._normReadBuffer2!.unmap();
                         this._normMapPending2 = false;
                         this._normCopyScheduled = false;
@@ -1473,15 +1518,17 @@ export class FluidRenderer {
                     this._weightMapPending = true;
                     this._weightReadBuffer.mapAsync(GPUMapMode.READ).then(()=>{
                         const u16w = new Uint16Array(this._weightReadBuffer!.getMappedRange());
-                        const halfw = u16w[0];
-                        const signw = (halfw & 0x8000) ? -1 : 1;
-                        let expw = (halfw & 0x7C00) >> 10;
-                        let mantw = halfw & 0x03FF;
-                        let valw: number;
-                        if (expw == 0) { valw = signw * (mantw * (1 / (1 << 24))); }
-                        else if (expw == 0x1F) { valw = mantw ? NaN : signw * Infinity; }
-                        else { valw = signw * (1 + mantw / 1024) * Math.pow(2, expw - 15); }
-                        console.log(`[FluidRenderer] Weight center=${isNaN(valw)?'NaN':valw.toExponential(3)}`);
+                        if (u16w.length>0) {
+                            const halfw: number = u16w[0] as number;
+                            const signw = (halfw & 0x8000) ? -1 : 1;
+                            let expw = (halfw & 0x7C00) >> 10;
+                            let mantw = halfw & 0x03FF;
+                            let valw: number;
+                            if (expw == 0) { valw = signw * (mantw * (1 / (1 << 24))); }
+                            else if (expw == 0x1F) { valw = mantw ? NaN : signw * Infinity; }
+                            else { valw = signw * (1 + mantw / 1024) * Math.pow(2, expw - 15); }
+                            console.log(`[FluidRenderer] Weight center=${isNaN(valw)?'NaN':valw.toExponential(3)}`);
+                        }
                         this._weightReadBuffer!.unmap();
                         this._weightMapPending = false;
                         this._weightCopyScheduled = false;
@@ -1498,28 +1545,9 @@ export class FluidRenderer {
             if (this._firstFrame) {
                 console.log('[FluidRenderer] History initialized from raw surface. Enabling temporal next frame.');
                 this._firstFrame = false;
-                this.fluidSurfaceBindGroup = this.device.createBindGroup({
-                    label: 'fluid surface bind group',
-                    layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
-                    entries: [
-                        { binding: 0, resource: this.sampler },
-                        { binding: 1, resource: { buffer: this.renderUniformBuffer } },
-                        { binding: 2, resource: this.heightTextureDiffuseView ?? this.heightTextureView },
-                        { binding: 3, resource: this.temporalSurfaceTextureView }, // now sampling temporal stabilized surface
-                        { binding: 4, resource: this._envView },
-                        { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
-                        { binding: 6, resource: { buffer: this.debugModeBuffer } },
-                        { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
-                        { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
-                        { binding: 9, resource: { buffer: this.effectParametersBuffer } },
-                        { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
-                        { binding: 11, resource: this.physicalTextureView! },
-                        { binding: 12, resource: this.foamAccumTextureView! },
-                        { binding: 13, resource: this.velocityTextureView },
-                        { binding: 14, resource: this._backgroundTextureView! },
-                        { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
-                        { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
-                    ]
+                this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+                    heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+                    surfaceTexView: this.temporalSurfaceTextureView,
                 });
                 console.log('[FluidRenderer] Switched surface sampling to temporal texture.');
             }
@@ -1555,28 +1583,10 @@ export class FluidRenderer {
 
             newCubemapTextureView = dummyTexture.createView({ dimension: 'cube' });
         }        // Recreate fluid bind group with new environment texture
-    this.fluidSurfaceBindGroup = this.device.createBindGroup({
-            label: 'fluid surface bind group',
-            layout: this.fluidSurfacePipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: this.sampler },
-                { binding: 1, resource: { buffer: this.renderUniformBuffer } },
-                { binding: 2, resource: this.heightTextureDiffuseView ?? this.heightTextureView },
-                { binding: 3, resource: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView },
-                { binding: 4, resource: newCubemapTextureView as GPUTextureView },
-                { binding: 5, resource: { buffer: this.waterAppearanceBuffer } },
-                { binding: 6, resource: { buffer: this.debugModeBuffer } },
-                { binding: 7, resource: { buffer: this.effectsToggleBuffer } },
-                { binding: 8, resource: { buffer: this.lightingControlsBuffer } },
-                { binding: 9, resource: { buffer: this.effectParametersBuffer } },
-                { binding: 10, resource: { buffer: this.compositionParamsBuffer } },
-                { binding: 11, resource: this.physicalTextureView! },
-                { binding: 12, resource: this.foamAccumTextureView! },
-                { binding: 13, resource: this.velocityTextureView },
-                { binding: 14, resource: this._backgroundTextureView! },
-                { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
-                { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
-            ],
+        this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+            heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+            surfaceTexView: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView,
+            envView: newCubemapTextureView as GPUTextureView,
         });
         console.log('[FluidRenderer] Environment updated; fluid surface bind group rebound.');
     }    /**

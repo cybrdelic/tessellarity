@@ -1,15 +1,16 @@
-import gridClear from './grid/gridClear.wgsl'
-import gridBuild from './grid/gridBuild.wgsl'
-import reorderParticles from './grid/reorderParticles.wgsl'
+import { makeShaderModule } from '../render/makeShaderModule'
+import copyPosition from './copyPosition.wgsl'
 import density from './density.wgsl'
 import force from './force.wgsl'
+import gridBuild from './grid/gridBuild.wgsl'
+import gridClear from './grid/gridClear.wgsl'
+import reorderParticles from './grid/reorderParticles.wgsl'
 import integrate from './integrate.wgsl'
-import copyPosition from './copyPosition.wgsl'
 
-import { PrefixSumKernel } from 'webgpu-radix-sort';
+import { PrefixSumKernel } from 'webgpu-radix-sort'
 
-import { renderUniformsViews, numParticlesMax } from '../common';
-import { ISimulator } from '../src/core/SimulatorRegistry';
+import { numParticlesMax, renderUniformsViews } from '../common'
+import { ISimulator } from '../src/core/SimulatorRegistry'
 
 export const sphParticleStructSize = 64
 
@@ -48,13 +49,13 @@ export class SPHSimulator implements ISimulator {
     constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice) {
         this.device = device
         this.renderDiameter = renderDiameter
-        const densityModule = device.createShaderModule({ code: density })
-        const forceModule = device.createShaderModule({ code: force })
-        const integrateModule = device.createShaderModule({ code: integrate })
-        const gridBuildModule = device.createShaderModule({ code: gridBuild })
-        const gridClearModule = device.createShaderModule({ code: gridClear })
-        const reorderParticlesModule = device.createShaderModule({ code: reorderParticles })
-        const copyPositionModule = device.createShaderModule({ code: copyPosition })
+    const densityModule = makeShaderModule(device, density)
+    const forceModule = makeShaderModule(device, force)
+    const integrateModule = makeShaderModule(device, integrate)
+    const gridBuildModule = makeShaderModule(device, gridBuild)
+    const gridClearModule = makeShaderModule(device, gridClear)
+    const reorderParticlesModule = makeShaderModule(device, reorderParticles)
+    const copyPositionModule = makeShaderModule(device, copyPosition)
 
         const cellSize = 1.0 * this.kernelRadius
         const xHalfMax = 2.0
@@ -295,9 +296,10 @@ export class SPHSimulator implements ISimulator {
             yHalf: new Float32Array(realBoxSizeValues, 4, 1),
             zHalf: new Float32Array(realBoxSizeValues, 8, 1),
         };
-        realBoxSizeViews.xHalf.set([initHalfBoxSize[0]]);
-        realBoxSizeViews.yHalf.set([initHalfBoxSize[1]]);
-        realBoxSizeViews.zHalf.set([initHalfBoxSize[2]]);
+    if (initHalfBoxSize.length < 3) throw new Error('initHalfBoxSize must have 3 elements');
+    realBoxSizeViews.xHalf.set([initHalfBoxSize[0]!]);
+    realBoxSizeViews.yHalf.set([initHalfBoxSize[1]!]);
+    realBoxSizeViews.zHalf.set([initHalfBoxSize[2]!]);
         const numParticleValue = new Float32Array(1);
         numParticleValue[0] = this.numParticles
         console.log(this.numParticles)
@@ -348,9 +350,9 @@ export class SPHSimulator implements ISimulator {
         this.numParticles = 0;
         const DIST_FACTOR = 0.5
 
-        for (var y = -initHalfBoxSize[1] * 0.95; this.numParticles < numParticles; y += DIST_FACTOR * this.kernelRadius) {
-            for (var x = -0.95 * initHalfBoxSize[0]; x < 0.95 * initHalfBoxSize[0] && this.numParticles < numParticles; x += DIST_FACTOR * this.kernelRadius) {
-                for (var z = -0.95 * initHalfBoxSize[2]; z < 0 * initHalfBoxSize[2] && this.numParticles < numParticles; z += DIST_FACTOR * this.kernelRadius) {
+    for (var y = -initHalfBoxSize[1]! * 0.95; this.numParticles < numParticles; y += DIST_FACTOR * this.kernelRadius) {
+            for (var x = -0.95 * initHalfBoxSize[0]!; x < 0.95 * initHalfBoxSize[0]! && this.numParticles < numParticles; x += DIST_FACTOR * this.kernelRadius) {
+                for (var z = -0.95 * initHalfBoxSize[2]!; z < 0 * initHalfBoxSize[2]! && this.numParticles < numParticles; z += DIST_FACTOR * this.kernelRadius) {
                     let jitter = 0.001 * Math.random();
                     const offset = sphParticleStructSize * this.numParticles;
                     const particleViews = {

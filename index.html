@@ -2809,6 +2809,64 @@
         </div>
       </div>
 
+      <!-- Spray & Bubbles Parameters -->
+      <div class="parameter-category">
+        <div class="parameter-category-header">
+          <i class="fas fa-wind"></i>
+          <span>Spray & Bubbles</span>
+        </div>
+        <div class="parameter-sliders">
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Spray Intensity</span>
+                <span class="slider-value" id="spray-intensity-value">0.9</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('spray-intensity', 0.9)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="spray-intensity" min="0.0" max="2.0" step="0.05" value="0.9" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Spray Dissipation</span>
+                <span class="slider-value" id="spray-dissipation-value">0.8</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('spray-dissipation', 0.8)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="spray-dissipation" min="0.05" max="3.0" step="0.05" value="0.8" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Bubble Intensity</span>
+                <span class="slider-value" id="bubble-intensity-value">0.6</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('bubble-intensity', 0.6)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="bubble-intensity" min="0.0" max="1.5" step="0.05" value="0.6" />
+          </div>
+          <div class="slider-container">
+            <div class="slider-header">
+              <div class="slider-label">
+                <span>Bubble Albedo Lift</span>
+                <span class="slider-value" id="bubble-albedo-lift-value">0.5</span>
+              </div>
+              <button class="slider-reset" onclick="resetEffectParameter('bubble-albedo-lift', 0.5)" title="Reset to default">
+                <i class="fas fa-undo" style="font-size: 10px;"></i>
+              </button>
+            </div>
+            <input type="range" id="bubble-albedo-lift" min="0.0" max="1.0" step="0.05" value="0.5" />
+          </div>
+        </div>
+      </div>
+
       <!-- Turbulent Normals Parameters -->
       <div class="parameter-category">
         <div class="parameter-category-header">
@@ -4738,6 +4796,12 @@
           'variance-radius': 62,
           'variance-threshold': 63,
 
+          // Spray & Bubbles (64-67)
+          'spray-intensity': 64,
+            'spray-dissipation': 65,
+            'bubble-intensity': 66,
+            'bubble-albedo-lift': 67,
+
           // Additional parameters would continue here...
         }; return parameterMap[parameterId] !== undefined ? parameterMap[parameterId] : -1;
       }
@@ -4819,6 +4883,12 @@
         'caustics-scale': 37,
         'caustics-speed': 38,
         'caustics-contrast': 39,
+
+  // Spray & Bubbles (64-67)
+  'spray-intensity': 64,
+  'spray-dissipation': 65,
+  'bubble-intensity': 66,
+  'bubble-albedo-lift': 67,
 
         // Additional parameters would continue here...
       };
