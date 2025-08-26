@@ -714,9 +714,9 @@ async function main() {
 	(function ensureDebugModeOptions() {
 		const modeNamesFull = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
-			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Spray Mask', 'Bubble Mask', 'Height Field', 'Slope Magnitude',
+			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
 			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask',
-			'Raw NoV', 'Lifted NoV', 'NoV Delta'];
+			'Raw NoV', 'Lifted NoV', 'NoV Delta', 'Foam Base Seed', 'Foam Final Mask', 'Spray Emission', 'Bubble Mask', 'Bubble Components', 'Crest Raw', 'Crest Gradient', 'Source Composite', 'Phys Slope', 'Phys Curvature', 'Phys Crest', 'Phys Coverage', 'Workgroup Grid', 'World Normal Y', 'View Slope', 'Slope Difference'];
 		if (debugModeSelect.options.length !== modeNamesFull.length) {
 			debugModeSelect.innerHTML = modeNamesFull.map((name, i) => `<option value="${i}">${i} - ${name}</option>`).join('');
 		}
@@ -725,8 +725,9 @@ async function main() {
 	function updateDebugInfo() {
 		const modeNames = ['None', 'Depth Map', 'Thickness Map', 'Surface Normals', 'Absorption Effects',
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
-			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Spray Mask', 'Bubble Mask', 'Height Field', 'Slope Magnitude',
-			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask'];
+			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
+			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask',
+			'Raw NoV', 'Lifted NoV', 'NoV Delta', 'Foam Base Seed', 'Foam Final Mask', 'Spray Emission', 'Bubble Mask', 'Bubble Components', 'Crest Raw', 'Crest Gradient', 'Source Composite', 'Phys Slope', 'Phys Curvature', 'Phys Crest', 'Phys Coverage', 'Workgroup Grid', 'World Normal Y', 'View Slope', 'Slope Difference'];
 		const layerNames = ['Raw Data', 'Filtered Data', 'Differential'];
 
 		const dm = debugModeViews.mode[0] ?? 0;
@@ -811,8 +812,8 @@ async function main() {
 
 			// Get current debug mode info for filename
 			const modeNames = ['none', 'depth', 'thickness', 'normals', 'absorption',
-				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction', 'nov', 'f_layer', 'foam_prob', 'spray', 'bubbles', 'height', 'slope',
-				'raw_height', 'f_layer_hot', 'curvature_mag', 'slope_cap_foam', 'height_var', 'mirror_diff', 'mid_split'];
+				'velocity', 'pressure', 'curvature', 'fresnel', 'caustics', 'refraction', 'nov', 'f_layer', 'foam_prob', 'height', 'slope',
+				'raw_height', 'f_layer_hot', 'curvature_mag', 'slope_cap_foam', 'height_var', 'mirror_diff', 'mid_split', 'raw_nov', 'lifted_nov', 'nov_delta', 'foam_base', 'foam_final', 'spray_mask', 'bubble_mask', 'bubble_components'];
 			const layerNames = ['raw', 'filtered', 'differential'];
 
 			const _dm = debugModeViews.mode[0] ?? 0;

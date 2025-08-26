@@ -28,6 +28,22 @@ export enum DebugVisualizationMode {
     NOV_RAW = 23,       // Raw NoV (pre lift) diagnostic
     NOV_LIFTED = 24,    // Lifted NoV used for path amplification
     NOV_DELTA = 25      // (Lifted - Raw) to visualize smoothing impact
+    , FOAM_BASE = 26    // Instantaneous foam seed
+    , FOAM_FINAL = 27   // Final foam mask after accumulation/detail
+    , SPRAY_MASK = 28   // Spray emission mask
+    , BUBBLE_MASK = 29  // Bubble mask
+    , BUBBLE_COMPONENTS = 30 // Bubble gating components (R thicknessGate, G maturity, B final mask)
+    , CREST_RAW = 31         // Raw phys.b crest candidate
+    , CREST_GRAD = 32        // Gradient magnitude of crest field
+    , SOURCE_COMPOSITE = 33  // R crest, G slope, B curvature
+    , PHYS_SLOPE = 34        // physicalTex.r raw slope
+    , PHYS_CURV = 35         // physicalTex.g raw directional curvature
+    , PHYS_CREST = 36        // physicalTex.b crest candidate stored
+    , PHYS_COVERAGE = 37     // physicalTex.a coverage
+    , WORKGROUP_GRID = 38    // visualization of 8x8 workgroup pattern (diagnose tiling seams)
+    , WORLD_NORMAL_Y = 39    // world-space normal Y component
+    , VIEW_SLOPE = 40        // view-space slope (sqrt(dhdx^2+dhdy^2))
+    , SLOPE_DIFF = 41        // world slope vs view slope difference
 }
 
 /**

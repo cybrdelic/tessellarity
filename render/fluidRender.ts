@@ -81,7 +81,7 @@ export class FluidRenderer {
     thicknessMapBindGroup: GPUBindGroup
     thicknessFilterBindGroups: GPUBindGroup[]
     fluidBindGroup: GPUBindGroup // legacy/unused fluid pipeline
-    fluidSurfaceBindGroup: GPUBindGroup
+    fluidSurfaceBindGroup!: GPUBindGroup
     normalsBindGroup: GPUBindGroup
     temporalBindGroup: GPUBindGroup
     heightBindGroup: GPUBindGroup
@@ -137,7 +137,7 @@ export class FluidRenderer {
     // Internal version to force pipeline rebuild when shader binding schema changes at runtime (e.g. HMR)
     private _fluidSurfacePipelineVersion: number = 0;
     // If the debug pipeline creation is async, stash initial bind group params until pipeline arrives
-    private _pendingSurfaceBindGroupOpts?: { heightTexView: GPUTextureView, surfaceTexView: GPUTextureView, envView?: GPUTextureView };
+    private _pendingSurfaceBindGroupOpts?: { heightTexView: GPUTextureView, surfaceTexView: GPUTextureView, envView?: GPUTextureView } | undefined;
 
     constructor(
         device: GPUDevice,
@@ -1644,7 +1644,23 @@ export class FluidRenderer {
             'Slope/Capillary/Foam',
             'Height Variance',
             'Mirror Difference',
-            'Mid Split Mask'
+            'Mid Split Mask',
+            'Foam Base Seed',    // 26
+            'Foam Final Mask',   // 27
+            'Spray Emission',    // 28
+            'Bubble Mask',       // 29
+            'Bubble Components', // 30
+            'Crest Raw',         // 31
+            'Crest Gradient',    // 32
+            'Source Composite',  // 33
+            'Phys Slope',        // 34
+            'Phys Curvature',    // 35
+            'Phys Crest',        // 36
+            'Phys Coverage',     // 37
+            'Workgroup Grid',    // 38
+            'World Normal Y',    // 39
+            'View Slope',        // 40
+            'Slope Difference'   // 41
         ];
     }
 

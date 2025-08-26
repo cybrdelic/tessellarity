@@ -319,6 +319,18 @@ fn noise2D(p: vec2f) -> f32 {
   let u = f * f * (3.0 - 2.0 * f);
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
+// 3-octave fbm used for foam breakup & streak modulation (kept lightweight)
+fn fbm3(p: vec2f) -> f32 {
+  var sum = 0.0;
+  var amp = 0.5;
+  var freq = 1.0;
+  for (var i = 0; i < 3; i = i + 1) {
+    sum += amp * noise2D(p * freq);
+    freq *= 2.037; // slight irrational to reduce tiling
+    amp *= 0.5;
+  }
+  return sum;
+}
 
 // Clamped height fetch for curvature evaluation (module scope; cannot define inside fragment)
 fn heightSampleClamped(x: i32, y: i32, dims: vec2u) -> f32 {
@@ -404,15 +416,39 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // Foam candidate & accumulation (fully gated by enableFoam to make effect strictly toggleable)
   var foamMask = 0.0;
   if (effectsToggle.enableFoam != 0u) {
-    // Convert crest candidate into instantaneous foam candidate via shaping (narrower now after metric change)
-    let slopeNorm_local = saturate(abs(slope) * 0.6);
-    let curvatureBoost = abs(curvatureDir) * 0.85; // curvature magnitude acts as additional trigger
-    let crestEnhanced = crestCand + curvatureBoost * 0.35 + slopeNorm_local * 0.25;
-    // Lowered thresholds expose early formation then ramp quickly to avoid blanket white.
-    foamMask = smoothstep(0.008, 0.045, crestEnhanced);
-    // Temporal accumulation channel (r)
-    let foamAccum = textureLoad(foamAccumTex, pix, 0).r;
-    foamMask = max(foamMask, foamAccum);
+  // Base instantaneous crest candidate shaping
+  // Replace hard saturate with smooth ramp to avoid marching band as camera zoom changes slope precision
+  let slopeNorm_local = smoothstep(0.0, 2.2, abs(slope));
+  let curvatureBoost = abs(curvatureDir) * 0.85;
+  let crestEnhanced = crestCand + curvatureBoost * 0.35 + slopeNorm_local * 0.25;
+  // Lowered thresholds to ensure initial foam seeding appears sooner
+  var instFoam = smoothstep(0.003, 0.026, crestEnhanced);
+  // Temporal accumulation (previous foam) promotes persistence
+  let foamAccum = textureLoad(foamAccumTex, pix, 0).r;
+  // Flow‑aligned multi-scale breakup -------------------------------------------------
+  // Sample local velocity and construct a pseudo flow direction (fall back to height gradient)
+  let velSample = textureLoad(velocityTex, pix, 0).xy;
+  let flowDirRaw = vec2f(dhdx, dhdy) * 0.5 + velSample;
+  let flowDir = normalize(flowDirRaw + vec2f(1e-5, -1e-5));
+  let flowMag = length(velSample);
+  // Advected FBM domain: pixel coords scaled + accumulation dragging along flow
+  let advBase = (vec2f(f32(pix.x), f32(pix.y)) * 0.12) + flowDir * (foamAccum * 3.5);
+  let nL = fbm3(advBase * 0.18);
+  let nM = fbm3(advBase * 0.55 + flowDir * 2.1);
+  let nF = fbm3(advBase * 1.7 + flowDir.yx * 5.3);
+  // Directional streaking (anisotropic sample in flow frame)
+  let rot = mat2x2<f32>(flowDir.x, -flowDir.y, flowDir.y, flowDir.x);
+  let streak = fbm3((advBase * vec2f(2.4, 0.5)) * rot);
+  let composite = nL * 0.55 + nM * 0.3 + nF * 0.15;
+  let flowMix = clamp(flowMag * 0.18 + slopeNorm_local * 0.25, 0.0, 1.0);
+  let detailed = mix(composite, max(composite, streak), flowMix);
+  let shapedDetail = clamp(pow(detailed, 1.1) * 1.1, 0.0, 1.0);
+  // Preserve coherent high accumulation zones so mature foam isn't over-eroded
+  let preserve = mix(0.5, 1.0, clamp(foamAccum * 0.8 + crestEnhanced * 0.2, 0.0, 1.0));
+  foamMask = max(instFoam, foamAccum);
+  foamMask = clamp(foamMask * preserve * (0.65 + 0.35 * shapedDetail), 0.0, 1.0);
+  // Safety baseline so extremely low detail modulation doesn't fully erase nascent foam
+  foamMask = max(foamMask, instFoam * 0.4);
   }
   else {
     // Provide benign defaults so debug visualizations that reference these still compile.
@@ -868,7 +904,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   slopeBoost = clamp(slope * 0.9, 0.0, 1.2);
   curvBoost = clamp(abs(curvatureDir) * 4.5, 0.0, 2.0);
   dynamicBoost = 0.35 * slopeBoost + 0.45 * curvBoost;
-  foamIntensity = clamp(foamIntensityRaw + dynamicBoost * 0.6, 0.0, 3.5);
+  // Visibility boost: amplify combined intensity before mapping to w / wHi
+  foamIntensity = clamp((foamIntensityRaw + dynamicBoost * 0.6) * 1.35, 0.0, 4.5);
   // Base albedo (near white) with faint warm shift to avoid cold bleach; allow water color to tint deep foam slightly.
   let waterTint = mix(vec3f(1.0), waterAppearance.color.rgb, 0.15);
   let foamAlbedo = mix(vec3f(0.94,0.96,0.97), vec3f(1.0), 0.55) * waterTint;
@@ -890,50 +927,84 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // Combine and tone map locally before mixing into scene to avoid blowing highlights
   let foamDiffuseCombined = foamDiffuseLambert + foamSubsurface;
   // Apply intensity & clamp to avoid NaNs
-  let w = clamp(foamIntensity, 0.0, 1.0);
-  wHi = clamp((foamIntensity - 1.0) * 0.5, 0.0, 1.0); // extra brightening for very strong crests
+  let w = clamp(foamIntensity * 0.85, 0.0, 1.15); // allow slight >1 to push tone map
+  wHi = clamp((foamIntensity - 0.6) * 0.55, 0.0, 1.0); // earlier onset of high-energy highlight
   // Attenuate existing lit core (water layer) beneath foam; keep some specular glints
-  let occlusion = mix(0.55, 0.25, wHi); // stronger occlusion for explosive foam
-  litCore *= (1.0 - w * occlusion);
+  // Reduce underlying water occlusion so foam pops more visually
+  let occlusion = mix(0.40, 0.20, wHi);
+  litCore *= (1.0 - clamp(w,0.0,1.0) * occlusion);
   // Specular portion scaled down (broad white sheen) + highlight retention
-  foamSpecPortion = foamSpecBRDF * (0.25 + 0.35 * wHi);
+  foamSpecPortion = foamSpecBRDF * (0.32 + 0.42 * wHi);
   // High-frequency sparkle modulation using combined curvature & noise (reuse fBm earlier via dynamicBoost proxy)
   let sparkle = clamp(dynamicBoost * 0.9, 0.0, 1.0);
   foamSpecPortion *= (0.7 + 0.3 * sparkle);
-  var foamEnergy = (foamDiffuseCombined * (0.85 + 0.5 * wHi) + foamSpecPortion) * w;
+  var foamEnergy = (foamDiffuseCombined * (0.95 + 0.55 * wHi) + foamSpecPortion) * w;
   // Local tone mapping for foam to prevent hard clipping while maintaining brightness
   let foamTone = foamEnergy / (foamEnergy + vec3f(1.0));
-  litCore += foamTone;
+  litCore += foamTone * 1.15; // boost overall foam brightness
   // Edge amplification: enhance grazing foam brightness (thin film forward scatter)
   let graze = pow(1.0 - NoV, 3.0);
   litCore += foamAlbedo * graze * w * 0.25;
   // --- Spray & Bubbles Extensions -------------------------------------------------------
   // Now using dedicated named parameters (sprayIntensity, sprayDissipation, bubbleIntensity, bubbleAlbedoLift)
-  // Spray: bright forward / rim oriented micro droplets at energetic crests (high slope+curvBoost)
+  // Spray: forward scattered micro droplets – refined with flow, wind, curvature & noise breakup
   if (effectsToggle.enableSpray != 0u && sprayIntensity > 0.001) {
-    // Proxy spray emission metric: dynamicBoost (already curvature & slope based) and high wHi (mature foam)
-    let spraySeed = dynamicBoost * (0.4 + 0.6 * wHi);
-    // Angle falloff: strongest toward view grazing and light direction alignment
-    let viewGraze = pow(1.0 - NoV, 2.5);
-  // Use previously defined main light direction (L)
-  let lightAlign = pow(saturate(dot(N_world, L)), 4.0);
-    let sprayMask = clamp(spraySeed * (0.35 + 0.65 * viewGraze) + lightAlign * 0.15, 0.0, 1.0);
-    // Temporal style fade approximation using frame-space noise from curvature variations
-  var sprayEnergy = sprayMask * sprayIntensity; // mutable for dissipation scaling
-    // Dissipation reduces contribution (simulate rapid fade)
-    sprayEnergy *= 1.0 / (1.0 + sprayDissipation * 0.75);
-    // Add as sparkling specular-like veil (broad white) with slight bluish atmospheric tint
-    let sprayTint = mix(vec3f(1.0), mix(TURBIDITY_COLOR, waterAppearance.color.rgb, 0.2), 0.25);
-    let spraySheen = sprayTint * sprayEnergy;
-    litCore += spraySheen;
+    // Flow & wind data
+    let vel2 = textureLoad(velocityTex, pix, 0).xy;
+    let flowMag = length(vel2);
+    let windDir = normalize(select(DEFAULT_WIND_DIR, lightingControls.mainLightDirection, lightingControls.mainLightEnabled != 0u));
+    // Emission seed: dynamic + foam maturity + velocity energy
+    let baseSeed = dynamicBoost * (0.35 + 0.65 * wHi) + flowMag * 0.4;
+    // Curvature crest edge emphasis
+    let curvEdge = clamp(abs(curvatureDir) * 3.0, 0.0, 2.0);
+    // Advected noise domain (reuse foam adv pattern lightweight):
+    let adv = vec2f(f32(pix.x), f32(pix.y)) * 0.09 + vel2 * (0.8 + foamMask * 0.6);
+    let nA = fbm3(adv * 0.5);
+    let nB = fbm3(adv.yx * 1.3 + windDir.xz * 2.1);
+    let breakup = clamp((nA * 0.6 + nB * 0.4) * 1.2, 0.0, 1.0);
+    // View & light alignment (forward / rim). Spray strongest at grazing and in light forward scatter.
+    let viewGraze = pow(1.0 - NoV, 2.2);
+    let lightAlign = pow(saturate(dot(N_world, L)), 3.5);
+    // Wind projection: encourage spray when wind pushes along surface normal plane
+  let windProj = max(0.0, dot(normalize(vel2 + vec2f(1e-5, -1e-5)), windDir.xz));
+    // Assemble raw emission
+    var sprayMask = baseSeed * (0.25 + 0.55 * viewGraze) + lightAlign * 0.18 + curvEdge * 0.2 + windProj * 0.25;
+    sprayMask *= (0.55 + 0.45 * breakup); // noise breakup
+    sprayMask = clamp(sprayMask, 0.0, 3.5);
+    // Dissipation (steady-state attenuation)
+    var sprayEnergy = sprayMask * sprayIntensity;
+    sprayEnergy *= 1.0 / (1.0 + sprayDissipation * 0.7);
+    // Sparkle micro-bursts using hashed pixel (frame-invariant substitute)
+    let rnd = hash2D(vec2f(f32(pix.x), f32(pix.y)) * 0.173 + vel2 * 0.71);
+    let sparkle = pow(rnd, 12.0) * 5.0; // rare intense flashes
+    sprayEnergy *= (1.0 + sparkle * 0.35 * (0.4 + 0.6 * viewGraze));
+    // Forward scattering tint: slightly cooler + turbidity influenced
+    let baseTint = mix(vec3f(1.0), mix(TURBIDITY_COLOR, waterAppearance.color.rgb, 0.18), 0.22);
+    let sprayTint = clamp(baseTint + vec3f(0.03,0.04,0.06) * lightAlign, vec3f(0.0), vec3f(1.2));
+    // Local tone map
+    let rawSpray = sprayTint * sprayEnergy;
+    let spraySheen = rawSpray / (rawSpray + vec3f(1.4));
+    // Blend (acts like additive veil but bounded)
+  litCore += spraySheen * 1.2; // stronger spray contribution
   }
   // Sub-surface bubbles: elevate translucency & brighten subsurface under thick persistent foam
   if (effectsToggle.enableBubbles != 0u && bubbleIntensity > 0.001) {
-    let bubbleMask = pow(foamMask, 1.2) * (0.3 + 0.7 * wHi); // only strong where foam matured
-    let bubbleLift = bubbleMask * bubbleIntensity;
-    // Lift diffuse/transmission (subsurface) by adding a soft white + water tint mix
-    let bubbleColor = mix(waterAppearance.color.rgb, vec3f(1.0), bubbleAlbedoLift);
-    litCore += bubbleColor * bubbleLift * 0.35; // modest energy to avoid washing contrast
+  // Thickness & maturity gating (avoid paper-thin film bubbles)
+  let thicknessGate = smoothstep(0.06, 0.28, syntheticThickness);
+  let maturity = pow(foamMask, 1.15) * wHi;
+  // Random sparsity via hashed pixel (stable, frame-invariant)
+  let bubbleRand = hash2D(vec2f(f32(pix.x), f32(pix.y)) * 0.37 + vec2f(dhdx, dhdy));
+  let sparsity = step(0.18, bubbleRand); // ~82% survive
+  var bubbleMask = maturity * thicknessGate * (0.85 + 0.15 * bubbleRand) * sparsity;
+  // Curvature weighting: convex crests catch more illuminated internal bubbles
+  bubbleMask *= (0.7 + 0.3 * clamp(abs(curvatureDir) * 2.0, 0.0, 1.0));
+  let bubbleLift = bubbleMask * bubbleIntensity;
+  // Slightly modulate albedo lift by randomness for micro variation
+  let bubbleColor = mix(waterAppearance.color.rgb, vec3f(1.0), bubbleAlbedoLift * 0.9 + 0.1 * bubbleRand);
+  // Tone-mapped additive lift (prevents harsh clipping while increasing presence)
+  let bubbleEnergy = bubbleColor * bubbleLift * 0.9;
+  let bubbleTone = bubbleEnergy / (bubbleEnergy + vec3f(1.0));
+  litCore += bubbleTone * 0.90; // increase bubble glow
   }
   // --------------------------------------------------------------------------------------
   }
@@ -974,6 +1045,22 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // 11 NOV           -> raw NoV angle factor
   // 12 F_LAYER       -> untempered layered Fresnel scalar
   // 13 FOAM_PROB     -> foam probability mask
+  // 26 FOAM_BASE      -> instantaneous foam seed (instFoam)
+  // 27 FOAM_FINAL     -> final foamMask after noise/streaking & accumulation
+  // 28 SPRAY_MASK     -> spray emission (sprayMask pre tone map)
+  // 29 BUBBLE_MASK    -> bubbleMask (subsurface bubbles)
+  // 30 BUBBLE_COMP    -> bubble components (thickness, maturity, mask)
+  // 31 CREST_RAW      -> raw crest candidate (phys.b)
+  // 32 CREST_GRAD     -> gradient magnitude of crest field
+  // 33 SRC_COMP       -> R crest, G slopeNorm_local, B abs(curvature)
+  // 34 PHYS_SLOPE     -> physicalTex.r raw slope
+  // 35 PHYS_CURV      -> physicalTex.g raw directional curvature
+  // 36 PHYS_CREST     -> physicalTex.b crest stored
+  // 37 PHYS_COV       -> physicalTex.a coverage
+  // 38 WG_GRID        -> workgroup 8x8 pattern (diagnose tiling seams)
+  // 39 WORLD_NY       -> world normal Y component
+  // 40 VIEW_SLOPE     -> sqrt(dhdx^2 + dhdy^2) view-space slope
+  // 41 SLOPE_DIFF     -> R world slope, G view slope, B |difference|
   let debugMode = select(debug.mode, DEBUG_MODE_OVERRIDE, DEBUG_MODE_OVERRIDE > 0u);
   if debugMode == 1u {
     // Depth visualization: use camera-distance with logarithmic compression for range stability
@@ -1175,6 +1262,124 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     let edgeVis = 1.0 - clamp(edge * 0.05, 0.0, 1.0); // bright at midpoint line
     let top = step(yF, half - 0.5);
     return vec4f(top, 1.0 - top, edgeVis, 1.0);
+  }
+  if debugMode == 26u {
+    // Instantaneous foam seed (approx: re-evaluate crestEnhanced shaping quickly)
+    let slopeNorm_local = saturate(abs(slope) * 0.6);
+    let curvatureBoost = abs(curvatureDir) * 0.85;
+    let crestEnhanced = phys.b + curvatureBoost * 0.35 + slopeNorm_local * 0.25;
+    let instFoam_dbg = smoothstep(0.004, 0.030, crestEnhanced);
+    return vec4f(vec3f(instFoam_dbg), 1.0);
+  }
+  if debugMode == 27u { return vec4f(vec3f(clamp(foamMask,0.0,1.0)), 1.0); }
+  if debugMode == 28u {
+    // Rebuild spray emission metric (mirrors main block but cheaper)
+    if (effectsToggle.enableSpray == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let vel2 = textureLoad(velocityTex, pix, 0).xy;
+    let flowMag = length(vel2);
+    let windDir = normalize(select(DEFAULT_WIND_DIR, lightingControls.mainLightDirection, lightingControls.mainLightEnabled != 0u));
+    let slopeNorm_local = saturate(abs(slope) * 0.6);
+    let curvatureBoost = abs(curvatureDir) * 0.85;
+    let crestEnhanced = phys.b + curvatureBoost * 0.35 + slopeNorm_local * 0.25;
+    let instFoam_dbg = smoothstep(0.004, 0.030, crestEnhanced);
+    let foamAccum = textureLoad(foamAccumTex, pix, 0).r;
+    let wHi_dbg = clamp(((instFoam_dbg+foamAccum) * effectParameters.foamIntensity - 0.6) * 0.55, 0.0, 1.0);
+    let dynamicBoost_dbg = 0.35 * clamp(slope * 0.9,0.0,1.2) + 0.45 * clamp(abs(curvatureDir) * 4.5,0.0,2.0);
+    let baseSeed = dynamicBoost_dbg * (0.35 + 0.65 * wHi_dbg) + flowMag * 0.4;
+    let viewGraze = pow(1.0 - max(dot(N_world, V),0.0), 2.2);
+    let lightAlign = pow(saturate(dot(N_world, L)), 3.5);
+    let curvEdge = clamp(abs(curvatureDir) * 3.0, 0.0, 2.0);
+    let adv = vec2f(f32(pix.x), f32(pix.y)) * 0.09 + vel2 * (0.8 + instFoam_dbg * 0.6);
+    let nA = fbm3(adv * 0.5);
+    let nB = fbm3(adv.yx * 1.3 + windDir.xz * 2.1);
+    let breakup = clamp((nA * 0.6 + nB * 0.4) * 1.2, 0.0, 1.0);
+    var sprayMask_dbg = baseSeed * (0.25 + 0.55 * viewGraze) + lightAlign * 0.18 + curvEdge * 0.2;
+    sprayMask_dbg *= (0.55 + 0.45 * breakup);
+    sprayMask_dbg = clamp(sprayMask_dbg, 0.0, 3.5);
+    let norm = sprayMask_dbg / 3.5;
+    return vec4f(vec3f(norm), 1.0);
+  }
+  if debugMode == 29u {
+    if (effectsToggle.enableBubbles == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let thicknessGate = smoothstep(0.06, 0.28, syntheticThickness);
+    let wHi_dbg = clamp((foamMask * effectParameters.foamIntensity - 0.6) * 0.55, 0.0, 1.0);
+    let bubbleRand = hash2D(vec2f(f32(pix.x), f32(pix.y)) * 0.37 + vec2f(dhdx, dhdy));
+    let sparsity = step(0.18, bubbleRand);
+    var bubbleMask_dbg = pow(foamMask, 1.15) * wHi_dbg * thicknessGate * sparsity;
+    bubbleMask_dbg *= (0.7 + 0.3 * clamp(abs(curvatureDir) * 2.0, 0.0, 1.0));
+    return vec4f(vec3f(clamp(bubbleMask_dbg,0.0,1.0)), 1.0);
+  }
+  if debugMode == 30u {
+    // Bubble component breakdown: R thicknessGate, G maturity, B final bubble mask
+    let thicknessGate = smoothstep(0.06, 0.28, syntheticThickness);
+    let maturity = pow(foamMask, 1.15) * wHi;
+    let bubbleRand = hash2D(vec2f(f32(pix.x), f32(pix.y)) * 0.37 + vec2f(dhdx, dhdy));
+    let sparsity = step(0.18, bubbleRand);
+    var bubbleMask_dbg = maturity * thicknessGate * (0.85 + 0.15 * bubbleRand) * sparsity;
+    bubbleMask_dbg *= (0.7 + 0.3 * clamp(abs(curvatureDir) * 2.0, 0.0, 1.0));
+    return vec4f(
+      clamp(thicknessGate,0.0,1.0),
+      clamp(maturity,0.0,1.0),
+      clamp(bubbleMask_dbg,0.0,1.0),
+      1.0);
+  }
+  if debugMode == 31u {
+    let crestRaw = phys.b;
+    let n = crestRaw / (crestRaw + 0.05);
+    return vec4f(vec3f(clamp(n,0.0,1.0)), 1.0);
+  }
+  if debugMode == 32u {
+    let dimsP = textureDimensions(physicalTex);
+    let bx = i32(pix.x); let by = i32(pix.y);
+    let cL = textureLoad(physicalTex, vec2u(u32(clamp(bx-1,0,i32(dimsP.x)-1)), u32(by)), 0).b;
+    let cR = textureLoad(physicalTex, vec2u(u32(clamp(bx+1,0,i32(dimsP.x)-1)), u32(by)), 0).b;
+    let cD = textureLoad(physicalTex, vec2u(u32(bx), u32(clamp(by-1,0,i32(dimsP.y)-1))), 0).b;
+    let cU = textureLoad(physicalTex, vec2u(u32(bx), u32(clamp(by+1,0,i32(dimsP.y)-1))), 0).b;
+    let gx = (cR - cL) * 0.5; let gy = (cU - cD) * 0.5;
+    let g = sqrt(gx*gx + gy*gy);
+    let gN = g / (g + 0.01);
+    return vec4f(vec3f(clamp(gN,0.0,1.0)), 1.0);
+  }
+  if debugMode == 33u {
+    let slopeNorm_local = saturate(abs(slope) * 0.6);
+    let crestRaw = phys.b / (phys.b + 0.05);
+    let curvN = abs(curvatureDir) / (abs(curvatureDir) + 0.02);
+    return vec4f(clamp(crestRaw,0.0,1.0), clamp(slopeNorm_local,0.0,1.0), clamp(curvN,0.0,1.0), 1.0);
+  }
+  if debugMode == 34u {
+    return vec4f(vec3f( phys.r / (phys.r + 1.0) ), 1.0);
+  }
+  if debugMode == 35u {
+    let v = phys.g * 0.5 + 0.5; // center signed curvature
+    return vec4f(vec3f(clamp(v,0.0,1.0)),1.0);
+  }
+  if debugMode == 36u {
+    let crestStored = phys.b / (phys.b + 0.05);
+    return vec4f(vec3f(clamp(crestStored,0.0,1.0)),1.0);
+  }
+  if debugMode == 37u {
+    return vec4f(vec3f(phys.a),1.0);
+  }
+  if debugMode == 38u {
+    let gx = ( (i32(pix.x) % 8) ) / 7;
+    let gy = ( (i32(pix.y) % 8) ) / 7;
+    return vec4f(f32(gx), f32(gy), 0.2 + 0.6 * (f32(gx)+f32(gy))*0.5, 1.0);
+  }
+  if debugMode == 39u {
+    // Visualize world normal Y (elevation of normal) to see if seam aligns with subtle normal flip
+    return vec4f(vec3f(N_world.y * 0.5 + 0.5),1.0);
+  }
+  if debugMode == 40u {
+    let viewSlope = sqrt(dhdx*dhdx + dhdy*dhdy);
+    let vN = viewSlope / (viewSlope + 0.25);
+    return vec4f(vec3f(vN),1.0);
+  }
+  if debugMode == 41u {
+    let worldSlope = phys.r / (phys.r + 1.0);
+    let viewSlope = sqrt(dhdx*dhdx + dhdy*dhdy);
+    let viewSlopeN = viewSlope / (viewSlope + 0.25);
+    let diff = abs(worldSlope - viewSlopeN);
+    return vec4f(worldSlope, viewSlopeN, diff * 4.0, 1.0);
   }
   if debugMode == 14u {
     // Adaptive local height visualization: gather a 5x5 window to find local min/max

@@ -2,7 +2,7 @@
 // Derive physically-relevant surface metrics from diffused height field.
 // Input: height RGBA (H, dH/dx, dH/dy, coverage)
 // Output (rgba16f storage):
-//  R: slope magnitude (world)
+//  R: slope magnitude (view gradient magnitude normalized)  <-- stabilized to remove zoom seam
 //  G: directional curvature small scale (signed)
 //  B: multi-scale crest candidate (pre-threshold, un-smoothed)
 //  A: coverage
@@ -76,14 +76,16 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let pRw = worldPos(pc + vec2f( 1.0,0.0), vZR, dimsF, uniforms);
   let pUw = worldPos(pc + vec2f(0.0,-1.0), vZU, dimsF, uniforms);
   let pDw = worldPos(pc + vec2f(0.0, 1.0), vZD, dimsF, uniforms);
-  // Finite difference world-space slope via geometric normal
-  let v1 = pRw - pCw;
-  let v2 = pDw - pCw;
+  // Finite difference world normal (still used for curvature orientation; no longer used directly for slope channel)
+  let v1 = pRw - pCw + vec3f(1e-6,0.0,0.0);
+  let v2 = pDw - pCw + vec3f(0.0,0.0,1e-6);
   var Nw = normalize(cross(v1, v2));
   if (any(Nw != Nw) || length(Nw) < 1e-5) { Nw = vec3f(0.0,1.0,0.0); }
-  // Slope magnitude relative to horizontal plane (x,z)
-  let horiz = length(vec2f(Nw.x, Nw.z));
-  let slope = horiz / max(1e-4, abs(Nw.y));
+  // View-space gradient based slope (height texture already stores dhdx/dhdy in view space)
+  let viewDx = c.g;
+  let viewDy = c.b;
+  let viewGrad = sqrt(viewDx*viewDx + viewDy*viewDy);
+  let slope = viewGrad / (viewGrad + 0.35); // soft normalization
   // World-space Laplacian approximation using heights (use world y component as height)
   let hWyC = pCw.y;
   let hWyL = pLw.y;
@@ -126,14 +128,15 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let d2xy = (hDR + hUL - hUR - hDL) * 0.25;
   let dirCurv = nx*nx*d2x + 2.0*nx*ny*d2xy + ny*ny*d2y;
 
-  // Multi-scale slope using blurred heights (coarse - fine difference accentuates coherent crests)
+  // Multi-scale slope coherence (coarse - fine difference emphasizes broad coherent crests)
   let coarseSlope = abs(p4w.y - p2w.y);
   let fineNegCurv = max(0.0, -dirCurv);
-  // Coherence factor: agreement of sign between small and large Laplacian
-  let signAgree = f32((lapSmall < 0.0) && (lapLarge < 0.0));
-  let crestMetric = fineNegCurv * coarseSlope * signAgree;
-  // Coverage modulation earlier; leave thresholding to later passes
-  let crestCand = crestMetric * smoothstep(0.15, 0.7, cov);
+  // Soft coherence instead of hard binary sign agreement to avoid large zeroed regions
+  let negAgree = step(0.0, -lapSmall) * step(0.0, -lapLarge); // 1 if both negative
+  let coherence = sqrt(clamp(-lapSmall * -lapLarge, 0.0, 1e6));
+  let crestMetric = fineNegCurv * coarseSlope * (0.35 + 0.65 * negAgree) * (coherence / (coherence + 1.0));
+  // Relaxed coverage gating so interior can produce non-zero crest candidate
+  let crestCand = crestMetric * smoothstep(0.05, 0.5, cov);
 
-  textureStore(outPhysical, p, vec4f(slope, dirCurv, crestCand, cov));
+  textureStore(outPhysical, p, vec4f(f32(slope), f32(dirCurv), f32(crestCand), f32(cov)));
 }
