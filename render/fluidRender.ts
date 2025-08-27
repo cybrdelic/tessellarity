@@ -5,9 +5,11 @@ import fluidSurface from './fluid_surface.wgsl'
 import fullScreen from './fullScreen.wgsl'
 import gaussian from './gaussian.wgsl'
 import heightBlur from './heightBlur.wgsl'
+import heightDeband from './heightDeband.wgsl'
 import heightDiffuse from './heightDiffuse.wgsl'
 import heightFromDepth from './heightFromDepth.wgsl'
 import heightPhysical from './heightPhysical.wgsl'
+import heightRangeReduce from './heightRangeReduce.wgsl'
 import { makeShaderModule } from './makeShaderModule'
 import normalizeThickness from './normalizeThickness.wgsl'
 import normalsFromThickness from './normalsFromThickness.wgsl'
@@ -29,16 +31,28 @@ export class FluidRenderer {
     normalsPipeline: GPURenderPipeline
     temporalPipeline: GPUComputePipeline
     heightPipeline: GPUComputePipeline
+    heightReferencePipeline?: GPUComputePipeline // r32 reference precision diagnostic
     heightDiffusePipeline: GPUComputePipeline
+    heightDebandPipeline?: GPUComputePipeline
     heightPhysicalPipeline: GPUComputePipeline
     heightBlur2Pipeline?: GPUComputePipeline
     heightBlur4Pipeline?: GPUComputePipeline
     velocityPipeline?: GPUComputePipeline
     spherePipeline: GPURenderPipeline
     normalizePipeline: GPUComputePipeline
+    heightRangeInitPipeline?: GPUComputePipeline
+    heightRangeReducePipeline?: GPUComputePipeline
+    heightRangeFinalizePipeline?: GPUComputePipeline
+    heightRangeBGL?: GPUBindGroupLayout
+    heightRangeBindGroup?: GPUBindGroup
+    heightRangeBuffer?: GPUBuffer
+    heightEncodingBuffer?: GPUBuffer
 
     depthMapTextureView: GPUTextureView
+    depthMapTexture?: GPUTexture // store to allow COPY_SRC operations
     tmpDepthMapTextureView: GPUTextureView
+    depthFilteredSnapshotTextureView?: GPUTextureView // explicit copy of final filtered depth for coherence test
+    depthFilteredSnapshotTexture?: GPUTexture
     thicknessTextureView: GPUTextureView
     tmpThicknessTextureView: GPUTextureView
     weightedThicknessTextureView: GPUTextureView
@@ -59,8 +73,12 @@ export class FluidRenderer {
     depthTestTextureView: GPUTextureView
     heightTextureView: GPUTextureView
     heightTexture: GPUTexture
+    heightReferenceTexture?: GPUTexture
+    heightReferenceTextureView?: GPUTextureView
     heightTextureDiffuseView?: GPUTextureView
     heightTextureDiffuse?: GPUTexture
+    originalHeightTextureView?: GPUTextureView // snapshot pre-diffusion (for debug deltas)
+    originalHeightTexture?: GPUTexture
     heightBlur2Texture?: GPUTexture
     heightBlur4Texture?: GPUTexture
     heightBlur2View?: GPUTextureView
@@ -85,7 +103,9 @@ export class FluidRenderer {
     normalsBindGroup: GPUBindGroup
     temporalBindGroup: GPUBindGroup
     heightBindGroup: GPUBindGroup
+    heightReferenceBindGroup?: GPUBindGroup
     heightDiffuseBindGroup: GPUBindGroup
+    heightTextureDebandView?: GPUTextureView
     physicalBindGroup: GPUBindGroup
     heightBlur2BindGroup?: GPUBindGroup
     heightBlur4BindGroup?: GPUBindGroup
@@ -131,9 +151,12 @@ export class FluidRenderer {
     _weightCopyScheduled: boolean = false
     _blurIterations: number = 4
     _heightDiffuseIterations: number = 3 // multi-pass diffusion to further suppress particle residuals
+    _enableHeightDeband: boolean = true  // apply debanding pass to remove horizontal seam
     _enablePhysicalMetrics: boolean = true
     _transmissionParamsBuffer?: GPUBuffer
     _sphereContainBuffer?: GPUBuffer
+    _rebuiltForOriginalHeight: boolean = false // ensure pipeline layout updated after adding binding 17
+    _rebuiltForReferenceHeight: boolean = false // ensure pipeline layout updated after adding binding 20
     // Internal version to force pipeline rebuild when shader binding schema changes at runtime (e.g. HMR)
     private _fluidSurfacePipelineVersion: number = 0;
     // If the debug pipeline creation is async, stash initial bind group params until pipeline arrives
@@ -199,6 +222,7 @@ export class FluidRenderer {
     const heightPhysicalModule = makeShaderModule(device, heightPhysical)
     const heightBlurModule = makeShaderModule(device, heightBlur)
     const velocityModule = makeShaderModule(device, velocityFromHeight)
+    const heightRangeModule = makeShaderModule(device, heightRangeReduce)
 
         // pipelines
         this.spherePipeline = device.createRenderPipeline({
@@ -317,10 +341,49 @@ export class FluidRenderer {
             layout: 'auto',
             compute: { module: heightModule }
         });
+        // Explicit shared bind group layout for height range reduction (depthTex, atoms, encoding)
+        this.heightRangeBGL = device.createBindGroupLayout({
+            label: 'height range reduction BGL',
+            entries: [
+                { binding: 0, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float' } },
+                { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+                { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+            ]
+        });
+        const heightRangePipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [ this.heightRangeBGL ] });
+        this.heightRangeInitPipeline = device.createComputePipeline({ label: 'height range init', layout: heightRangePipelineLayout, compute:{ module: heightRangeModule, entryPoint:'init'} });
+        this.heightRangeReducePipeline = device.createComputePipeline({ label: 'height range reduce', layout: heightRangePipelineLayout, compute:{ module: heightRangeModule, entryPoint:'reduce'} });
+        this.heightRangeFinalizePipeline = device.createComputePipeline({ label: 'height range finalize', layout: heightRangePipelineLayout, compute:{ module: heightRangeModule, entryPoint:'finalize'} });
+        // Create encoding buffers
+        this.heightRangeBuffer = device.createBuffer({ label:'heightRangeAtoms', size:8, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+        this.heightEncodingBuffer = device.createBuffer({ label:'heightEncoding', size:16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    // (Defer creation of heightRangeBindGroup until after depthMapTextureView is created.)
+    // Reference height compute (r32 only height channel) for precision diff (debug modes 66/67)
+    const heightReferenceWGSL = `@group(0) @binding(0) var depthTex: texture_2d<f32>;
+@group(0) @binding(1) var outRef: texture_storage_2d<r32float, write>;
+@compute @workgroup_size(8,8,1)
+fn main(@builtin(global_invocation_id) gid: vec3u){
+  let dims = textureDimensions(depthTex);
+  if (gid.x >= dims.x || gid.y >= dims.y) { return; }
+  let d = textureLoad(depthTex, gid.xy, 0).r;
+  textureStore(outRef, gid.xy, vec4f(-d,0.0,0.0,0.0));
+}`;
+    const heightReferenceModule = makeShaderModule(device, heightReferenceWGSL);
+    this.heightReferencePipeline = device.createComputePipeline({
+        label: 'height reference compute (r32)',
+        layout: 'auto',
+        compute: { module: heightReferenceModule }
+    });
         this.heightDiffusePipeline = device.createComputePipeline({
             label: 'height diffusion compute',
             layout: 'auto',
             compute: { module: heightDiffuseModule }
+        });
+        const heightDebandModule = makeShaderModule(device, heightDeband);
+        this.heightDebandPipeline = device.createComputePipeline({
+            label: 'height deband compute',
+            layout: 'auto',
+            compute: { module: heightDebandModule }
         });
         this.heightPhysicalPipeline = device.createComputePipeline({
             label: 'height physical metrics compute',
@@ -399,7 +462,8 @@ export class FluidRenderer {
         const depthMapTexture = device.createTexture({
             label: 'depth map texture',
             size: [canvas.width, canvas.height, 1],
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+            // Add COPY_SRC to allow explicit snapshot copy for coherence diagnostics
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
             format: 'r32float',
         });
         const tmpDepthMapTexture = device.createTexture({
@@ -514,7 +578,8 @@ export class FluidRenderer {
         const heightTexture = device.createTexture({
             label: 'height field texture',
             size: [canvas.width, canvas.height, 1],
-            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+            // Allow COPY_SRC so we can snapshot into originalHeightTexture without extra compute
+            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
             format: 'rgba16float'
         });
         const heightTextureDiffuse = device.createTexture({
@@ -568,8 +633,19 @@ export class FluidRenderer {
             format: 'depth32float',
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         })
-        this.depthMapTextureView = depthMapTexture.createView()
+    this.depthMapTextureView = depthMapTexture.createView()
+    this.depthMapTexture = depthMapTexture
         this.tmpDepthMapTextureView = tmpDepthMapTexture.createView()
+        // Now that depthMapTextureView exists, create the height range reduction bind group
+        this.heightRangeBindGroup = device.createBindGroup({
+            label: 'height range reduction bind group',
+            layout: this.heightRangeBGL,
+            entries: [
+                { binding: 0, resource: this.depthMapTextureView },
+                { binding: 1, resource: { buffer: this.heightRangeBuffer } },
+                { binding: 2, resource: { buffer: this.heightEncodingBuffer } },
+            ]
+        });
     this.weightedThicknessTextureView = weightedThicknessTexture.createView()
     this.weightedThicknessTexture = weightedThicknessTexture
     this.weightTextureView = weightTexture.createView()
@@ -739,13 +815,14 @@ export class FluidRenderer {
         });
 
         // Height reconstruction compute bind group
-        this.heightBindGroup = device.createBindGroup({
+    this.heightBindGroup = device.createBindGroup({
             label: 'height reconstruction bind group',
             layout: this.heightPipeline.getBindGroupLayout(0),
             entries: [
                 { binding: 0, resource: this.depthMapTextureView },
                 { binding: 1, resource: this.surfaceTextureView }, // for coverage (A)
-                { binding: 2, resource: this.heightTextureView },
+        { binding: 2, resource: this.heightTextureView },
+        { binding: 3, resource: { buffer: this.heightEncodingBuffer } },
             ]
         });
         this.heightDiffuseBindGroup = device.createBindGroup({
@@ -756,6 +833,7 @@ export class FluidRenderer {
                 { binding: 1, resource: this.heightTextureDiffuseView! },
             ]
         });
+    // (Velocity bind group is created per-frame just before dispatch; no static creation needed.)
         this.heightBlur2BindGroup = device.createBindGroup({
             label: 'height blur2 bind group',
             layout: this.heightBlur2Pipeline!.getBindGroupLayout(0),
@@ -772,7 +850,7 @@ export class FluidRenderer {
                 { binding: 1, resource: this.heightBlur4View! },
             ]
         });
-        this.physicalBindGroup = device.createBindGroup({
+    this.physicalBindGroup = device.createBindGroup({
             label: 'height physical metrics bind group',
             layout: this.heightPhysicalPipeline.getBindGroupLayout(0),
             entries: [
@@ -780,7 +858,8 @@ export class FluidRenderer {
                 { binding: 1, resource: this.heightBlur2View! },
                 { binding: 2, resource: this.heightBlur4View! },
                 { binding: 3, resource: { buffer: this.renderUniformBuffer } },
-                { binding: 4, resource: this.physicalTextureView! },
+        { binding: 4, resource: this.physicalTextureView! },
+        { binding: 5, resource: { buffer: this.heightEncodingBuffer } },
             ]
         });
 
@@ -917,6 +996,12 @@ export class FluidRenderer {
                 { binding: 14, resource: this._backgroundTextureView! },
                 { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
                 { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
+                { binding: 17, resource: this.originalHeightTextureView ?? opts.heightTexView },
+                // New intermediate depth filter pass textures for diagnostics (bindings 18 & 19)
+                { binding: 18, resource: this.tmpDepthMapTextureView }, // after horizontal (X) pass
+                { binding: 19, resource: this.depthMapTextureView },    // after vertical (Y) pass / final filtered
+                { binding: 20, resource: this.heightReferenceTextureView ?? this.heightTextureView }, // r32 reference height (single-channel) optional
+                { binding: 21, resource: { buffer: this.heightEncodingBuffer ?? this.renderUniformBuffer } },
             ],
         });
         try {
@@ -1110,6 +1195,24 @@ export class FluidRenderer {
                 filterPassEncoderY.end();
             }
 
+            // Explicit coherence snapshot: copy final filtered depth (depthMapTexture) into a fresh texture
+            if (!this.depthFilteredSnapshotTexture) {
+                this.depthFilteredSnapshotTexture = this.device.createTexture({
+                    label: 'filtered depth snapshot',
+                    size: { width: this.width, height: this.height },
+                    format: 'r32float',
+                    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+                });
+                this.depthFilteredSnapshotTextureView = this.depthFilteredSnapshotTexture.createView();
+            }
+            if (this.depthFilteredSnapshotTexture && this.depthMapTexture) {
+                commandEncoder.copyTextureToTexture(
+                    { texture: this.depthMapTexture },
+                    { texture: this.depthFilteredSnapshotTexture },
+                    { width: this.width, height: this.height, depthOrArrayLayers: 1 }
+                );
+            }
+
             const thicknessMapPassEncoder = commandEncoder.beginRenderPass(thicknessMapPassDescriptor);
             thicknessMapPassEncoder.setBindGroup(0, this.thicknessMapBindGroup);
             thicknessMapPassEncoder.setPipeline(this.thicknessMapPipeline);
@@ -1275,15 +1378,33 @@ export class FluidRenderer {
                 }
             }
 
-            // Height reconstruction (after normals so coverage is available)
-            // Recreate height bind group each frame to ensure we read current-frame coverage (pre-temporal)
+            // Height normalization range reduction (init -> reduce -> finalize) before reconstruction
+            if (this.heightRangeInitPipeline && this.heightRangeReducePipeline && this.heightRangeFinalizePipeline && this.heightRangeBindGroup) {
+                const passInit = commandEncoder.beginComputePass();
+                passInit.setPipeline(this.heightRangeInitPipeline);
+                passInit.setBindGroup(0, this.heightRangeBindGroup);
+                passInit.dispatchWorkgroups(1,1,1);
+                passInit.end();
+                const passReduce = commandEncoder.beginComputePass();
+                passReduce.setPipeline(this.heightRangeReducePipeline);
+                passReduce.setBindGroup(0, this.heightRangeBindGroup);
+                passReduce.dispatchWorkgroups(Math.ceil(this.width/8), Math.ceil(this.height/8), 1);
+                passReduce.end();
+                const passFinalize = commandEncoder.beginComputePass();
+                passFinalize.setPipeline(this.heightRangeFinalizePipeline);
+                passFinalize.setBindGroup(0, this.heightRangeBindGroup);
+                passFinalize.dispatchWorkgroups(1,1,1);
+                passFinalize.end();
+            }
+            // Height reconstruction using freshly computed encoding parameters
             this.heightBindGroup = this.device.createBindGroup({
                 label: 'height reconstruction bind group',
                 layout: this.heightPipeline.getBindGroupLayout(0),
                 entries: [
-                    { binding: 0, resource: this.depthMapTextureView },
-                    { binding: 1, resource: this.surfaceTextureView }, // current-frame surface (pre-temporal) for coverage A
+                    { binding: 0, resource: (this.depthFilteredSnapshotTextureView ?? this.depthMapTextureView) },
+                    { binding: 1, resource: this.surfaceTextureView },
                     { binding: 2, resource: this.heightTextureView },
+                    { binding: 3, resource: { buffer: this.heightEncodingBuffer! } },
                 ]
             });
             const heightPass = commandEncoder.beginComputePass();
@@ -1296,6 +1417,102 @@ export class FluidRenderer {
             }
             heightPass.dispatchWorkgroups(hwgX, hwgY, 1);
             heightPass.end();
+
+            // Build/dispatch reference height (r32) after main reconstruction for precision diagnostics (modes 66/67)
+            if (!this.heightReferenceTexture) {
+                this.heightReferenceTexture = this.device.createTexture({
+                    label: 'height reference texture (r32)',
+                    size: { width: this.width, height: this.height },
+                    format: 'r32float',
+                    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+                });
+                this.heightReferenceTextureView = this.heightReferenceTexture.createView();
+                // Rebuild fluid surface pipeline once so its layout includes binding 20
+                if (!this._rebuiltForReferenceHeight && this.fluidSurfacePipeline) {
+                    try {
+                        const fluidSurfaceSource = (fluidSurface as unknown as string);
+                        const surfaceModule = makeShaderModule(this.device, fluidSurfaceSource);
+                        let outFormat: GPUTextureFormat = 'bgra8unorm';
+                        this.fluidSurfacePipeline = this.device.createRenderPipeline({
+                            label: 'fluid surface pipeline (rebuild refHeight)',
+                            layout: 'auto',
+                            vertex: { module: makeShaderModule(this.device, fullScreen) },
+                            fragment: { module: surfaceModule, entryPoint: 'fs', targets: [ { format: outFormat, blend: { color: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' }, alpha: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' } } } ] },
+                            primitive: { topology: 'triangle-list' },
+                        });
+                        this._fluidSurfacePipelineVersion++;
+                        this._rebuiltForReferenceHeight = true;
+                        this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+                            heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+                            surfaceTexView: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView,
+                        });
+                    } catch (e) {
+                        console.warn('[FluidRenderer] Failed to rebuild fluid surface pipeline for reference height binding:', e);
+                    }
+                }
+            }
+            if (this.heightReferencePipeline && this.heightReferenceTextureView) {
+                this.heightReferenceBindGroup = this.device.createBindGroup({
+                    label: 'height reference bind group',
+                    layout: this.heightReferencePipeline.getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: (this.depthFilteredSnapshotTextureView ?? this.depthMapTextureView) },
+                        { binding: 1, resource: this.heightReferenceTextureView },
+                    ]
+                });
+                const refPass = commandEncoder.beginComputePass();
+                refPass.setPipeline(this.heightReferencePipeline);
+                refPass.setBindGroup(0, this.heightReferenceBindGroup);
+                refPass.dispatchWorkgroups(hwgX, hwgY, 1);
+                refPass.end();
+            }
+
+            // Capture original (pre-diffusion) height once per frame for debug mode 54.
+            if (!this.originalHeightTexture) {
+                this.originalHeightTexture = this.device.createTexture({
+                    label: 'original height texture',
+                    size: { width: this.width, height: this.height },
+                    format: 'rgba16float',
+                    usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+                });
+                this.originalHeightTextureView = this.originalHeightTexture.createView();
+            }
+            if (this.originalHeightTexture) {
+                commandEncoder.copyTextureToTexture(
+                    { texture: this.heightTexture },
+                    { texture: this.originalHeightTexture },
+                    [this.width, this.height, 1]
+                );
+                // Rebuild fluid surface pipeline once so its layout includes binding 17 (original height snapshot)
+                if (!this._rebuiltForOriginalHeight && this.fluidSurfacePipeline) {
+                    try {
+                        const fluidSurfaceSource = (fluidSurface as unknown as string);
+                        const surfaceModule = makeShaderModule(this.device, fluidSurfaceSource);
+                        // Assuming presentation format unchanged; derive from existing pipeline target if possible
+                        let outFormat: GPUTextureFormat = 'bgra8unorm';
+                        try {
+                            // Attempt to infer format from existing pipeline descriptor cached meta (optional)
+                            // (Not stored; keep fallback.)
+                        } catch {}
+                        this.fluidSurfacePipeline = this.device.createRenderPipeline({
+                            label: 'fluid surface pipeline (rebuild origHeight)',
+                            layout: 'auto',
+                            vertex: { module: makeShaderModule(this.device, fullScreen) },
+                            fragment: { module: surfaceModule, entryPoint: 'fs', targets: [ { format: outFormat, blend: { color: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' }, alpha: { srcFactor:'one', dstFactor:'one-minus-src-alpha', operation:'add' } } } ] },
+                            primitive: { topology: 'triangle-list' },
+                        });
+                        this._fluidSurfacePipelineVersion++;
+                        this._rebuiltForOriginalHeight = true;
+                        // Force bind group recreation with new layout after rebuild
+                        this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
+                            heightTexView: this.heightTextureDiffuseView ?? this.heightTextureView,
+                            surfaceTexView: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView,
+                        });
+                    } catch (e) {
+                        console.warn('[FluidRenderer] Failed to rebuild fluid surface pipeline for original height binding:', e);
+                    }
+                }
+            }
 
             // Diffuse height once per frame (could iterate if needed)
             // Multi-iteration diffusion with ping-pong between heightTexture and heightTextureDiffuse
@@ -1319,9 +1536,33 @@ export class FluidRenderer {
                 // Swap for next pass
                 const tmp = inTexView; inTexView = outTexView; outTexView = tmp;
             }
-            // Always ensure surface bind group samples the final diffused height result.
-            // Previous logic only rebuilt when inTexView was NOT the diffused texture, leaving the
-            // bind group pointing at the original (pre-diffused) height on odd iteration counts.
+            // Optional debanding pass to eliminate narrow horizontal ridge artifacts
+            if (this._enableHeightDeband && this.heightDebandPipeline) {
+                if (!this.heightTextureDebandView) {
+                    const tex = this.device.createTexture({
+                        label: 'height deband texture',
+                        size: { width: this.width, height: this.height },
+                        format: 'rgba16float',
+                        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+                    });
+                    this.heightTextureDebandView = tex.createView();
+                }
+                const debandBG = this.device.createBindGroup({
+                    label: 'height deband bind group',
+                    layout: this.heightDebandPipeline.getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: inTexView },
+                        { binding: 1, resource: this.heightTextureDebandView! },
+                    ]
+                });
+                const debandPass = commandEncoder.beginComputePass();
+                debandPass.setPipeline(this.heightDebandPipeline);
+                debandPass.setBindGroup(0, debandBG);
+                debandPass.dispatchWorkgroups(hwgX, hwgY, 1);
+                debandPass.end();
+                inTexView = this.heightTextureDebandView!; // use corrected height
+            }
+            // Always ensure surface bind group samples the final processed height result.
             this.fluidSurfaceBindGroup = this._createFluidSurfaceBindGroup({
                 heightTexView: inTexView,
                 surfaceTexView: this._firstFrame ? this.surfaceTextureView : this.temporalSurfaceTextureView,
@@ -1334,6 +1575,7 @@ export class FluidRenderer {
                     entries: [
                         { binding: 0, resource: inTexView },
                         { binding: 1, resource: this.velocityTextureView },
+                        { binding: 2, resource: { buffer: this.heightEncodingBuffer! } },
                     ]
                 });
                 const velPass = commandEncoder.beginComputePass();
@@ -1388,6 +1630,7 @@ export class FluidRenderer {
                         { binding: 2, resource: this.heightBlur4View! },
                         { binding: 3, resource: { buffer: this.renderUniformBuffer } },
                         { binding: 4, resource: this.physicalTextureView! },
+                        { binding: 5, resource: { buffer: this.heightEncodingBuffer! } },
                     ]
                 });
                 physPass.setPipeline(this.heightPhysicalPipeline);
@@ -1661,6 +1904,21 @@ export class FluidRenderer {
             'World Normal Y',    // 39
             'View Slope',        // 40
             'Slope Difference'   // 41
+            , 'Curv Compare'     // 42
+            , 'Curv Abs'         // 43
+            , 'Grad Magnitude'   // 44
+            , 'Curv/Slope Combo' // 45
+            , 'Frac Coord'       // 46
+            , 'Height dX'        // 47
+            , 'Height dY'        // 48
+            , 'Height Laplace'   // 49
+            , 'Depth Neighbor Diff' // 50
+            , 'Curv vs Laplace'  // 51
+            , 'Original vs Filtered Depth' // 52 (existing in shader: ORIGINAL_HEIGHT_VS_NEG_DEPTH or similar mapping)
+            , 'Diffused - Original' // 53
+            , 'R32 Height Diff' // 54
+            , 'FP16 Quant Error' // 55
+            , 'Encoded Height' // 56 (new mode 68 in shader; adjust indices to align after existing list length)
         ];
     }
 

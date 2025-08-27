@@ -123,6 +123,14 @@ const DEFAULT_WIND_DIR: vec3f = vec3f(0.8, 0.0, 0.2);
 @group(0) @binding(14) var backgroundTex: texture_2d<f32>; // scene color buffer pre-water
 @group(0) @binding(15) var<uniform> transmissionParams: TransmissionParams;
 @group(0) @binding(16) var<uniform> sphereContain: SphereContain;
+@group(0) @binding(17) var original_height_texture: texture_2d<f32>; // pre-diffusion snapshot
+// New: intermediate depth filter views for pass delta diagnostics (optional; if unbound, modes gracefully skip)
+@group(0) @binding(18) var depth_pass_x_texture: texture_2d<f32>; // after horizontal pass
+@group(0) @binding(19) var depth_pass_y_texture: texture_2d<f32>; // after vertical pass (final filtered)
+@group(0) @binding(20) var ref_height_texture: texture_2d<f32>; // r32 reference height (single channel in .r)
+// Height encoding parameters for decoding normalized height field (minH, invRange, range)
+struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
+@group(0) @binding(21) var<uniform> heightEncoding: HeightEncoding;
 
 struct FragmentInput { @builtin(position) pos: vec4f }
 
@@ -377,36 +385,27 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   let legacyCoverage = clamp(surf.w, 0.0, 1.0);
   if (any(N_view != N_view) || any(abs(N_view) > vec3f(1e6))) { N_view = vec3f(0.0,0.0,1.0); }
   // Height-based normal reconstruction (initially in view space)
+  // Use high-precision (r32) reference height to avoid fp16 quantization seam.
+  // Keep derivatives & coverage from original rgba16f height texture.
   let hSample = textureLoad(height_texture, pix, 0);
-  let hVal = hSample.r;
-  let dhdx = hSample.g;
-  let dhdy = hSample.b;
+  // Base (possibly diffused) height & derivatives from rgba16f field (fallback). Mutable so we can override with high precision reference if present.
+  var hValBase = hSample.r * heightEncoding.range + heightEncoding.minH;
+  var dhdx = hSample.g * heightEncoding.range;
+  var dhdy = hSample.b * heightEncoding.range;
+  // Optional high-precision reference (pre-diffusion) retained only for debug comparisons
+  let refDims = textureDimensions(ref_height_texture);
+  var hRef = 0.0;
+  let hasRef = refDims.x > 0u;
+  if (hasRef) { hRef = textureLoad(ref_height_texture, pix, 0).r; }
+  // Removed derivative recomputation from high-precision reference to ensure a single consistent derivative path.
+  // (Reference kept only for differential debug modes 64-67.)
+  var hVal = hValBase;
   let phys = textureLoad(physicalTex, pix, 0);
   let slope = phys.r;
-  // Mean curvature from height field (central differences) to reduce directional bias & diagonal artifact.
-  // Unified curvature computation with clamped neighborhood sampling (removes border band where fallback differed)
-  var curvatureDir = 0.0;
-  {
-    let dimsC = textureDimensions(height_texture);
-    let bx = i32(pix.x); let by = i32(pix.y);
-    let hC  = heightSampleClamped(bx,   by,   dimsC);
-    let hL  = heightSampleClamped(bx-1, by,   dimsC);
-    let hR  = heightSampleClamped(bx+1, by,   dimsC);
-    let hD  = heightSampleClamped(bx,   by-1, dimsC);
-    let hU  = heightSampleClamped(bx,   by+1, dimsC);
-    let hUL = heightSampleClamped(bx-1, by+1, dimsC);
-    let hUR = heightSampleClamped(bx+1, by+1, dimsC);
-    let hDL = heightSampleClamped(bx-1, by-1, dimsC);
-    let hDR = heightSampleClamped(bx+1, by-1, dimsC);
-    let hx = (hR - hL) * 0.5;
-    let hy = (hU - hD) * 0.5;
-    let hxx = hL - 2.0 * hC + hR;
-    let hyy = hD - 2.0 * hC + hU;
-    let hxy = (hUR - hUL - hDR + hDL) * 0.25;
-    let denom = 2.0 * pow(1.0 + hx*hx + hy*hy, 1.5) + 1e-6;
-    let numer = (1.0 + hy*hy) * hxx - 2.0 * hx * hy * hxy + (1.0 + hx*hx) * hyy;
-    curvatureDir = numer / denom;
-  }
+  // Curvature: use precomputed directional curvature from physicalTex.g to avoid per-fragment recomputation artifacts.
+  var curvatureDir = phys.g;
+  // Also derive a simple view-space gradient magnitude to compare against slope energy if needed
+  let gradMag_local = sqrt(dhdx*dhdx + dhdy*dhdy);
   let crestCand = phys.b;    // raw crest candidate (un-thresholded)
   let covRaw = clamp(phys.a, 0.0, 1.0); // use physically-derived multi-scale coverage only
   // Optional sphere containment: zero coverage outside sphere to clip water volume
@@ -1058,6 +1057,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   // 36 PHYS_CREST     -> physicalTex.b crest stored
   // 37 PHYS_COV       -> physicalTex.a coverage
   // 38 WG_GRID        -> workgroup 8x8 pattern (diagnose tiling seams)
+  // 42 CURV_COMPARE   -> R old(recomputed) curvature (disabled now=phys.g), G phys.g, B abs(diff)
+  // 43 CURV_ABS       -> abs(phys.g) normalized
+  // 44 GRAD_MAG       -> view-space gradient magnitude (for residual seam correlation)
+  // 45 CURV_SLOPE_COMBO -> R phys.g, G slope, B gradient magnitude
   // 39 WORLD_NY       -> world normal Y component
   // 40 VIEW_SLOPE     -> sqrt(dhdx^2 + dhdy^2) view-space slope
   // 41 SLOPE_DIFF     -> R world slope, G view slope, B |difference|
@@ -1364,6 +1367,323 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     let gx = ( (i32(pix.x) % 8) ) / 7;
     let gy = ( (i32(pix.y) % 8) ) / 7;
     return vec4f(f32(gx), f32(gy), 0.2 + 0.6 * (f32(gx)+f32(gy))*0.5, 1.0);
+  }
+  if debugMode == 42u {
+    // Since old curvature recompute removed, treat 'old' as phys.g (no diff expected)
+    let curvOld = curvatureDir; // placeholder
+    let curvNew = phys.g;
+    let diff = abs(curvOld - curvNew);
+    return vec4f(curvOld * 0.5 + 0.5, curvNew * 0.5 + 0.5, clamp(diff * 10.0,0.0,1.0), 1.0);
+  }
+  if debugMode == 43u {
+    let v = abs(curvatureDir);
+    let n = v / (v + 0.05);
+    return vec4f(vec3f(clamp(n,0.0,1.0)),1.0);
+  }
+  if debugMode == 44u {
+    let gN = gradMag_local / (gradMag_local + 0.25);
+    return vec4f(vec3f(gN),1.0);
+  }
+  if debugMode == 45u {
+    let gN = gradMag_local / (gradMag_local + 0.25);
+    let curvN = curvatureDir * 0.5 + 0.5;
+    let slopeN = slope / (slope + 1.0);
+    return vec4f(curvN, slopeN, gN, 1.0);
+  }
+  if debugMode == 46u {
+    let fx = fract(input.pos.x);
+    let fy = fract(input.pos.y);
+    return vec4f(fx, fy, 0.0, 1.0);
+  }
+  if debugMode == 47u {
+    let dims = textureDimensions(height_texture);
+    let bx = i32(pix.x);
+    let by = i32(pix.y);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let hL = textureLoad(height_texture, vec2u(u32(clamp(bx-1,0,i32(dims.x)-1)), u32(by)), 0).r;
+    let dx = abs(hC - hL);
+    let n = dx / (dx + 0.002);
+    return vec4f(vec3f(clamp(n,0.0,1.0)),1.0);
+  }
+  if debugMode == 48u {
+    let dims = textureDimensions(height_texture);
+    let bx = i32(pix.x);
+    let by = i32(pix.y);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let hU = textureLoad(height_texture, vec2u(u32(bx), u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let dy = abs(hC - hU);
+    let n = dy / (dy + 0.002);
+    return vec4f(vec3f(clamp(n,0.0,1.0)),1.0);
+  }
+  if debugMode == 49u {
+    let dims = textureDimensions(height_texture);
+    let bx = i32(pix.x); let by = i32(pix.y);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let hL = textureLoad(height_texture, vec2u(u32(clamp(bx-1,0,i32(dims.x)-1)), u32(by)), 0).r;
+    let hR = textureLoad(height_texture, vec2u(u32(clamp(bx+1,0,i32(dims.x)-1)), u32(by)), 0).r;
+    let hU = textureLoad(height_texture, vec2u(u32(bx), u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let hD = textureLoad(height_texture, vec2u(u32(bx), u32(clamp(by+1,0,i32(dims.y)-1))), 0).r;
+    let lap = abs(hL + hR + hU + hD - 4.0*hC);
+    let n = lap / (lap + 0.002);
+    return vec4f(vec3f(clamp(n,0.0,1.0)),1.0);
+  }
+  if debugMode == 50u {
+    // Raw depth horizontal & vertical absolute difference from depthMap (binding 3 surface_texture alpha stores coverage; height not accessible here directly)
+    // Fallback: visualize difference in reconstructed surface thickness (Z) across neighbors if surface texture is similar to depth-based
+    let dims = textureDimensions(surface_texture);
+    let bx = i32(pix.x); let by = i32(pix.y);
+    let c = textureLoad(surface_texture, pix, 0);
+    let l = textureLoad(surface_texture, vec2u(u32(clamp(bx-1,0,i32(dims.x)-1)), u32(by)), 0);
+    let u = textureLoad(surface_texture, vec2u(u32(bx), u32(clamp(by-1,0,i32(dims.y)-1))), 0);
+    let dzx = abs(c.z - l.z);
+    let dzy = abs(c.z - u.z);
+    let nx = dzx / (dzx + 0.005);
+    let ny = dzy / (dzy + 0.005);
+    return vec4f(nx, ny, 0.0, 1.0);
+  }
+  if debugMode == 51u {
+    // Compare physical curvature (phys.g) vs Laplacian based on height texture (49 computation reused)
+    let dims = textureDimensions(height_texture);
+    let bx = i32(pix.x); let by = i32(pix.y);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let hL = textureLoad(height_texture, vec2u(u32(clamp(bx-1,0,i32(dims.x)-1)), u32(by)), 0).r;
+    let hR = textureLoad(height_texture, vec2u(u32(clamp(bx+1,0,i32(dims.x)-1)), u32(by)), 0).r;
+    let hU = textureLoad(height_texture, vec2u(u32(bx), u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let hD = textureLoad(height_texture, vec2u(u32(bx), u32(clamp(by+1,0,i32(dims.y)-1))), 0).r;
+    let lap = (hL + hR + hU + hD - 4.0*hC);
+    let curv = curvatureDir;
+    let diff = abs(curv - lap);
+    let lapN = abs(lap) / (abs(lap) + 0.01);
+    let curvN = abs(curv) / (abs(curv) + 0.01);
+    let diffN = diff / (diff + 0.01);
+    return vec4f(curvN, lapN, diffN, 1.0);
+  }
+  if debugMode == 52u {
+    // Coverage channel directly
+    return vec4f(vec3f(coverage),1.0);
+  }
+  if debugMode == 53u {
+    // Vertical derivative of coverage (abs difference to up neighbor)
+    let dims = textureDimensions(height_texture);
+    let by = i32(pix.y);
+    let covU = textureLoad(height_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dims.y)-1))), 0).a;
+    let d = abs(coverage - covU);
+    let n = d / (d + 0.02);
+    return vec4f(vec3f(n),1.0);
+  }
+  if debugMode == 54u {
+  // Pre vs post diffusion delta: compares current height_texture (post-processing) vs original snapshot
+  let hc = textureLoad(height_texture, pix, 0).r;
+  let ho = textureLoad(original_height_texture, pix, 0).r;
+  let d = hc - ho;
+  let ad = abs(d);
+  // Nonlinear normalization emphasizing small differences
+  let n = ad / (ad + 0.002);
+  // Encode sign in color: positive delta -> red, negative -> blue, magnitude in green
+  let signColor = select(vec3f(0.0,0.2,1.0), vec3f(1.0,0.2,0.0), d > 0.0);
+  let mixColor = mix(vec3f(0.0), signColor, clamp(n,0.0,1.0));
+  return vec4f(mixColor.x, n, mixColor.z, 1.0);
+  }
+  if debugMode == 55u {
+    // Vertical gradient of reconstructed height vs depth: compare hC and hU in normalized form
+    let dims = textureDimensions(height_texture);
+    let by = i32(pix.y);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let hU = textureLoad(height_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let dv = abs(hC - hU);
+    let n = dv / (dv + 0.002);
+    return vec4f(vec3f(n),1.0);
+  }
+  if debugMode == 56u {
+    // Raw depth vertical absolute difference (pre height reconstruction). Reconstruct depth via surface_texture.z not available here -> fallback: use height_texture derivatives to approximate vertical diff sign.
+    // Instead sample original pre-diffusion snapshot to avoid diffusion influence.
+    let dims = textureDimensions(original_height_texture);
+    let by = i32(pix.y);
+    let hC = textureLoad(original_height_texture, pix, 0).r;
+    let hU = textureLoad(original_height_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let dv = abs(hC - hU);
+    let n = dv / (dv + 0.002);
+    return vec4f(vec3f(n),1.0);
+  }
+  if debugMode == 57u {
+    // Per-row mean deviation: compute average of row using a small horizontal window as proxy; show signed deviation.
+    let dims = textureDimensions(height_texture);
+    let bx = i32(pix.x); let by = i32(pix.y);
+    var accum = 0.0; var w = 0.0;
+    let R: i32 = 24; // sample 49 pixels (clamped) centered
+    for (var dx = -R; dx <= R; dx = dx + 1) {
+      let sx = clamp(bx + dx, 0, i32(dims.x)-1);
+      accum += textureLoad(height_texture, vec2u(u32(sx), u32(by)), 0).r; w += 1.0;
+    }
+    let localMean = accum / max(w, 1.0);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let diff = hC - localMean;
+    let ad = abs(diff);
+    let n = ad / (ad + 0.0008);
+    // Encode sign (red positive, blue negative) with magnitude in green
+    let signColor = select(vec3f(0.0,0.2,1.0), vec3f(1.0,0.2,0.0), diff > 0.0);
+    let mixColor = mix(vec3f(0.0), signColor, n);
+    return vec4f(mixColor.r, n, mixColor.b, 1.0);
+  }
+  if debugMode == 58u {
+    // Vertical Laplacian map (original height) to see if single row has elevated second derivative
+    let dims = textureDimensions(original_height_texture);
+    let by = i32(pix.y);
+    let hC = textureLoad(original_height_texture, pix, 0).r;
+    let hU = textureLoad(original_height_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let hD = textureLoad(original_height_texture, vec2u(pix.x, u32(clamp(by+1,0,i32(dims.y)-1))), 0).r;
+    let lapY = hU + hD - 2.0*hC;
+    let a = abs(lapY);
+    let n = a / (a + 0.0008);
+    return vec4f(vec3f(n), 1.0);
+  }
+  if debugMode == 59u {
+    // FILTER_PASS_DELTA: show difference between horizontal-pass output (depth_pass_x_texture) and vertical-pass final (depth_pass_y_texture)
+    // Assumes textures bound; if binding out of range (zero dims) output black.
+    let dimsX = textureDimensions(depth_pass_x_texture);
+    let dimsY = textureDimensions(depth_pass_y_texture);
+    if (dimsX.x == 0u || dimsY.x == 0u) {
+      return vec4f(0.0,0.0,0.0,1.0);
+    }
+    let dX = textureLoad(depth_pass_x_texture, pix, 0).r;
+    let dY = textureLoad(depth_pass_y_texture, pix, 0).r;
+    let diff = dY - dX;
+    let ad = abs(diff);
+    let n = ad / (ad + 0.001);
+    // Encode sign: red = increase, blue = decrease, green = magnitude
+    let signColor = select(vec3f(0.0, n, 1.0), vec3f(1.0, n, 0.0), diff > 0.0);
+    return vec4f(signColor, 1.0);
+  }
+  if debugMode == 60u {
+    // ROW_LAPLACIAN_PROFILER: visualize per-row vertical Laplacian energy normalized by global row max (approx in-shader via partial reduction)
+    let dims = textureDimensions(height_texture);
+    // Compute local vertical Laplacian at this pixel (filtered height)
+    let by = i32(pix.y);
+    let hC = textureLoad(height_texture, pix, 0).r;
+    let hU = textureLoad(height_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+    let hD = textureLoad(height_texture, vec2u(pix.x, u32(clamp(by+1,0,i32(dims.y)-1))), 0).r;
+    let lap = hU + hD - 2.0*hC;
+    let e = lap * lap;
+    // Approx row energy: sample 8 horizontally spread taps and sum (cheap proxy)
+    let bx = i32(pix.x);
+    var rowAccum = e;
+    for (var k: i32 = 1; k <= 4; k = k + 1) {
+      let sx1 = clamp(bx + k*32, 0, i32(dims.x)-1);
+      let sx2 = clamp(bx - k*32, 0, i32(dims.x)-1);
+      let h1c = textureLoad(height_texture, vec2u(u32(sx1), u32(by)), 0).r;
+      let h1u = textureLoad(height_texture, vec2u(u32(sx1), u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+      let h1d = textureLoad(height_texture, vec2u(u32(sx1), u32(clamp(by+1,0,i32(dims.y)-1))), 0).r;
+      let l1 = h1u + h1d - 2.0 * h1c;
+      rowAccum += l1 * l1;
+      let h2c = textureLoad(height_texture, vec2u(u32(sx2), u32(by)), 0).r;
+      let h2u = textureLoad(height_texture, vec2u(u32(sx2), u32(clamp(by-1,0,i32(dims.y)-1))), 0).r;
+      let h2d = textureLoad(height_texture, vec2u(u32(sx2), u32(clamp(by+1,0,i32(dims.y)-1))), 0).r;
+      let l2 = h2u + h2d - 2.0 * h2c;
+      rowAccum += l2 * l2;
+    }
+    // Normalize energy locally (log mapping) to highlight outlier row; approximate global by per-pixel scaling
+    let norm = log(1.0 + rowAccum * 1200.0) / log(1.0 + 1200.0);
+    // Highlight peak-ish rows by boosting where norm very high
+    let boost = smoothstep(0.92, 0.995, norm);
+    return vec4f(norm, boost, 0.0, 1.0);
+  }
+  if debugMode == 61u {
+    // FILTERED_DEPTH_VERT_DIFF: vertical diff of final filtered depth (using depth_pass_y_texture)
+    let dimsD = textureDimensions(depth_pass_y_texture);
+    if (dimsD.x == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let by = i32(pix.y);
+    let c = textureLoad(depth_pass_y_texture, pix, 0).r;
+    let u = textureLoad(depth_pass_y_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dimsD.y)-1))), 0).r;
+    let vdiff = c - u;
+    let av = abs(vdiff);
+    let n = av / (av + 0.001);
+    return vec4f(select(vec3f(0.0, n, 1.0), vec3f(1.0, n, 0.0), vdiff > 0.0), 1.0);
+  }
+  if debugMode == 62u {
+    // HEIGHT_VS_NEG_DEPTH: difference between stored height (hVal) and -depth (filtered) to reveal reconstruction bias.
+    let dimsD = textureDimensions(depth_pass_y_texture);
+    if (dimsD.x == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let depthFiltered = textureLoad(depth_pass_y_texture, pix, 0).r;
+  let baseH = select(hVal, hRef, hasRef);
+  let diff = baseH - (-depthFiltered);
+    let ad = abs(diff);
+    let n = ad / (ad + 0.002);
+    return vec4f(select(vec3f(0.0, n, 1.0), vec3f(1.0, n, 0.0), diff > 0.0), 1.0);
+  }
+  if debugMode == 63u {
+    // DERIVATIVE_CONSISTENCY: compare dhdy from height texture vs direct depth-based vertical derivative
+    let dimsD = textureDimensions(depth_pass_y_texture);
+    if (dimsD.x == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let by = i32(pix.y);
+    let dC = textureLoad(depth_pass_y_texture, pix, 0).r;
+    let dU = textureLoad(depth_pass_y_texture, vec2u(pix.x, u32(clamp(by-1,0,i32(dimsD.y)-1))), 0).r;
+    let dV = (dC - dU); // one-sided diff
+    let hV = dhdy; // from reconstruction
+    let diff = (hV - (-dV)); // heights are negative depth
+    let ad = abs(diff);
+    let n = ad / (ad + 0.001);
+    return vec4f(n, clamp(abs(hV)*0.5,0.0,1.0), clamp(abs(dV)*0.5,0.0,1.0), 1.0);
+  }
+  if debugMode == 64u {
+    // ORIGINAL_HEIGHT_VS_NEG_DEPTH: use original height snapshot vs filtered depth to see if seam pre-existed diffusion
+    let dimsD = textureDimensions(depth_pass_y_texture);
+    if (dimsD.x == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    // Replace fp16 original snapshot with high precision reference height when available (no select() for textures)
+  var oh: f32;
+  if (hasRef) { oh = hRef; } else { oh = textureLoad(original_height_texture, pix, 0).r; }
+    let depthFiltered = textureLoad(depth_pass_y_texture, pix, 0).r;
+    let diff = oh - (-depthFiltered);
+    let ad = abs(diff);
+    let n = ad / (ad + 0.002);
+    return vec4f(select(vec3f(0.0, n, 1.0), vec3f(1.0, n, 0.0), diff > 0.0), 1.0);
+  }
+  if debugMode == 65u {
+    // DIFFUSED_MINUS_ORIGINAL: difference introduced by diffusion/deband pipeline stages
+  var oh: f32;
+  if (hasRef) { oh = hRef; } else { oh = textureLoad(original_height_texture, pix, 0).r; }
+  let diff = hValBase - oh;
+    let ad = abs(diff);
+    let n = ad / (ad + 0.002);
+    let signColor = select(vec3f(0.0, n, 1.0), vec3f(1.0, n, 0.0), diff > 0.0);
+    return vec4f(signColor, 1.0);
+  }
+  if debugMode == 66u {
+    // R32_HEIGHT_DIFF: difference between fp16-stored height (hVal) and high-precision reference (r32)
+    let dimsR = textureDimensions(ref_height_texture);
+    if (dimsR.x == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let href = textureLoad(ref_height_texture, pix, 0).r;
+    // hValBase already decoded from normalized representation.
+  let diff = hValBase - href;
+    let ad = abs(diff);
+  // Use debug.intensity as a linear scale (higher intensity -> larger scale -> dimmer output)
+  let scale = max(1e-6, debug.intensity * 0.02); // 0.0..1.0 intensity -> 0..0.02 scale
+  let n = clamp(ad / scale, 0.0, 1.0);
+  // Mid-gray baseline could help, but keep black baseline with sign color mapping for now
+  return vec4f(select(vec3f(0.0, n, 1.0), vec3f(1.0, n, 0.0), diff > 0.0), 1.0);
+  }
+  if debugMode == 67u {
+    // FP16_QUANTIZATION_ERROR: simulate ideal height from -depth and show error vs stored (hVal)
+    let dimsD = textureDimensions(depth_pass_y_texture);
+    if (dimsD.x == 0u) { return vec4f(0.0,0.0,0.0,1.0); }
+    let depthFiltered = textureLoad(depth_pass_y_texture, pix, 0).r;
+    let ideal = -depthFiltered; // matches reference logic
+    let diff = hVal - ideal;
+    let ad = abs(diff);
+  // Use debug.intensity to choose visualization scale: smaller intensity -> more amplification (brighter)
+  // Map intensity 0..1 to amplification of 1/(epsilon * (0.2 + 0.8*intensity))
+  let baseEps = 0.001; // ~1 LSB for fp16 around ~1.0 range
+  let eff = baseEps * (0.2 + 0.8 * debug.intensity);
+  let v = clamp(ad / eff, 0.0, 1.0);
+  return vec4f(v, v, v, 1.0);
+  }
+  if debugMode == 68u {
+    // ENCODED_HEIGHT: visualize raw encoded height channel (should be smooth 0..1 without horizontal seam)
+    // We re-sample encoded height (hSample.r) directly instead of decoded hValBase.
+    let enc = hSample.r; // 0..1
+    // Apply optional contrast via debug.intensity (>=1 increases contrast)
+    let gain = max(0.0001, debug.intensity);
+    let v = clamp(pow(enc, 1.0 / gain), 0.0, 1.0);
+    return vec4f(vec3f(v), 1.0);
   }
   if debugMode == 39u {
     // Visualize world normal Y (elevation of normal) to see if seam aligns with subtle normal flip

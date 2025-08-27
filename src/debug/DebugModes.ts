@@ -44,6 +44,32 @@ export enum DebugVisualizationMode {
     , WORLD_NORMAL_Y = 39    // world-space normal Y component
     , VIEW_SLOPE = 40        // view-space slope (sqrt(dhdx^2+dhdy^2))
     , SLOPE_DIFF = 41        // world slope vs view slope difference
+    , CURV_COMPARE = 42      // old vs phys curvature (diff)
+    , CURV_ABS = 43          // abs curvature normalized
+    , GRAD_MAG = 44          // view-space gradient magnitude
+    , CURV_SLOPE_COMBO = 45  // composite of curvature / slope / grad
+    , FRAC_COORD = 46        // fractional pixel coordinate (artifact geometry check)
+    , HEIGHT_DX = 47         // finite difference abs dx of height
+    , HEIGHT_DY = 48         // finite difference abs dy of height
+    , HEIGHT_LAPLACE = 49    // Laplacian magnitude of height
+    , DEPTH_NEIGHBOR_DIFF = 50 // raw surface thickness neighbor diffs (proxy for depth)
+    , CURV_VS_LAPLACE = 51   // curvature vs Laplacian vs diff
+    , COVERAGE = 52          // coverage channel raw
+    , COVERAGE_DY = 53       // vertical derivative of coverage
+    , HEIGHT_DIFFUSED_DELTA = 54 // (placeholder) diffused vs original height
+    , HEIGHT_VERT_GRAD = 55  // vertical height gradient magnitude
+    , ORIG_HEIGHT_VERT_DIFF = 56 // vertical diff on original height snapshot
+    , ROW_MEAN_DEVIATION = 57 // per-row local mean deviation (signed)
+    , ORIG_HEIGHT_VERT_LAPLACE = 58 // vertical Laplacian on original height
+    , FILTER_PASS_DELTA = 59 // difference between vertical-pass input & output (to locate seam source)
+    , ROW_LAPLACIAN_PROFILER = 60 // visualizes row Laplacian energy (grayscale, peak row highlighting)
+    , FILTERED_DEPTH_VERT_DIFF = 61 // vertical diff of final filtered depth (pre height reconstruction)
+    , HEIGHT_VS_NEG_DEPTH = 62 // difference between reconstructed height and -filteredDepth
+    , DERIVATIVE_CONSISTENCY = 63 // difference between height-based dhdy and direct depth finite difference
+    , ORIGINAL_HEIGHT_VS_NEG_DEPTH = 64 // original pre-diffusion height vs -filtered filteredDepth
+    , DIFFUSED_MINUS_ORIGINAL = 65 // final height minus original snapshot
+    , R32_HEIGHT_DIFF = 66 // difference between rgba16f stored height and r32 reference height
+    , FP16_QUANTIZATION_ERROR = 67 // absolute quantization error magnitude visualization
 }
 
 /**

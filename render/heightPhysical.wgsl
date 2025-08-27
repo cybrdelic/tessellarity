@@ -19,21 +19,28 @@ struct RenderUniforms {
 }
 
 // Inputs:
-//  binding 0: base (diffused) height texture (RG: H, dH/dx, dH/dy, coverage)
-//  binding 1: blurred height radius2 (R)
-//  binding 2: blurred height radius4 (R)
+//  binding 0: base (diffused) ENCODED height texture (R,G,B normalized, A coverage)
+//  binding 1: blurred height radius2 (R encoded)
+//  binding 2: blurred height radius4 (R encoded)
 //  binding 3: RenderUniforms
 //  binding 4: output physical metrics (rgba16f)
+//  binding 5: HeightEncoding uniform (minH, invRange, range)
 @group(0) @binding(0) var heightTex: texture_2d<f32>;
 @group(0) @binding(1) var heightBlur2: texture_2d<f32>;
 @group(0) @binding(2) var heightBlur4: texture_2d<f32>;
 @group(0) @binding(3) var<uniform> uniforms: RenderUniforms;
 @group(0) @binding(4) var outPhysical: texture_storage_2d<rgba16float, write>;
+struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
+@group(0) @binding(5) var<uniform> heightEncoding: HeightEncoding;
 
 fn sampleHeight(i: vec2i) -> vec4f {
   let dims = vec2i(textureDimensions(heightTex));
   let c = clamp(i, vec2i(0), dims-vec2i(1));
-  return textureLoad(heightTex, vec2u(c), 0);
+  let raw = textureLoad(heightTex, vec2u(c), 0);
+  let h = raw.r * heightEncoding.range + heightEncoding.minH;
+  let dx = raw.g * heightEncoding.range;
+  let dy = raw.b * heightEncoding.range;
+  return vec4f(h, dx, dy, raw.a);
 }
 
 // Convert pixel center to NDC (-1..1). WGSL origin top-left; flip Y to conventional NDC
@@ -86,13 +93,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let viewDy = c.b;
   let viewGrad = sqrt(viewDx*viewDx + viewDy*viewDy);
   let slope = viewGrad / (viewGrad + 0.35); // soft normalization
-  // World-space Laplacian approximation using heights (use world y component as height)
-  let hWyC = pCw.y;
-  let hWyL = pLw.y;
-  let hWyR = pRw.y;
-  let hWyU = pUw.y;
-  let hWyD = pDw.y;
-  let lapSmall = (hWyL + hWyR + hWyU + hWyD - 4.0*hWyC);
+  // Small-scale Laplacian in VIEW height space (was world-space; switching removes mixed-space bias that caused seam)
+  let lapSmall = (hL + hR + hU + hD - 4.0*hC);
   // True multi-scale blurred heights (already filtered) from provided textures (sampling world reconstruction via base viewZ for center)
   let h2 = textureLoad(heightBlur2, vec2u(p), 0).r; // radius2 blurred
   let h4 = textureLoad(heightBlur4, vec2u(p), 0).r; // radius4 blurred
@@ -110,22 +112,19 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let h4D = textureLoad(heightBlur4, vec2u(clamp(p + vec2i(0, 1), vec2i(0), vec2i(dims)-vec2i(1))), 0).r;
   let lapLarge = (h4L + h4R + h4U + h4D - 4.0*h4);
 
-  // Gradient (world) using central differences over small scale
-  let gradX = (pRw.y - pLw.y) * 0.5;
-  let gradY = (pDw.y - pUw.y) * 0.5;
-  let gradLen = max(1e-6, sqrt(gradX*gradX + gradY*gradY));
-  let nx = gradX / gradLen;
-  let ny = gradY / gradLen;
-  // Directional second derivative along gradient: d/dn ( (d h / dn) ) ≈ projection of Hessian
-  // Approximate Hessian components from Laplacians along axes
-  let d2x = (pRw.y - 2.0*hWyC + pLw.y);
-  let d2y = (pDw.y - 2.0*hWyC + pUw.y);
-  // Cross term approx using diagonal samples
-  let hUL = worldPos(pc + vec2f(-1.0,-1.0), vZU, dimsF, uniforms).y;
-  let hUR = worldPos(pc + vec2f( 1.0,-1.0), vZU, dimsF, uniforms).y;
-  let hDL = worldPos(pc + vec2f(-1.0, 1.0), vZD, dimsF, uniforms).y;
-  let hDR = worldPos(pc + vec2f( 1.0, 1.0), vZD, dimsF, uniforms).y;
-  let d2xy = (hDR + hUL - hUR - hDL) * 0.25;
+  // Pure view-space directional curvature (consistent with Laplacian & height domain diagnostics)
+  let gradXv = (hR - hL) * 0.5;
+  let gradYv = (hD - hU) * 0.5;
+  let gradLenV = max(1e-6, sqrt(gradXv*gradXv + gradYv*gradYv));
+  let nx = gradXv / gradLenV;
+  let ny = gradYv / gradLenV;
+  let d2x = (hR - 2.0*hC + hL);
+  let d2y = (hD - 2.0*hC + hU);
+  let hULv = sampleHeight(p + vec2i(-1,-1)).r;
+  let hURv = sampleHeight(p + vec2i( 1,-1)).r;
+  let hDLv = sampleHeight(p + vec2i(-1, 1)).r;
+  let hDRv = sampleHeight(p + vec2i( 1, 1)).r;
+  let d2xy = (hDRv + hULv - hURv - hDLv) * 0.25;
   let dirCurv = nx*nx*d2x + 2.0*nx*ny*d2xy + ny*ny*d2y;
 
   // Multi-scale slope coherence (coarse - fine difference emphasizes broad coherent crests)

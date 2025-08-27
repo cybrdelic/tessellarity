@@ -50,10 +50,21 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   var h = accumH * inv;
   var dx = accumDX * inv;
   var dy = accumDY * inv;
-  // Re-normalize derivatives to new smoothed surface (finite difference approx)
-  // (Optional: keep original derivatives; we lightly blend)
-  dx = mix(dx, dxC, 0.15);
-  dy = mix(dy, dyC, 0.15);
+  // Recompute derivatives strictly from smoothed field (remove blend to avoid carrying pre-diff bias)
+  // (We will refine with a post-pass if needed)
+  // Optional vertical debias: if both vertical neighbors are on same side of center, gently pull h toward their average.
+  let hU = sample(icoord + vec2i(0,-1)).r;
+  let hD = sample(icoord + vec2i(0, 1)).r;
+  let du = h - hU; let dd = h - hD;
+  if (du*dd > 0.0) {
+    let avgV = 0.5*(hU + hD);
+    h = mix(h, avgV, 0.12); // light vertical band suppression
+  }
+  // Re-derive derivatives from updated h (central differences on local neighborhood)
+  let hL = sample(icoord + vec2i(-1,0)).r;
+  let hR = sample(icoord + vec2i( 1,0)).r;
+  dx = (hR - hL) * 0.5;
+  dy = (hD - hU) * 0.5;
   var cov = accumCov * inv;
   // Slight coverage lift to prevent edge darkening after diffusion
   cov = max(cov, covC * 0.92);

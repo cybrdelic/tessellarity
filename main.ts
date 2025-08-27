@@ -716,7 +716,7 @@ async function main() {
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
 			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
 			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask',
-			'Raw NoV', 'Lifted NoV', 'NoV Delta', 'Foam Base Seed', 'Foam Final Mask', 'Spray Emission', 'Bubble Mask', 'Bubble Components', 'Crest Raw', 'Crest Gradient', 'Source Composite', 'Phys Slope', 'Phys Curvature', 'Phys Crest', 'Phys Coverage', 'Workgroup Grid', 'World Normal Y', 'View Slope', 'Slope Difference'];
+			'Raw NoV', 'Lifted NoV', 'NoV Delta', 'Foam Base Seed', 'Foam Final Mask', 'Spray Emission', 'Bubble Mask', 'Bubble Components', 'Crest Raw', 'Crest Gradient', 'Source Composite', 'Phys Slope', 'Phys Curvature', 'Phys Crest', 'Phys Coverage', 'Workgroup Grid', 'World Normal Y', 'View Slope', 'Slope Difference', 'Curv Compare', 'Curv Abs', 'Grad Magnitude', 'Curv/Slope Combo', 'Frac Coord', 'Height dX', 'Height dY', 'Height Laplace', 'Depth Neighbor Diff', 'Curv vs Laplace', 'Coverage', 'Coverage dY', 'Height Diffused Δ', 'Height Vert Grad', 'Orig Height Vert Diff', 'Row Mean Deviation', 'Orig Height Vert Laplace', 'Filter Pass Delta', 'Row Laplacian Profiler', 'Filtered Depth Vert Diff', 'Height vs -Depth', 'Derivative Consistency', 'Orig Height vs -Depth', 'Diffused - Original', 'R32 Height Diff', 'FP16 Quant Error'];
 		if (debugModeSelect.options.length !== modeNamesFull.length) {
 			debugModeSelect.innerHTML = modeNamesFull.map((name, i) => `<option value="${i}">${i} - ${name}</option>`).join('');
 		}
@@ -727,7 +727,7 @@ async function main() {
 			'Velocity Field', 'Pressure Distribution', 'Surface Curvature', 'Fresnel Effects',
 			'Caustics Patterns', 'Refraction Rays', 'View Angle (N·V)', 'Fresnel Layer Scalar', 'Foam Probability', 'Height Field', 'Slope Magnitude',
 			'Raw Height', 'Fresnel Hotspots', 'Curvature Magnitude', 'Slope/Capillary/Foam', 'Height Variance', 'Mirror Difference', 'Mid Split Mask',
-			'Raw NoV', 'Lifted NoV', 'NoV Delta', 'Foam Base Seed', 'Foam Final Mask', 'Spray Emission', 'Bubble Mask', 'Bubble Components', 'Crest Raw', 'Crest Gradient', 'Source Composite', 'Phys Slope', 'Phys Curvature', 'Phys Crest', 'Phys Coverage', 'Workgroup Grid', 'World Normal Y', 'View Slope', 'Slope Difference'];
+			'Raw NoV', 'Lifted NoV', 'NoV Delta', 'Foam Base Seed', 'Foam Final Mask', 'Spray Emission', 'Bubble Mask', 'Bubble Components', 'Crest Raw', 'Crest Gradient', 'Source Composite', 'Phys Slope', 'Phys Curvature', 'Phys Crest', 'Phys Coverage', 'Workgroup Grid', 'World Normal Y', 'View Slope', 'Slope Difference', 'Curv Compare', 'Curv Abs', 'Grad Magnitude', 'Curv/Slope Combo', 'Frac Coord', 'Height dX', 'Height dY', 'Height Laplace', 'Depth Neighbor Diff', 'Curv vs Laplace', 'Coverage', 'Coverage dY', 'Height Diffused Δ', 'Height Vert Grad', 'Orig Height Vert Diff', 'Row Mean Deviation', 'Orig Height Vert Laplace', 'Filter Pass Delta', 'Row Laplacian Profiler', 'Filtered Depth Vert Diff', 'Height vs -Depth', 'Derivative Consistency', 'Orig Height vs -Depth', 'Diffused - Original', 'R32 Height Diff', 'FP16 Quant Error'];
 		const layerNames = ['Raw Data', 'Filtered Data', 'Differential'];
 
 		const dm = debugModeViews.mode[0] ?? 0;

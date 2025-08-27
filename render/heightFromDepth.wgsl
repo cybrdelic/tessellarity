@@ -9,6 +9,9 @@
 @group(0) @binding(0) var depthTex: texture_2d<f32>;      // filtered depth map (r32float -> sampled as f32)
 @group(0) @binding(1) var surfaceTex: texture_2d<f32>;    // surface normals/thickness/coverage (rgba16f) optional source for coverage
 @group(0) @binding(2) var outHeight: texture_storage_2d<rgba16float, write>;
+// Height encoding parameters (produced by reduction pass): minH, invRange, range
+struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
+@group(0) @binding(3) var<uniform> heightEncoding: HeightEncoding;
 
 const EPS: f32 = 1e-5;
 
@@ -24,6 +27,11 @@ fn sampleCoverage(i: vec2i) -> f32 {
   return textureLoad(surfaceTex, vec2u(clamped), 0).a;
 }
 
+override VERTICAL_SEAM_FIX: bool = false; // disabled (replaced by uniform smoothing)
+// Deprecated seam overrides retained only for compile-time stability (no-op now)
+override VERTICAL_SEAM_LAPLACE_THRESHOLD: f32 = 0.002;
+override VERTICAL_SEAM_BLEND: f32 = 0.5;
+
 @compute @workgroup_size(8,8,1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(depthTex);
@@ -35,10 +43,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let r = sampleDepth(icoord + vec2i( 1,0));
   let u = sampleDepth(icoord + vec2i(0,-1));
   let d = sampleDepth(icoord + vec2i(0, 1));
-  // View-space depth: convert to height by negation (assuming -Z forward)
-  let h = -c;
-  let dhdx = (r - l) * 0.5;
-  let dhdy = (d - u) * 0.5;
+  // View-space depth: convert directly to height by negation (keep reconstruction minimal for diagnostics)
+  var h = -c;
+  var dhdx = (r - l) * 0.5;
+  var dhdy = (d - u) * 0.5;
   let cov = sampleCoverage(icoord);
-  textureStore(outHeight, icoord, vec4f(h, dhdx, dhdy, cov));
+  // Encode normalized representation to mitigate fp16 exponent seam
+  let hEnc = (h - heightEncoding.minH) * heightEncoding.invRange;
+  let dxEnc = dhdx * heightEncoding.invRange;
+  let dyEnc = dhdy * heightEncoding.invRange;
+  textureStore(outHeight, icoord, vec4f(hEnc, dxEnc, dyEnc, cov));
 }
