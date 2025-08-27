@@ -1,8 +1,13 @@
 /// <reference types="@webgpu/types" />
 
+import { UnifiedResourceManager, UNIFIED_BINDING_SLOTS } from './UnifiedBindings';
+
 /**
  * ShaderIntrospector
- * MVP runtime shader breadcrumb & metrics capture for WebGPU.
+ * Enhanced runtime shader breadcrumb & metrics capture for WebGPU with unified binding layout.
+ *
+ * Now uses the stable binding layout system to eliminate pipeline rebuild issues.
+ * Always binds to slot 7 (@group(0) @binding(7)) as defined in the unified layout.
  *
  * Slot Layout (32 bytes) per index i:
  * 0  - 3  u32 frame
@@ -29,6 +34,7 @@ export interface ShaderIntrospectorOptions {
   pollIntervalMs?: number;   // for internal polling (if used by attachDebugPanel)
   maxDisplay?: number;       // max entries retained for panel
   enableLogging?: boolean;   // reserved for future Node JSONL logging
+  useUnifiedBindings?: boolean; // whether to integrate with UnifiedResourceManager
 }
 
 export class ShaderIntrospector {
@@ -40,10 +46,11 @@ export class ShaderIntrospector {
   private options: ShaderIntrospectorOptions;
   private lastParsed: IntrospectionRecord[] = [];
   private pollingHandle: number | null = null;
+  private resourceManager: UnifiedResourceManager | null = null;
 
   constructor(device: GPUDevice, options: ShaderIntrospectorOptions = {}) {
     this.device = device;
-    this.options = options;
+    this.options = { useUnifiedBindings: true, ...options };
     this.slotCount = options.slotCount ?? 1024;
     // 32 bytes per slot
     this.bufferSize = this.slotCount * 32;
@@ -59,12 +66,42 @@ export class ShaderIntrospector {
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
       label: 'introspectReadback'
     });
+
+    // Auto-register with unified resource manager if enabled
+    if (this.options.useUnifiedBindings) {
+      this.resourceManager = new UnifiedResourceManager(device);
+      this.resourceManager.setResource('introspection', this.introspectBuffer);
+    }
   }
 
   /**
    * Returns GPU buffer to bind into a bind group.
+   * For manual binding setups (backwards compatibility).
    */
   getStorageBuffer(): GPUBuffer { return this.introspectBuffer; }
+
+  /**
+   * Get the unified resource manager (if using unified bindings).
+   * This provides access to the stable bind group layout.
+   */
+  getResourceManager(): UnifiedResourceManager | null {
+    return this.resourceManager;
+  }
+
+  /**
+   * Get the stable bind group layout (if using unified bindings).
+   */
+  getBindGroupLayout(): GPUBindGroupLayout | null {
+    return this.resourceManager?.getBindGroupLayout() ?? null;
+  }
+
+  /**
+   * Get the unified bind group with introspection buffer included.
+   * This bind group uses the stable layout and can be used across multiple pipelines.
+   */
+  getUnifiedBindGroup(): GPUBindGroup | null {
+    return this.resourceManager?.getBindGroup() ?? null;
+  }
 
   /**
    * Encode copy from GPU-visible storage buffer to readback buffer.
@@ -152,5 +189,62 @@ export class ShaderIntrospector {
       clearInterval(this.pollingHandle);
       this.pollingHandle = null;
     }
+  }
+
+  /**
+   * Create a compute pipeline with the unified binding layout.
+   * This eliminates the need for manual bind group layout management.
+   */
+  createComputePipeline(shaderModule: GPUShaderModule, entryPoint: string = 'main'): GPUComputePipeline | null {
+    if (!this.resourceManager) {
+      console.warn('[ShaderIntrospector] Unified bindings not enabled, use manual pipeline creation');
+      return null;
+    }
+
+    return this.device.createComputePipeline({
+      label: `IntrospectionComputePipeline_${entryPoint}`,
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [this.resourceManager.getBindGroupLayout()],
+      }),
+      compute: {
+        module: shaderModule,
+        entryPoint,
+      },
+    });
+  }
+
+  /**
+   * Create a render pipeline with the unified binding layout.
+   */
+  createRenderPipeline(
+    vertexModule: GPUShaderModule,
+    fragmentModule: GPUShaderModule,
+    format: GPUTextureFormat,
+    vertexEntry: string = 'vs_main',
+    fragmentEntry: string = 'fs_main'
+  ): GPURenderPipeline | null {
+    if (!this.resourceManager) {
+      console.warn('[ShaderIntrospector] Unified bindings not enabled, use manual pipeline creation');
+      return null;
+    }
+
+    return this.device.createRenderPipeline({
+      label: `IntrospectionRenderPipeline_${fragmentEntry}`,
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [this.resourceManager.getBindGroupLayout()],
+      }),
+      vertex: {
+        module: vertexModule,
+        entryPoint: vertexEntry,
+      },
+      fragment: {
+        module: fragmentModule,
+        entryPoint: fragmentEntry,
+        targets: [{ format }],
+      },
+      primitive: {
+        topology: 'triangle-list',
+      },
+    });
   }
 }

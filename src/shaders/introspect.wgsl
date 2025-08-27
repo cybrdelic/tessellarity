@@ -1,5 +1,6 @@
 // Runtime Introspection WGSL Helper
 // Import into compute / fragment shaders with build tooling (or concatenate).
+// Now uses the unified binding layout system for stable, conflict-free bindings.
 
 struct IntrospectSlot {
   frame: u32,
@@ -10,7 +11,9 @@ struct IntrospectSlot {
   value: f32,
 }
 
-@group(0) @binding(7) // NOTE: Adjust group/binding to an available slot in your pipeline
+// UNIFIED BINDING: Always @group(0) @binding(7) for introspection buffer
+// This slot is reserved in the unified binding layout and never conflicts
+@group(0) @binding(7)
 var<storage, read_write> introspectBuffer: array<IntrospectSlot, 1024>;
 
 fn pack8(a: array<u8,8>) -> array<u32,2> {

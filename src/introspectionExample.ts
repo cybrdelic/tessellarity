@@ -1,23 +1,23 @@
 /// <reference types="@webgpu/types" />
 
 /**
- * Example integration of the Runtime Shader Introspection System
- * This file demonstrates how to integrate the introspection system into a main render loop
+ * Example integration of the Enhanced Runtime Shader Introspection System
+ * This file demonstrates both unified binding approach and legacy compatibility
  */
 
 import { ShaderIntrospector } from './core/ShaderIntrospector';
 import { IntrospectionIntegration } from './core/integration/IntrospectionIntegration';
 
-// This is a minimal example showing how to integrate the introspection system
-// into your main application loop. Adapt the binding indices and integration
-// points to match your actual application structure.
-
+// Enhanced example showing the new unified binding system
 export async function setupIntrospectionExample(device: GPUDevice) {
-    // Instantiate introspection system
+    console.log('Setting up Enhanced Introspection System...');
+    
+    // Option 1: Use unified binding system (Recommended)
     const shaderIntrospector = new ShaderIntrospector(device, { 
         slotCount: 1024, 
         pollIntervalMs: 500, 
-        maxDisplay: 60 
+        maxDisplay: 60,
+        useUnifiedBindings: true // Enable unified binding system
     });
     
     // Attach debug panel for live monitoring
@@ -26,48 +26,30 @@ export async function setupIntrospectionExample(device: GPUDevice) {
     // Create integration helper
     const introspectionIntegration = new IntrospectionIntegration(device, device.queue, shaderIntrospector);
 
-    // Example: Create a bind group layout that includes the introspection buffer
-    // NOTE: Adjust group/binding indices to avoid conflicts with your existing bindings
-    const debugBindGroupLayout = device.createBindGroupLayout({
-        label: 'debug-bind-group-layout',
-        entries: [
-            // Your existing bindings go here...
-            // binding 0-6 for your application
-            {
-                binding: 7, // This matches the binding in introspect.wgsl
-                visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                buffer: {
-                    type: 'storage' as GPUBufferBindingType
-                }
-            }
-        ]
-    });
+    // Get unified resource manager for simplified resource binding
+    const resourceManager = introspectionIntegration.getResourceManager();
+    if (!resourceManager) {
+        throw new Error('Unified bindings not enabled');
+    }
 
-    // Create bind group with the introspection buffer
-    const debugBindGroup = device.createBindGroup({
-        layout: debugBindGroupLayout,
-        entries: [
-            // Your existing resource bindings...
-            {
-                binding: 7,
-                resource: {
-                    buffer: shaderIntrospector.getStorageBuffer()
-                }
-            }
-        ]
-    });
+    console.log('✅ Unified binding system ready');
+    console.log('  - Introspection buffer auto-bound to slot 7');
+    console.log('  - Stable bind group layout created');
+    console.log('  - No binding conflicts possible');
 
     // Example frame function showing integration
     function renderFrame() {
         const commandEncoder = device.createCommandEncoder();
         
         // Encode your simulation & rendering passes here...
-        // These would use the debugBindGroup that includes the introspection buffer
+        // Use integration.createComputePipeline() for pipelines with introspection
         
-        // Example compute pass that could use introspection:
+        // Example:
+        // const pipeline = introspectionIntegration.createComputePipeline(yourShaderModule);
+        // const bindGroup = introspectionIntegration.getBindGroup();
         // const computePass = commandEncoder.beginComputePass();
-        // computePass.setPipeline(yourPipeline);
-        // computePass.setBindGroup(0, debugBindGroup); // Includes introspection buffer
+        // computePass.setPipeline(pipeline);
+        // computePass.setBindGroup(0, bindGroup); // Unified bind group with introspection
         // computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
         // computePass.end();
 
@@ -82,11 +64,68 @@ export async function setupIntrospectionExample(device: GPUDevice) {
     }
 
     return {
+        introspector: shaderIntrospector,
+        integration: introspectionIntegration,
+        resourceManager,
+        renderFrame,
+        // Legacy compatibility
+        legacyBuffer: shaderIntrospector.getStorageBuffer()
+    };
+}
+
+// Legacy manual binding example (backwards compatibility)
+export async function setupLegacyIntrospectionExample(device: GPUDevice) {
+    console.log('Setting up Legacy Introspection System...');
+    
+    // Option 2: Use legacy manual binding approach
+    const shaderIntrospector = new ShaderIntrospector(device, { 
+        slotCount: 1024, 
+        pollIntervalMs: 500, 
+        maxDisplay: 60,
+        useUnifiedBindings: false // Disable unified bindings
+    });
+    
+    shaderIntrospector.attachDebugPanel();
+    const introspectionIntegration = new IntrospectionIntegration(device, device.queue, shaderIntrospector);
+
+    // Manual bind group layout creation (legacy approach)
+    const debugBindGroupLayout = device.createBindGroupLayout({
+        label: 'debug-bind-group-layout',
+        entries: [
+            // Your existing bindings go here (0-6)...
+            {
+                binding: 7, // Introspection buffer binding
+                visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                buffer: {
+                    type: 'storage' as GPUBufferBindingType
+                }
+            }
+        ]
+    });
+
+    // Create bind group with the introspection buffer
+    const debugBindGroup = device.createBindGroup({
+        layout: debugBindGroupLayout,
+        entries: [
+            // Your existing resource bindings (0-6)...
+            {
+                binding: 7,
+                resource: {
+                    buffer: shaderIntrospector.getStorageBuffer()
+                }
+            }
+        ]
+    });
+
+    console.log('✅ Legacy introspection system ready');
+    console.log('  - Manual binding to slot 7');
+    console.log('  - Requires careful conflict management');
+
+    return {
         shaderIntrospector,
         introspectionIntegration,
         debugBindGroup,
         debugBindGroupLayout,
-        renderFrame
     };
 }
 
@@ -109,7 +148,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
             0u,                                                  // error code (0 = OK)
             idx,                                                 // subject ID (particle index)
             density,                                             // value to log
-            array<u8,8>('M','L','S','M','P','M',0,0),           // shader tag
+            array<u8,8>('U','N','I','F','I','E','D',0),         // shader tag  
             array<u8,8>('c','o','m','p','u','t','e',0)          // stage tag
         );
     }
