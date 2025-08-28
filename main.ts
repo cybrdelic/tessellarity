@@ -292,17 +292,23 @@ async function main() {
 
 	console.log("buffer allocating done")
 
-	// Initialize Runtime Shader Introspection System
+	// Initialize Runtime Shader Introspection System with separate bindings
 	const shaderIntrospector = new ShaderIntrospector(device, { 
 		slotCount: 1024, 
 		pollIntervalMs: 500, 
-		maxDisplay: 60 
+		maxDisplay: 60,
+		useSeparateBindings: true  // Use separate compute/surface layouts to avoid storage buffer limits
 	});
+	
+	// Initialize GPU diagnostics system with live panel
+	const diagnostics = shaderIntrospector.getDiagnostics();
+	diagnostics.attachDebugPanel('gpu-diagnostics-panel');
+	
 	const introspectionIntegration = new IntrospectionIntegration(device, device.queue, shaderIntrospector);
 	
-	// Attach debug panel for live introspection monitoring
+	// Attach debug panel for live introspection monitoring  
 	shaderIntrospector.attachDebugPanel();
-	console.log("Runtime Shader Introspection System initialized");
+	console.log("Runtime Shader Introspection System initialized with separate bindings and GPU diagnostics");
 
 	// Centralized simulation configurations with safe particle limits
 	const maxGridCount = 64 * 64 * 64; // 262,144 - MLS-MPM grid limit

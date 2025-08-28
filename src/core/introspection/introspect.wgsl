@@ -19,9 +19,15 @@ struct IntrospectRing {
   slots : array<IntrospectSlot, INTROSPECT_SLOTS>,
 }
 
-// UNIFIED BINDING: Always @group(0) @binding(15) for introspection buffer
-// This slot is reserved in all bind group layouts to avoid conflicts
-@group(0) @binding(15)
+// SEPARATE BINDING LAYOUTS: 
+// For compute shaders: @group(0) @binding(4) 
+// For fragment shaders: @group(0) @binding(15)
+// This allows each stage to stay within the 8 storage buffer limit
+#ifdef INTROSPECT_COMPUTE_STAGE
+  @group(0) @binding(4)
+#else
+  @group(0) @binding(15)  
+#endif
 var<storage, read_write> introspectBuffer: IntrospectRing;
 
 // Atomic ring buffer: threads compete for slots

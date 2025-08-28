@@ -10,6 +10,14 @@ struct Cell {
     mass: atomic<i32>, 
 }
 
+// Define this is a compute stage for introspection binding
+#define INTROSPECT_COMPUTE_STAGE
+
+// Include introspection system
+#ifndef INTROSPECT_SLOTS
+  #define INTROSPECT_SLOTS 1024
+#endif
+
 struct IntrospectSlot {
   frame       : u32,
   error_code  : u32,
@@ -23,31 +31,23 @@ struct IntrospectSlot {
 
 struct IntrospectRing {
   head  : atomic<u32>,
-  slots : array<IntrospectSlot, 1024>,
+  slots : array<IntrospectSlot, INTROSPECT_SLOTS>,
 }
 
-override fixed_point_multiplier: f32; 
-
-fn encodeFixedPoint(floating_point: f32) -> i32 {
-	return i32(floating_point * fixed_point_multiplier);
-}
-
-// Pack 4 ASCII characters into u32 (little-endian)
-fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
-  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
-}
-
-fn create_tag_mls() -> array<u32,2> {
-    return array<u32,2>(pack4(109u, 108u, 115u, 0u), pack4(0u, 0u, 0u, 0u)); // "mls\0", "\0\0\0\0"
-}
-
-fn create_tag_compute() -> array<u32,2> {
-    return array<u32,2>(pack4(99u, 111u, 109u, 112u), pack4(117u, 116u, 101u, 0u)); // "comp", "ute\0"
-}
+// SEPARATE BINDING LAYOUTS: 
+// For compute shaders: @group(0) @binding(4) 
+// For fragment shaders: @group(0) @binding(15)
+// This allows each stage to stay within the 8 storage buffer limit
+#ifdef INTROSPECT_COMPUTE_STAGE
+  @group(0) @binding(4)
+#else
+  @group(0) @binding(15)  
+#endif
+var<storage, read_write> introspectBuffer: IntrospectRing;
 
 // Atomic ring buffer: threads compete for slots
 fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_tag0: u32, shader_tag1: u32, stage_tag0: u32, stage_tag1: u32) {
-  let idx = atomicAdd(&introspectBuffer.head, 1u) % 1024u;
+  let idx = atomicAdd(&introspectBuffer.head, 1u) % INTROSPECT_SLOTS;
   introspectBuffer.slots[idx].frame = frame;
   introspectBuffer.slots[idx].error_code = error_code;
   introspectBuffer.slots[idx].subject_id = subject;
@@ -58,11 +58,38 @@ fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_
   introspectBuffer.slots[idx].value = value;
 }
 
+// Pack 4 ASCII characters into u32 (little-endian)
+fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
+  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
+}
 
+// Helper tags for common shader types
+fn tag_mlsmpm() -> array<u32,2> { 
+  return array<u32,2>(pack4(77u, 76u, 83u, 77u), pack4(80u, 77u, 0u, 0u)); // "MLSM", "PM\0\0"
+}
+
+fn tag_compute() -> array<u32,2> { 
+  return array<u32,2>(pack4(99u, 111u, 109u, 112u), pack4(117u, 116u, 101u, 0u)); // "comp", "ute\0"
+}
+
+// Convenience wrapper for MLS-MPM compute stage
+fn breadcrumb_mlsmpm(frame: u32, subject: u32, value: f32) {
+  let shader = tag_mlsmpm();
+  let stage = tag_compute();
+  set_breadcrumb(frame, 0u, subject, value, shader[0], shader[1], stage[0], stage[1]);
+}
+
+override fixed_point_multiplier: f32; 
+
+fn encodeFixedPoint(floating_point: f32) -> i32 {
+	return i32(floating_point * fixed_point_multiplier);
+}
+
+// Compute binding layout: Use slot 4 for introspection in compute stage (stays under 8 storage buffer limit)
 @group(0) @binding(0) var<storage, read> particles: array<Particle>;
 @group(0) @binding(1) var<storage, read_write> cells: array<Cell>;
 @group(0) @binding(2) var<uniform> init_box_size: vec3f;
-@group(0) @binding(15) var<storage, read_write> introspectBuffer: IntrospectRing;
+// Note: introspectBuffer is declared above in the introspection section at binding 4
 
 @compute @workgroup_size(64)
 fn p2g_1(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -107,8 +134,6 @@ fn p2g_1(@builtin(global_invocation_id) id: vec3<u32>) {
         
         // Emit introspection breadcrumb for particle velocity magnitude
         let velocity_magnitude = length(particle.v);
-        let shader = create_tag_mls();
-        let stage = create_tag_compute();
-        set_breadcrumb(0u, 0u, id.x, velocity_magnitude, shader[0], shader[1], stage[0], stage[1]);
+        breadcrumb_mlsmpm(0u, id.x, velocity_magnitude);
     }
 }

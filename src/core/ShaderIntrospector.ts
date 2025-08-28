@@ -1,6 +1,7 @@
 /// <reference types="@webgpu/types" />
 
-import { UnifiedResourceManager, UNIFIED_BINDING_SLOTS } from './UnifiedBindings';
+import { ComputeResourceManager, SurfaceResourceManager } from './SeparateBindings';
+import { GPUDiagnostics } from './introspection/GPUDiagnostics';
 
 /**
  * ShaderIntrospector
@@ -35,7 +36,7 @@ export interface ShaderIntrospectorOptions {
   pollIntervalMs?: number;   // for internal polling (if used by attachDebugPanel)
   maxDisplay?: number;       // max entries retained for panel
   enableLogging?: boolean;   // reserved for future Node JSONL logging
-  useUnifiedBindings?: boolean; // whether to integrate with UnifiedResourceManager
+  useSeparateBindings?: boolean; // whether to use separate compute/surface layouts (default: true)
 }
 
 export class ShaderIntrospector {
@@ -47,11 +48,13 @@ export class ShaderIntrospector {
   private options: ShaderIntrospectorOptions;
   private lastParsed: IntrospectionRecord[] = [];
   private pollingHandle: number | null = null;
-  private resourceManager: UnifiedResourceManager | null = null;
+  private computeResourceManager: ComputeResourceManager | null = null;
+  private surfaceResourceManager: SurfaceResourceManager | null = null;
+  private diagnostics: GPUDiagnostics;
 
   constructor(device: GPUDevice, options: ShaderIntrospectorOptions = {}) {
     this.device = device;
-    this.options = { useUnifiedBindings: true, ...options };
+    this.options = { useSeparateBindings: true, ...options };
     this.slotCount = options.slotCount ?? 1024;
     // Ring buffer structure: 4 bytes (atomic head) + padding to 16-byte boundary + 32 bytes per slot
     // The atomic head needs to be at the start, followed by the slots array
@@ -70,10 +73,17 @@ export class ShaderIntrospector {
       label: 'introspectReadback'
     });
 
-    // Auto-register with unified resource manager if enabled
-    if (this.options.useUnifiedBindings) {
-      this.resourceManager = new UnifiedResourceManager(device);
-      this.resourceManager.setResource('introspection', this.introspectBuffer);
+    // Initialize diagnostics system
+    this.diagnostics = new GPUDiagnostics(device);
+
+    // Auto-setup separate binding layouts if enabled
+    if (this.options.useSeparateBindings) {
+      this.computeResourceManager = new ComputeResourceManager(device);
+      this.surfaceResourceManager = new SurfaceResourceManager(device);
+      
+      // Register introspection buffer with both managers
+      this.computeResourceManager.setResource('introspection', this.introspectBuffer);
+      this.surfaceResourceManager.setResource('introspection', this.introspectBuffer);
     }
   }
 
@@ -84,26 +94,52 @@ export class ShaderIntrospector {
   getStorageBuffer(): GPUBuffer { return this.introspectBuffer; }
 
   /**
-   * Get the unified resource manager (if using unified bindings).
-   * This provides access to the stable bind group layout.
+   * Get the compute resource manager (if using separate bindings).
    */
-  getResourceManager(): UnifiedResourceManager | null {
-    return this.resourceManager;
+  getComputeResourceManager(): ComputeResourceManager | null {
+    return this.computeResourceManager;
   }
 
   /**
-   * Get the stable bind group layout (if using unified bindings).
+   * Get the surface resource manager (if using separate bindings).
    */
-  getBindGroupLayout(): GPUBindGroupLayout | null {
-    return this.resourceManager?.getBindGroupLayout() ?? null;
+  getSurfaceResourceManager(): SurfaceResourceManager | null {
+    return this.surfaceResourceManager;
   }
 
   /**
-   * Get the unified bind group with introspection buffer included.
-   * This bind group uses the stable layout and can be used across multiple pipelines.
+   * Get the compute bind group layout (if using separate bindings).
    */
-  getUnifiedBindGroup(): GPUBindGroup | null {
-    return this.resourceManager?.getBindGroup() ?? null;
+  getComputeBindGroupLayout(): GPUBindGroupLayout | null {
+    return this.computeResourceManager?.getBindGroupLayout() ?? null;
+  }
+
+  /**
+   * Get the surface bind group layout (if using separate bindings).
+   */
+  getSurfaceBindGroupLayout(): GPUBindGroupLayout | null {
+    return this.surfaceResourceManager?.getBindGroupLayout() ?? null;
+  }
+
+  /**
+   * Get the compute bind group with introspection buffer included.
+   */
+  getComputeBindGroup(): GPUBindGroup | null {
+    return this.computeResourceManager?.getBindGroup() ?? null;
+  }
+
+  /**
+   * Get the surface bind group with introspection buffer included.
+   */
+  getSurfaceBindGroup(): GPUBindGroup | null {
+    return this.surfaceResourceManager?.getBindGroup() ?? null;
+  }
+
+  /**
+   * Get the GPU diagnostics system.
+   */
+  getDiagnostics(): GPUDiagnostics {
+    return this.diagnostics;
   }
 
   /**
@@ -235,46 +271,47 @@ export class ShaderIntrospector {
   }
 
   /**
-   * Create a compute pipeline with the unified binding layout.
-   * This eliminates the need for manual bind group layout management.
+   * Create a compute pipeline with separate compute binding layout and diagnostics.
    */
-  createComputePipeline(shaderModule: GPUShaderModule, entryPoint: string = 'main'): GPUComputePipeline | null {
-    if (!this.resourceManager) {
-      console.warn('[ShaderIntrospector] Unified bindings not enabled, use manual pipeline creation');
+  async createComputePipeline(shaderModule: GPUShaderModule, entryPoint: string = 'main'): Promise<GPUComputePipeline | null> {
+    if (!this.computeResourceManager) {
+      console.warn('[ShaderIntrospector] Separate bindings not enabled, use manual pipeline creation');
       return null;
     }
 
-    return this.device.createComputePipeline({
+    const descriptor: GPUComputePipelineDescriptor = {
       label: `IntrospectionComputePipeline_${entryPoint}`,
       layout: this.device.createPipelineLayout({
-        bindGroupLayouts: [this.resourceManager.getBindGroupLayout()],
+        bindGroupLayouts: [this.computeResourceManager.getBindGroupLayout()],
       }),
       compute: {
         module: shaderModule,
         entryPoint,
       },
-    });
+    };
+
+    return await this.diagnostics.createComputePipelineWithDiagnostics(descriptor, `Compute_${entryPoint}`);
   }
 
   /**
-   * Create a render pipeline with the unified binding layout.
+   * Create a render pipeline with separate surface binding layout and diagnostics.
    */
-  createRenderPipeline(
+  async createRenderPipeline(
     vertexModule: GPUShaderModule,
     fragmentModule: GPUShaderModule,
     format: GPUTextureFormat,
     vertexEntry: string = 'vs_main',
     fragmentEntry: string = 'fs_main'
-  ): GPURenderPipeline | null {
-    if (!this.resourceManager) {
-      console.warn('[ShaderIntrospector] Unified bindings not enabled, use manual pipeline creation');
+  ): Promise<GPURenderPipeline | null> {
+    if (!this.surfaceResourceManager) {
+      console.warn('[ShaderIntrospector] Separate bindings not enabled, use manual pipeline creation');
       return null;
     }
 
-    return this.device.createRenderPipeline({
+    const descriptor: GPURenderPipelineDescriptor = {
       label: `IntrospectionRenderPipeline_${fragmentEntry}`,
       layout: this.device.createPipelineLayout({
-        bindGroupLayouts: [this.resourceManager.getBindGroupLayout()],
+        bindGroupLayouts: [this.surfaceResourceManager.getBindGroupLayout()],
       }),
       vertex: {
         module: vertexModule,
@@ -288,6 +325,8 @@ export class ShaderIntrospector {
       primitive: {
         topology: 'triangle-list',
       },
-    });
+    };
+
+    return await this.diagnostics.createRenderPipelineWithDiagnostics(descriptor, `Render_${fragmentEntry}`);
   }
 }
