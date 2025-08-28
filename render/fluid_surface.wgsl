@@ -121,8 +121,28 @@ const DEFAULT_WIND_DIR: vec3f = vec3f(0.8, 0.0, 0.2);
 @group(0) @binding(12) var foamAccumTex: texture_2d<f32>; // temporally accumulated foam (R in .r)
 @group(0) @binding(13) var velocityTex: texture_2d<f32>; // xy velocity (screen/world projected) for stabilization
 @group(0) @binding(14) var backgroundTex: texture_2d<f32>; // scene color buffer pre-water
-@group(0) @binding(15) var<uniform> transmissionParams: TransmissionParams;
-@group(0) @binding(16) var<uniform> sphereContain: SphereContain;
+
+// Introspection system for runtime debugging and monitoring
+struct IntrospectSlot {
+  frame       : u32,
+  error_code  : u32,
+  subject_id  : u32,
+  shader_tag0 : u32, // 4 ASCII bytes (LE)
+  shader_tag1 : u32, // 4 ASCII bytes (LE)
+  stage_tag0  : u32, // 4 ASCII bytes (LE)
+  stage_tag1  : u32, // 4 ASCII bytes (LE)
+  value       : f32,
+}
+
+struct IntrospectRing {
+  head  : atomic<u32>,
+  slots : array<IntrospectSlot, 1024>,
+}
+
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: IntrospectRing;
+
+@group(0) @binding(16) var<uniform> transmissionParams: TransmissionParams;
+@group(0) @binding(22) var<uniform> sphereContain: SphereContain;
 @group(0) @binding(17) var original_height_texture: texture_2d<f32>; // pre-diffusion snapshot
 // New: intermediate depth filter views for pass delta diagnostics (optional; if unbound, modes gracefully skip)
 @group(0) @binding(18) var depth_pass_x_texture: texture_2d<f32>; // after horizontal pass
@@ -133,6 +153,33 @@ struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
 @group(0) @binding(21) var<uniform> heightEncoding: HeightEncoding;
 
 struct FragmentInput { @builtin(position) pos: vec4f }
+
+// Introspection helper functions for runtime debugging
+// Pack 4 ASCII characters into u32 (little-endian)
+fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
+  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
+}
+
+fn create_tag_fluid() -> array<u32,2> {
+    return array<u32,2>(pack4(102u, 108u, 117u, 105u), pack4(100u, 0u, 0u, 0u)); // "flui", "d\0\0\0"
+}
+
+fn create_tag_fragment() -> array<u32,2> {
+    return array<u32,2>(pack4(102u, 114u, 97u, 103u), pack4(109u, 101u, 110u, 116u)); // "frag", "ment"
+}
+
+// Atomic ring buffer: threads compete for slots
+fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_tag0: u32, shader_tag1: u32, stage_tag0: u32, stage_tag1: u32) {
+  let idx = atomicAdd(&introspectBuffer.head, 1u) % 1024u;
+  introspectBuffer.slots[idx].frame = frame;
+  introspectBuffer.slots[idx].error_code = error_code;
+  introspectBuffer.slots[idx].subject_id = subject;
+  introspectBuffer.slots[idx].shader_tag0 = shader_tag0;
+  introspectBuffer.slots[idx].shader_tag1 = shader_tag1;
+  introspectBuffer.slots[idx].stage_tag0 = stage_tag0;
+  introspectBuffer.slots[idx].stage_tag1 = stage_tag1;
+  introspectBuffer.slots[idx].value = value;
+}
 
 // Seam probe (optional). Disabled by default. When true outputs discrepancy visualization early.
 override SEAM_PROBE: bool = false;
@@ -1754,5 +1801,12 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
   let baseTone = lit - specPart;
   let premulColor = max(baseTone, vec3f(0.0)) * alpha + specPart;
+  
+  // Emit introspection breadcrumb for alpha tracking
+  let pixel_id = u32(input.pos.x) + u32(input.pos.y) * 1920u; // approximate screen width
+  let shader = create_tag_fluid();
+  let stage = create_tag_fragment();
+  set_breadcrumb(0u, 0u, pixel_id, alpha, shader[0], shader[1], stage[0], stage[1]);
+  
   return vec4f(premulColor, alpha);
 }

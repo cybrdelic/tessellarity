@@ -10,6 +10,8 @@ import { EnhancedLODIntegration, EnhancedLODResult } from './src/core/EnhancedLO
 import { ENHANCED_LOD_UI_STYLES, ENHANCED_LOD_UI_TEMPLATE } from './src/core/EnhancedLODUI';
 import { DebugLayer, DebugVisualizationMode } from './src/debug/DebugModes';
 import { DebugHUD } from './src/debug/hud';
+import { ShaderIntrospector } from './src/core/ShaderIntrospector';
+import { IntrospectionIntegration } from './src/core/integration/IntrospectionIntegration';
 
 /// <reference types="@webgpu/types" />
 
@@ -288,7 +290,27 @@ async function main() {
 	debugModeViews.intensity[0] = 1.0;
 	device.queue.writeBuffer(debugModeBuffer, 0, debugModeValues);
 
-	console.log("buffer allocating done")	// Centralized simulation configurations with safe particle limits
+	console.log("buffer allocating done")
+
+	// Initialize Runtime Shader Introspection System with separate bindings
+	const shaderIntrospector = new ShaderIntrospector(device, { 
+		slotCount: 1024, 
+		pollIntervalMs: 500, 
+		maxDisplay: 60,
+		useSeparateBindings: true  // Use separate compute/surface layouts to avoid storage buffer limits
+	});
+	
+	// Initialize GPU diagnostics system with live panel
+	const diagnostics = shaderIntrospector.getDiagnostics();
+	diagnostics.attachDebugPanel('gpu-diagnostics-panel');
+	
+	const introspectionIntegration = new IntrospectionIntegration(device, device.queue, shaderIntrospector);
+	
+	// Attach debug panel for live introspection monitoring  
+	shaderIntrospector.attachDebugPanel();
+	console.log("Runtime Shader Introspection System initialized with separate bindings and GPU diagnostics");
+
+	// Centralized simulation configurations with safe particle limits
 	const maxGridCount = 64 * 64 * 64; // 262,144 - MLS-MPM grid limit
 	const simulationConfigs = {
 		'mls-mpm': {
@@ -334,12 +356,12 @@ async function main() {
 	const mlsmpmRadius = 0.6;
 	const mlsmpmDiameter = 2 * mlsmpmRadius;
 	const mlsmpmZoomRate = 1.5;
-	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device);
+	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device, shaderIntrospector.getStorageBuffer());
 	const boidsFov = 45 * Math.PI / 180;
 	const boidsRadius = 0.3;
 	const boidsDiameter = 2 * boidsRadius;
 	const boidsZoomRate = 0.8;
-	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device); const mlsmpmRenderer = new FluidRenderer(
+	const boidsSimulator = new BoidsSimulator(particleBuffer, posvelBuffer, boidsDiameter, device, shaderIntrospector.getStorageBuffer()); const mlsmpmRenderer = new FluidRenderer(
 		device,
 		canvas,
 		presentationFormat,
@@ -354,6 +376,7 @@ async function main() {
 		lightingControlsBuffer,
 		effectParametersBuffer,
 		compositionParamsBuffer,
+		shaderIntrospector.getStorageBuffer(),
 	); const boidsRenderer = new FluidRenderer(
 		device,
 		canvas,
@@ -368,7 +391,8 @@ async function main() {
 		effectsToggleBuffer,
 		lightingControlsBuffer,
 		effectParametersBuffer,
-		compositionParamsBuffer);
+		compositionParamsBuffer,
+		shaderIntrospector.getStorageBuffer());
 	// Create skybox renderer for environment background
 	const skyboxRenderer = new SkyboxRenderer(
 		device,
@@ -621,6 +645,9 @@ async function main() {
 			// Update the render uniforms buffer with the new sphere size
 			device.queue.writeBuffer(renderUniformBuffer, 0, renderUniformsValues);
 		}
+
+		// Encode introspection data copy for runtime monitoring
+		introspectionIntegration.encode(commandEncoder);
 
 		device.queue.submit([commandEncoder.finish()])
 		const end = performance.now();

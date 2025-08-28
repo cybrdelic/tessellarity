@@ -38,12 +38,14 @@ export class MLSMPMSimulator implements ISimulator {
     particleBuffer: GPUBuffer
 
     device: GPUDevice
+    introspectionBuffer?: GPUBuffer
 
     renderDiameter: number
 
-    constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice) {
+    constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice, introspectionBuffer?: GPUBuffer) {
         this.device = device
         this.renderDiameter = renderDiameter
+        this.introspectionBuffer = introspectionBuffer
     const clearGridModule = makeShaderModule(device, clearGrid);
     const p2g1Module = makeShaderModule(device, p2g_1);
     const p2g2Module = makeShaderModule(device, p2g_2);
@@ -64,6 +66,7 @@ export class MLSMPMSimulator implements ISimulator {
             layout: 'auto',
             compute: {
                 module: clearGridModule,
+                entryPoint: 'clearGrid'
             }
         })
         this.p2g1Pipeline = device.createComputePipeline({
@@ -71,6 +74,7 @@ export class MLSMPMSimulator implements ISimulator {
             layout: 'auto',
             compute: {
                 module: p2g1Module,
+                entryPoint: 'p2g_1',
                 constants: {
                     'fixed_point_multiplier': constants.fixed_point_multiplier
                 },
@@ -81,6 +85,7 @@ export class MLSMPMSimulator implements ISimulator {
             layout: 'auto',
             compute: {
                 module: p2g2Module,
+                entryPoint: 'p2g_2',
                 constants: {
                     'fixed_point_multiplier': constants.fixed_point_multiplier,
                     'stiffness': constants.stiffness,
@@ -95,6 +100,7 @@ export class MLSMPMSimulator implements ISimulator {
             layout: 'auto',
             compute: {
                 module: updateGridModule,
+                entryPoint: 'updateGrid',
                 constants: {
                     'fixed_point_multiplier': constants.fixed_point_multiplier,
                     'dt': constants.dt,
@@ -106,6 +112,7 @@ export class MLSMPMSimulator implements ISimulator {
             layout: 'auto',
             compute: {
                 module: g2pModule,
+                entryPoint: 'g2p',
                 constants: {
                     'fixed_point_multiplier': constants.fixed_point_multiplier,
                     'dt': constants.dt,
@@ -117,6 +124,7 @@ export class MLSMPMSimulator implements ISimulator {
             layout: 'auto',
             compute: {
                 module: copyPositionModule,
+                entryPoint: 'copyPosition'
             }
         });
 
@@ -155,6 +163,7 @@ export class MLSMPMSimulator implements ISimulator {
                 { binding: 0, resource: { buffer: particleBuffer } },
                 { binding: 1, resource: { buffer: cellBuffer } },
                 { binding: 2, resource: { buffer: this.initBoxSizeBuffer } },
+                { binding: 15, resource: { buffer: this.introspectionBuffer || particleBuffer } }, // Fallback to dummy if not provided
             ],
         })
         this.p2g2BindGroup = device.createBindGroup({

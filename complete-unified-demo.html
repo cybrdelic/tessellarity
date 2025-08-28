@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Unified Binding System Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+        
+        .header h1 {
+            color: #4caf50;
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        }
+        
+        .header p {
+            color: #b0b0b0;
+            margin: 5px 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+        }
+        
+        .main-content {
+            background: rgba(0,0,0,0.4);
+            border-radius: 12px;
+            border: 1px solid #333;
+            padding: 20px;
+        }
+        
+        .sidebar {
+            background: rgba(0,0,0,0.4);
+            border-radius: 12px;
+            border: 1px solid #333;
+            padding: 20px;
+            height: fit-content;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .section h3 {
+            color: #4caf50;
+            margin: 0 0 15px 0;
+            font-size: 1.3em;
+        }
+        
+        .benefits {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .benefit {
+            background: linear-gradient(135deg, #1a4f7a 0%, #0d3a5c 100%);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #4a9eff;
+        }
+        
+        .benefit h4 {
+            color: #4a9eff;
+            margin: 0 0 8px 0;
+            font-size: 1.1em;
+        }
+        
+        .benefit p {
+            margin: 0;
+            color: #b3d9ff;
+            font-size: 0.9em;
+        }
+        
+        .status {
+            padding: 12px 16px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: linear-gradient(135deg, #0d4f1c 0%, #1b5e20 100%);
+            border-color: #4caf50;
+            color: #c8e6c9;
+        }
+        
+        .status.info {
+            background: linear-gradient(135deg, #1a4f7a 0%, #0d3a5c 100%);
+            border-color: #4a9eff;
+            color: #b3d9ff;
+        }
+        
+        .status.warning {
+            background: linear-gradient(135deg, #7a4f1a 0%, #5c3a0d 100%);
+            border-color: #ff9800;
+            color: #ffe0b3;
+        }
+        
+        .console {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            overflow-y: auto;
+            max-height: 300px;
+            white-space: pre-wrap;
+            color: #00ff00;
+        }
+        
+        .button {
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            margin: 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .button:hover {
+            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        
+        .button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .binding-slots {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .slot {
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+            font-size: 0.8em;
+        }
+        
+        .slot.used {
+            background: linear-gradient(135deg, #1a4f7a 0%, #0d3a5c 100%);
+            border-color: #4a9eff;
+            color: #b3d9ff;
+        }
+        
+        .slot.introspection {
+            background: linear-gradient(135deg, #4f1a7a 0%, #3a0d5c 100%);
+            border-color: #9f4aff;
+            color: #d9b3ff;
+            font-weight: bold;
+        }
+        
+        .slot.reserved {
+            background: linear-gradient(135deg, #4f4f1a 0%, #3c3c0d 100%);
+            border-color: #ffff4a;
+            color: #ffff99;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .stat {
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4caf50;
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            color: #b0b0b0;
+        }
+        
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .benefits {
+                grid-template-columns: 1fr;
+            }
+            
+            .binding-slots {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Unified Binding System</h1>
+        <p>Production-Ready Shader Introspection with Stable Interface Architecture</p>
+        <p>Eliminates pipeline rebuilds • Prevents binding conflicts • Centralized resource management</p>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="section">
+                <h3>🎯 System Overview</h3>
+                <p>This demonstration shows the complete unified binding system that solves critical production issues in WebGPU applications:</p>
+                
+                <div class="benefits">
+                    <div class="benefit">
+                        <h4>🔒 Frozen Interface</h4>
+                        <p>16 predefined binding slots that never change, eliminating pipeline rebuilds</p>
+                    </div>
+                    <div class="benefit">
+                        <h4>⚡ Conflict-Free</h4>
+                        <p>Introspection permanently assigned to slot 7, no manual coordination needed</p>
+                    </div>
+                    <div class="benefit">
+                        <h4>🎮 Single Bind Group</h4>
+                        <p>One stable bind group works across ALL pipelines using unified layout</p>
+                    </div>
+                    <div class="benefit">
+                        <h4>🏗️ Centralized Management</h4>
+                        <p>UnifiedResourceManager eliminates hand-tracked state and boolean flags</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📊 Unified Binding Layout</h3>
+                <p>Stable slot allocation eliminates binding conflicts:</p>
+                
+                <div class="binding-slots">
+                    <div class="slot used">Slot 0<br>Particles</div>
+                    <div class="slot used">Slot 1<br>Particles Aux</div>
+                    <div class="slot used">Slot 2<br>Environment</div>
+                    <div class="slot used">Slot 3<br>Sim Params</div>
+                    <div class="slot used">Slot 4<br>Box Size</div>
+                    <div class="slot">Slot 5<br>Grid Data</div>
+                    <div class="slot">Slot 6<br>Prefix Sum</div>
+                    <div class="slot introspection">Slot 7<br>INTROSPECTION</div>
+                    <div class="slot">Slot 8<br>Position Out</div>
+                    <div class="slot">Slot 9<br>Render Uniforms</div>
+                    <div class="slot reserved">Slot 10<br>Reserved</div>
+                    <div class="slot reserved">Slot 11<br>Reserved</div>
+                    <div class="slot reserved">Slot 12<br>Reserved</div>
+                    <div class="slot reserved">Slot 13<br>Reserved</div>
+                    <div class="slot reserved">Slot 14<br>Reserved</div>
+                    <div class="slot reserved">Slot 15<br>Reserved</div>
+                </div>
+                
+                <div class="status info">
+                    ℹ️ <strong>Key Benefit:</strong> Adding new features uses reserved slots without rebuilding existing pipelines
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>🧪 Live Demonstration</h3>
+                <p>Run the complete unified binding system with real-time introspection:</p>
+                
+                <div>
+                    <button class="button" id="startBtn" onclick="startDemo()">▶️ Start Demo</button>
+                    <button class="button" id="stopBtn" onclick="stopDemo()" disabled>⏹️ Stop Demo</button>
+                    <button class="button" id="addFeatureBtn" onclick="addFeature()" disabled>🔧 Add Feature</button>
+                </div>
+                
+                <div id="statusContainer">
+                    <div class="status info">
+                        ℹ️ Ready to start unified binding system demonstration
+                    </div>
+                </div>
+                
+                <div class="console" id="console">WebGPU Unified Binding System Console
+Ready to start demonstration...</div>
+            </div>
+
+            <div class="section">
+                <h3>💾 Implementation Benefits</h3>
+                <div class="status success">✅ <strong>Production Impact:</strong> Eliminates redundancy and state leak issues</div>
+                <div class="status success">✅ <strong>Developer Experience:</strong> No manual binding slot coordination</div>
+                <div class="status success">✅ <strong>Performance:</strong> Stable pipelines reduce GPU driver overhead</div>
+                <div class="status success">✅ <strong>Maintenance:</strong> Single point of resource management</div>
+                <div class="status success">✅ <strong>Scalability:</strong> Reserved slots ready for future features</div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="section">
+                <h3>📈 Live Stats</h3>
+                <div class="stats">
+                    <div class="stat">
+                        <span class="stat-value" id="frameCount">0</span>
+                        <span class="stat-label">Frames</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value" id="pipelineCount">0</span>
+                        <span class="stat-label">Pipelines</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value" id="resourceCount">0</span>
+                        <span class="stat-label">Resources</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">7</span>
+                        <span class="stat-label">Introspection Slot</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>🔧 System Status</h3>
+                <div id="systemStatus">
+                    <div class="status info">🔍 WebGPU Checking...</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📝 Code Architecture</h3>
+                <p><strong>UnifiedResourceManager:</strong></p>
+                <ul style="font-size: 0.9em; color: #b0b0b0;">
+                    <li>Frozen 16-slot interface</li>
+                    <li>Automatic dummy buffer fallbacks</li>
+                    <li>Single bind group creation</li>
+                    <li>Centralized resource tracking</li>
+                </ul>
+                
+                <p><strong>ShaderIntrospector:</strong></p>
+                <ul style="font-size: 0.9em; color: #b0b0b0;">
+                    <li>Auto-registration at slot 7</li>
+                    <li>Pipeline creation helpers</li>
+                    <li>Backwards compatibility</li>
+                    <li>Live debug panel</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h3>🚀 Usage Pattern</h3>
+                <div style="font-size: 0.8em; color: #90caf9; font-family: monospace; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 4px;">
+// Before: Manual binding conflicts<br>
+❌ Custom layout per pipeline<br>
+❌ Manual slot coordination<br>
+❌ Pipeline rebuilds on changes<br><br>
+
+// After: Unified binding stability<br>
+✅ Single stable layout<br>
+✅ No slot conflicts possible<br>
+✅ Add features without rebuilds<br>
+✅ Centralized resource management
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the unified binding system -->
+    <script type="module">
+        import { runCompleteUnifiedExample } from './src/completeUnifiedExample.js';
+        
+        let demoInstance = null;
+        let isRunning = false;
+        
+        window.startDemo = async function() {
+            const console = document.getElementById('console');
+            const statusContainer = document.getElementById('statusContainer');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const addFeatureBtn = document.getElementById('addFeatureBtn');
+            
+            try {
+                // Check WebGPU support
+                if (!navigator.gpu) {
+                    throw new Error('WebGPU not supported in this browser');
+                }
+                
+                updateStatus('🔍 Requesting WebGPU adapter...', 'info');
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    throw new Error('WebGPU adapter not available');
+                }
+                
+                updateStatus('🔧 Creating WebGPU device...', 'info');
+                const device = await adapter.requestDevice();
+                
+                updateStatus('✅ WebGPU device ready', 'success');
+                
+                // Import and create the unified example
+                const { CompleteUnifiedExample } = await import('./src/completeUnifiedExample.js');
+                demoInstance = new CompleteUnifiedExample(device);
+                
+                updateStatus('🚀 Initializing unified binding system...', 'info');
+                console.textContent = 'Initializing unified binding system...\n';
+                
+                await demoInstance.initialize(1024);
+                
+                updateStatus('▶️ Starting demonstration...', 'success');
+                demoInstance.start();
+                isRunning = true;
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                addFeatureBtn.disabled = false;
+                
+                // Update stats periodically
+                updateStatsLoop();
+                
+                // Redirect console.log to our display
+                const originalLog = console.log;
+                console.log = function(...args) {
+                    originalLog.apply(console, args);
+                    const consoleEl = document.getElementById('console');
+                    consoleEl.textContent += args.join(' ') + '\n';
+                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                };
+                
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`, 'warning');
+                console.textContent += `Error: ${error.message}\n`;
+            }
+        };
+        
+        window.stopDemo = function() {
+            if (demoInstance && isRunning) {
+                demoInstance.stop();
+                isRunning = false;
+                
+                const startBtn = document.getElementById('startBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                const addFeatureBtn = document.getElementById('addFeatureBtn');
+                
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                addFeatureBtn.disabled = true;
+                
+                updateStatus('⏹️ Demonstration stopped', 'info');
+            }
+        };
+        
+        window.addFeature = async function() {
+            if (demoInstance && isRunning) {
+                try {
+                    await demoInstance.addNewFeature();
+                    updateStatus('🔧 New feature added successfully', 'success');
+                } catch (error) {
+                    updateStatus(`❌ Failed to add feature: ${error.message}`, 'warning');
+                }
+            }
+        };
+        
+        function updateStatus(message, type) {
+            const statusContainer = document.getElementById('statusContainer');
+            statusContainer.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function updateStatsLoop() {
+            if (!isRunning || !demoInstance) return;
+            
+            try {
+                const stats = demoInstance.getStats();
+                document.getElementById('frameCount').textContent = stats.frameCount;
+                document.getElementById('pipelineCount').textContent = stats.pipelinesCreated;
+                document.getElementById('resourceCount').textContent = stats.resourcesRegistered;
+            } catch (error) {
+                // Ignore stats errors
+            }
+            
+            if (isRunning) {
+                setTimeout(updateStatsLoop, 100);
+            }
+        }
+        
+        // Initialize system status
+        async function checkWebGPUSupport() {
+            const systemStatus = document.getElementById('systemStatus');
+            
+            if (!navigator.gpu) {
+                systemStatus.innerHTML = '<div class="status warning">❌ WebGPU not supported</div>';
+                return;
+            }
+            
+            try {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (adapter) {
+                    systemStatus.innerHTML = '<div class="status success">✅ WebGPU Ready</div>';
+                } else {
+                    systemStatus.innerHTML = '<div class="status warning">⚠️ WebGPU adapter unavailable</div>';
+                }
+            } catch (error) {
+                systemStatus.innerHTML = '<div class="status warning">❌ WebGPU error</div>';
+            }
+        }
+        
+        checkWebGPUSupport();
+    </script>
+</body>
+</html>
