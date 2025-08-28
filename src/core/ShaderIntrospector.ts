@@ -53,8 +53,10 @@ export class ShaderIntrospector {
     this.device = device;
     this.options = { useUnifiedBindings: true, ...options };
     this.slotCount = options.slotCount ?? 1024;
-    // 32 bytes per slot
-    this.bufferSize = this.slotCount * 32;
+    // Ring buffer structure: 4 bytes (atomic head) + padding to 16-byte boundary + 32 bytes per slot
+    // The atomic head needs to be at the start, followed by the slots array
+    // head: 4 bytes + 12 bytes padding (to reach 16-byte boundary) + slots: 32 * slotCount
+    this.bufferSize = 16 + this.slotCount * 32; // 16 bytes for head+padding, then slots
 
     this.introspectBuffer = device.createBuffer({
       size: this.bufferSize,
@@ -113,6 +115,7 @@ export class ShaderIntrospector {
 
   /**
    * Map, parse, and unmap readback buffer. Non-blocking errors are caught.
+   * Updated to handle atomic ring buffer structure.
    */
   async fetch(): Promise<IntrospectionRecord[]> {
     try {
@@ -120,18 +123,37 @@ export class ShaderIntrospector {
       const u8 = new Uint8Array(this.readbackBuffer.getMappedRange());
       const records: IntrospectionRecord[] = [];
       const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
-      for (let i = 0; i < this.slotCount; i++) {
-        const base = i * 32;
+      
+      // Read the atomic head to know how many entries have been written
+      const head = dv.getUint32(0, true);
+      const slotsStart = 16; // Skip 16 bytes (atomic head + padding to alignment)
+      
+      // Parse only up to 'head' entries, but cap at slotCount for safety
+      const entriesToRead = Math.min(head, this.slotCount);
+      
+      for (let i = 0; i < entriesToRead; i++) {
+        const base = slotsStart + i * 32;
         const frame = dv.getUint32(base + 0, true);
         const errorCode = dv.getUint32(base + 4, true);
         const subjectId = dv.getUint32(base + 8, true);
+        
         // Skip empty slots fast
         if (frame === 0 && errorCode === 0 && subjectId === 0) continue;
-        const shader = this.readAscii(u8, base + 12, 8);
-        const stage  = this.readAscii(u8, base + 20, 8);
-        const value  = dv.getFloat32(base + 28, true);
+        
+        // Read packed shader and stage tags (each stored as 2 u32s)
+        const shaderTag0 = dv.getUint32(base + 12, true);
+        const shaderTag1 = dv.getUint32(base + 16, true);
+        const stageTag0 = dv.getUint32(base + 20, true);
+        const stageTag1 = dv.getUint32(base + 24, true);
+        const value = dv.getFloat32(base + 28, true);
+        
+        // Unpack the tags back to ASCII strings
+        const shader = this.unpackTag(shaderTag0, shaderTag1);
+        const stage = this.unpackTag(stageTag0, stageTag1);
+        
         records.push({ frame, errorCode, subjectId, shader, stage, value });
       }
+      
       this.readbackBuffer.unmap();
       this.lastParsed = records;
       return records;
@@ -140,6 +162,26 @@ export class ShaderIntrospector {
       try { this.readbackBuffer.unmap(); } catch {}
       return this.lastParsed;
     }
+  }
+
+  private unpackTag(tag0: number, tag1: number): string {
+    let result = '';
+    
+    // Unpack first u32 (4 characters)
+    for (let i = 0; i < 4; i++) {
+      const c = (tag0 >> (i * 8)) & 0xFF;
+      if (c === 0) break;
+      if (c >= 32 && c < 127) result += String.fromCharCode(c);
+    }
+    
+    // Unpack second u32 (4 more characters)
+    for (let i = 0; i < 4; i++) {
+      const c = (tag1 >> (i * 8)) & 0xFF;
+      if (c === 0) break;
+      if (c >= 32 && c < 127) result += String.fromCharCode(c);
+    }
+    
+    return result;
   }
 
   private readAscii(src: Uint8Array, offset: number, len: number): string {

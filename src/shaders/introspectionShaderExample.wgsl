@@ -3,32 +3,40 @@
 
 // Include the introspection helper (in practice, you'd import this)
 struct IntrospectSlot {
-  frame: u32,
-  error_code: u32,
-  subject_id: u32,
-  shader_tag: array<u32,2>, // reinterpret as 8 bytes ASCII (packed)
-  stage_tag: array<u32,2>,  // reinterpret as 8 bytes ASCII
-  value: f32,
+  frame       : u32,
+  error_code  : u32,
+  subject_id  : u32,
+  shader_tag0 : u32, // 4 ASCII bytes (LE)
+  shader_tag1 : u32, // 4 ASCII bytes (LE)
+  stage_tag0  : u32, // 4 ASCII bytes (LE)
+  stage_tag1  : u32, // 4 ASCII bytes (LE)
+  value       : f32,
 }
 
-@group(0) @binding(7) // Introspection buffer
-var<storage, read_write> introspectBuffer: array<IntrospectSlot, 1024>;
-
-fn pack8(a: array<u8,8>) -> array<u32,2> {
-  var out: array<u32,2>;
-  out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-  out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-  return out;
+struct IntrospectRing {
+  head  : atomic<u32>,
+  slots : array<IntrospectSlot, 1024>,
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
-  if (idx >= 1024u) { return; }
-  introspectBuffer[idx].frame = frame;
-  introspectBuffer[idx].error_code = error_code;
-  introspectBuffer[idx].subject_id = subject;
-  introspectBuffer[idx].shader_tag = pack8(shader);
-  introspectBuffer[idx].stage_tag = pack8(stage);
-  introspectBuffer[idx].value = value;
+@group(0) @binding(15) // Introspection buffer - moved from slot 7 to avoid conflicts
+var<storage, read_write> introspectBuffer: IntrospectRing;
+
+// Atomic ring buffer: threads compete for slots
+fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_tag0: u32, shader_tag1: u32, stage_tag0: u32, stage_tag1: u32) {
+  let idx = atomicAdd(&introspectBuffer.head, 1u) % 1024u;
+  introspectBuffer.slots[idx].frame = frame;
+  introspectBuffer.slots[idx].error_code = error_code;
+  introspectBuffer.slots[idx].subject_id = subject;
+  introspectBuffer.slots[idx].shader_tag0 = shader_tag0;
+  introspectBuffer.slots[idx].shader_tag1 = shader_tag1;
+  introspectBuffer.slots[idx].stage_tag0 = stage_tag0;
+  introspectBuffer.slots[idx].stage_tag1 = stage_tag1;
+  introspectBuffer.slots[idx].value = value;
+}
+
+// Pack 4 ASCII characters into u32 (little-endian)
+fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
+  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
 }
 
 // Example application: Particle density computation with introspection
@@ -81,28 +89,28 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
     // Only log first 64 particles to avoid overwhelming the buffer
     if (idx < 64u) {
         set_breadcrumb(
-            idx,                                                 // slot index (use particle index)
             uniforms.frame,                                      // current frame number
             0u,                                                  // error code (0 = OK)
             idx,                                                 // subject ID (particle index)
             density,                                             // value to log (computed density)
-            array<u8,8>('S','P','H','_','D','E','N','S'),       // shader tag "SPH_DENS"
-            array<u8,8>('c','o','m','p','u','t','e',0)          // stage tag "compute"
+            pack4(83u, 80u, 72u, 95u),                         // shader tag "SPH_" (first 4 chars)
+            pack4(68u, 69u, 78u, 83u),                         // shader tag "DENS" (last 4 chars)
+            pack4(99u, 111u, 109u, 112u),                      // stage tag "comp" (first 4 chars)
+            pack4(117u, 116u, 101u, 0u)                        // stage tag "ute\0" (last 4 chars)
         );
     }
     
     // INTROSPECTION: Log potential errors
     if (density > 10.0) { // Suspiciously high density
-        // Use a rotating set of slots for errors (slots 512-1023)
-        let error_slot = 512u + (idx % 512u);
         set_breadcrumb(
-            error_slot,
             uniforms.frame,
             1u,                                                  // error code 1 = high density warning
             idx,                                                 // particle with the problem
             density,                                             // problematic density value
-            array<u8,8>('S','P','H','_','E','R','R',0),         // shader tag "SPH_ERR"
-            array<u8,8>('d','e','n','s','i','t','y',0)          // stage tag "density"
+            pack4(83u, 80u, 72u, 95u),                         // shader tag "SPH_" (first 4 chars)
+            pack4(69u, 82u, 82u, 0u),                          // shader tag "ERR\0" (last 4 chars)
+            pack4(100u, 101u, 110u, 115u),                     // stage tag "dens" (first 4 chars)
+            pack4(105u, 116u, 121u, 0u)                        // stage tag "ity\0" (last 4 chars)
         );
     }
 }
@@ -141,15 +149,15 @@ fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     
     // Log suspicious thickness discontinuities (potential seams)
     if (max_thickness_diff > 0.5 && pixel_id % 100u == 0u) { // Sample 1% of suspicious pixels
-        let slot = (pixel_id / 100u) % 1024u; // Distribute across slots
         set_breadcrumb(
-            slot,
             uniforms.frame,
             2u,                                                  // error code 2 = seam detected
             pixel_id,                                            // pixel coordinate as subject
             max_thickness_diff,                                  // thickness discontinuity magnitude
-            array<u8,8>('S','E','A','M','_','D','E','T',0),     // shader tag "SEAM_DET"
-            array<u8,8>('f','r','a','g','m','e','n','t',0)      // stage tag "fragment"
+            pack4(83u, 69u, 65u, 77u),                         // shader tag "SEAM" (first 4 chars)
+            pack4(95u, 68u, 69u, 84u),                         // shader tag "_DET" (last 4 chars)
+            pack4(102u, 114u, 97u, 103u),                      // stage tag "frag" (first 4 chars)
+            pack4(109u, 101u, 110u, 116u)                      // stage tag "ment" (last 4 chars)
         );
     }
     

@@ -17,7 +17,7 @@ export class BoidsSimulator implements ISimulator {
 
     particleBuffer: GPUBuffer;
     boidsParamsBuffer: GPUBuffer;
-    introspectionBuffer?: GPUBuffer;
+    introspectionBuffer?: GPUBuffer | undefined;
 
     constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice, introspectionBuffer?: GPUBuffer) {
         this.device = device;
@@ -45,40 +45,49 @@ export class BoidsSimulator implements ISimulator {
                 }
 
                 struct IntrospectSlot {
-                    frame: u32,
-                    error_code: u32,
-                    subject_id: u32,
-                    shader_tag: array<u32,2>,
-                    stage_tag: array<u32,2>,
-                    value: f32,
+                  frame       : u32,
+                  error_code  : u32,
+                  subject_id  : u32,
+                  shader_tag0 : u32, // 4 ASCII bytes (LE)
+                  shader_tag1 : u32, // 4 ASCII bytes (LE)
+                  stage_tag0  : u32, // 4 ASCII bytes (LE)
+                  stage_tag1  : u32, // 4 ASCII bytes (LE)
+                  value       : f32,
+                }
+
+                struct IntrospectRing {
+                  head  : atomic<u32>,
+                  slots : array<IntrospectSlot, 1024>,
                 }
 
                 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
                 @group(0) @binding(1) var<uniform> params: BoidsParams;
-                @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+                @group(0) @binding(15) var<storage, read_write> introspectBuffer: IntrospectRing;
+
+                // Pack 4 ASCII characters into u32 (little-endian)
+                fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
+                  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
+                }
 
                 fn create_tag_boids() -> array<u32,2> {
-                    var tag: array<u32,2>;
-                    tag[0] = 98u | (111u << 8u) | (105u << 16u) | (100u << 24u);  // 'boid'
-                    tag[1] = 115u | (0u << 8u) | (0u << 16u) | (0u << 24u);       // 's\0\0\0'
-                    return tag;
+                    return array<u32,2>(pack4(98u, 111u, 105u, 100u), pack4(115u, 0u, 0u, 0u)); // "boid", "s\0\0\0"
                 }
 
                 fn create_tag_compute() -> array<u32,2> {
-                    var tag: array<u32,2>;
-                    tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
-                    tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
-                    return tag;
+                    return array<u32,2>(pack4(99u, 111u, 109u, 112u), pack4(117u, 116u, 101u, 0u)); // "comp", "ute\0"
                 }
 
-                fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
-                    if (idx >= arrayLength(&introspectBuffer)) { return; }
-                    introspectBuffer[idx].frame = frame;
-                    introspectBuffer[idx].error_code = error_code;
-                    introspectBuffer[idx].subject_id = subject;
-                    introspectBuffer[idx].shader_tag = shader;
-                    introspectBuffer[idx].stage_tag = stage;
-                    introspectBuffer[idx].value = value;
+                // Atomic ring buffer: threads compete for slots
+                fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_tag0: u32, shader_tag1: u32, stage_tag0: u32, stage_tag1: u32) {
+                  let idx = atomicAdd(&introspectBuffer.head, 1u) % 1024u;
+                  introspectBuffer.slots[idx].frame = frame;
+                  introspectBuffer.slots[idx].error_code = error_code;
+                  introspectBuffer.slots[idx].subject_id = subject;
+                  introspectBuffer.slots[idx].shader_tag0 = shader_tag0;
+                  introspectBuffer.slots[idx].shader_tag1 = shader_tag1;
+                  introspectBuffer.slots[idx].stage_tag0 = stage_tag0;
+                  introspectBuffer.slots[idx].stage_tag1 = stage_tag1;
+                  introspectBuffer.slots[idx].value = value;
                 }
 
                 @compute @workgroup_size(64)
@@ -151,7 +160,9 @@ export class BoidsSimulator implements ISimulator {
 
                     // Emit introspection breadcrumb for velocity magnitude tracking
                     let velocity_magnitude = length(new_velocity);
-                    set_breadcrumb(id.x % 1024u, 0u, 0u, id.x, velocity_magnitude, create_tag_boids(), create_tag_compute());
+                    let shader = create_tag_boids();
+                    let stage = create_tag_compute();
+                    set_breadcrumb(0u, 0u, id.x, velocity_magnitude, shader[0], shader[1], stage[0], stage[1]);
 
                     particles[id.x].position = new_position;
                     particles[id.x].velocity = new_velocity;

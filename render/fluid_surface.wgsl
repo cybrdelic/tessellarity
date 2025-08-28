@@ -124,14 +124,22 @@ const DEFAULT_WIND_DIR: vec3f = vec3f(0.8, 0.0, 0.2);
 
 // Introspection system for runtime debugging and monitoring
 struct IntrospectSlot {
-    frame: u32,
-    error_code: u32,
-    subject_id: u32,
-    shader_tag: array<u32,2>,
-    stage_tag: array<u32,2>,
-    value: f32,
+  frame       : u32,
+  error_code  : u32,
+  subject_id  : u32,
+  shader_tag0 : u32, // 4 ASCII bytes (LE)
+  shader_tag1 : u32, // 4 ASCII bytes (LE)
+  stage_tag0  : u32, // 4 ASCII bytes (LE)
+  stage_tag1  : u32, // 4 ASCII bytes (LE)
+  value       : f32,
 }
-@group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+
+struct IntrospectRing {
+  head  : atomic<u32>,
+  slots : array<IntrospectSlot, 1024>,
+}
+
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: IntrospectRing;
 
 @group(0) @binding(16) var<uniform> transmissionParams: TransmissionParams;
 @group(0) @binding(22) var<uniform> sphereContain: SphereContain;
@@ -147,26 +155,31 @@ struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
 struct FragmentInput { @builtin(position) pos: vec4f }
 
 // Introspection helper functions for runtime debugging
+// Pack 4 ASCII characters into u32 (little-endian)
+fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
+  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
+}
+
 fn create_tag_fluid() -> array<u32,2> {
-    var tag: array<u32,2>;
-    tag[0] = 102u | (108u << 8u) | (117u << 16u) | (105u << 24u); // 'flui'
-    tag[1] = 100u | (0u << 8u) | (0u << 16u) | (0u << 24u);       // 'd\0\0\0'
-    return tag;
+    return array<u32,2>(pack4(102u, 108u, 117u, 105u), pack4(100u, 0u, 0u, 0u)); // "flui", "d\0\0\0"
 }
 
 fn create_tag_fragment() -> array<u32,2> {
-    var tag: array<u32,2>;
-    tag[0] = 102u | (114u << 8u) | (97u << 16u) | (103u << 24u);  // 'frag'
-    tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);         // '\0\0\0\0'
-    return tag;
+    return array<u32,2>(pack4(102u, 114u, 97u, 103u), pack4(109u, 101u, 110u, 116u)); // "frag", "ment"
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
-    if (idx >= arrayLength(&introspectBuffer)) { return; }
-    introspectBuffer[idx].frame = frame;
-    introspectBuffer[idx].error_code = error_code;
-    introspectBuffer[idx].subject_id = subject;
-    introspectBuffer[idx].shader_tag = shader;
+// Atomic ring buffer: threads compete for slots
+fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_tag0: u32, shader_tag1: u32, stage_tag0: u32, stage_tag1: u32) {
+  let idx = atomicAdd(&introspectBuffer.head, 1u) % 1024u;
+  introspectBuffer.slots[idx].frame = frame;
+  introspectBuffer.slots[idx].error_code = error_code;
+  introspectBuffer.slots[idx].subject_id = subject;
+  introspectBuffer.slots[idx].shader_tag0 = shader_tag0;
+  introspectBuffer.slots[idx].shader_tag1 = shader_tag1;
+  introspectBuffer.slots[idx].stage_tag0 = stage_tag0;
+  introspectBuffer.slots[idx].stage_tag1 = stage_tag1;
+  introspectBuffer.slots[idx].value = value;
+}
     introspectBuffer[idx].stage_tag = stage;
     introspectBuffer[idx].value = value;
 }
@@ -1794,7 +1807,9 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
   
   // Emit introspection breadcrumb for alpha tracking
   let pixel_id = u32(input.pos.x) + u32(input.pos.y) * 1920u; // approximate screen width
-  set_breadcrumb(pixel_id % 1024u, 0u, 0u, pixel_id, alpha, create_tag_fluid(), create_tag_fragment());
+  let shader = create_tag_fluid();
+  let stage = create_tag_fragment();
+  set_breadcrumb(0u, 0u, pixel_id, alpha, shader[0], shader[1], stage[0], stage[1]);
   
   return vec4f(premulColor, alpha);
 }

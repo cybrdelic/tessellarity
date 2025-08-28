@@ -11,12 +11,19 @@ struct Cell {
 }
 
 struct IntrospectSlot {
-    frame: u32,
-    error_code: u32,
-    subject_id: u32,
-    shader_tag: array<u32,2>,
-    stage_tag: array<u32,2>,
-    value: f32,
+  frame       : u32,
+  error_code  : u32,
+  subject_id  : u32,
+  shader_tag0 : u32, // 4 ASCII bytes (LE)
+  shader_tag1 : u32, // 4 ASCII bytes (LE)
+  stage_tag0  : u32, // 4 ASCII bytes (LE)
+  stage_tag1  : u32, // 4 ASCII bytes (LE)
+  value       : f32,
+}
+
+struct IntrospectRing {
+  head  : atomic<u32>,
+  slots : array<IntrospectSlot, 1024>,
 }
 
 override fixed_point_multiplier: f32; 
@@ -25,51 +32,37 @@ fn encodeFixedPoint(floating_point: f32) -> i32 {
 	return i32(floating_point * fixed_point_multiplier);
 }
 
-fn create_tag_mls() -> array<u32,2> {
-    var tag: array<u32,2>;
-    tag[0] = 109u | (108u << 8u) | (115u << 16u) | (0u << 24u);  // 'mls\0'
-    tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);        // '\0\0\0\0'
-    return tag;
+// Pack 4 ASCII characters into u32 (little-endian)
+fn pack4(c0: u32, c1: u32, c2: u32, c3: u32) -> u32 {
+  return c0 | (c1 << 8u) | (c2 << 16u) | (c3 << 24u);
 }
 
-fn create_tag_p2g() -> array<u32,2> {
-    var tag: array<u32,2>;
-    tag[0] = 112u | (50u << 8u) | (103u << 16u) | (0u << 24u);  // 'p2g\0'
-    tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);       // '\0\0\0\0'
-    return tag;
-}
-    tag[1] = 50u;  // '2'
-    tag[2] = 103u; // 'g'
-    tag[3] = 0u;   // null terminator
-    tag[4] = 0u;
-    tag[5] = 0u;
-    tag[6] = 0u;
-    tag[7] = 0u;
-    return tag;
+fn create_tag_mls() -> array<u32,2> {
+    return array<u32,2>(pack4(109u, 108u, 115u, 0u), pack4(0u, 0u, 0u, 0u)); // "mls\0", "\0\0\0\0"
 }
 
 fn create_tag_compute() -> array<u32,2> {
-    var tag: array<u32,2>;
-    tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
-    tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
-    return tag;
+    return array<u32,2>(pack4(99u, 111u, 109u, 112u), pack4(117u, 116u, 101u, 0u)); // "comp", "ute\0"
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
-    if (idx >= arrayLength(&introspectBuffer)) { return; }
-    introspectBuffer[idx].frame = frame;
-    introspectBuffer[idx].error_code = error_code;
-    introspectBuffer[idx].subject_id = subject;
-    introspectBuffer[idx].shader_tag = shader;
-    introspectBuffer[idx].stage_tag = stage;
-    introspectBuffer[idx].value = value;
+// Atomic ring buffer: threads compete for slots
+fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_tag0: u32, shader_tag1: u32, stage_tag0: u32, stage_tag1: u32) {
+  let idx = atomicAdd(&introspectBuffer.head, 1u) % 1024u;
+  introspectBuffer.slots[idx].frame = frame;
+  introspectBuffer.slots[idx].error_code = error_code;
+  introspectBuffer.slots[idx].subject_id = subject;
+  introspectBuffer.slots[idx].shader_tag0 = shader_tag0;
+  introspectBuffer.slots[idx].shader_tag1 = shader_tag1;
+  introspectBuffer.slots[idx].stage_tag0 = stage_tag0;
+  introspectBuffer.slots[idx].stage_tag1 = stage_tag1;
+  introspectBuffer.slots[idx].value = value;
 }
 
 
 @group(0) @binding(0) var<storage, read> particles: array<Particle>;
 @group(0) @binding(1) var<storage, read_write> cells: array<Cell>;
 @group(0) @binding(2) var<uniform> init_box_size: vec3f;
-@group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: IntrospectRing;
 
 @compute @workgroup_size(64)
 fn p2g_1(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -114,6 +107,8 @@ fn p2g_1(@builtin(global_invocation_id) id: vec3<u32>) {
         
         // Emit introspection breadcrumb for particle velocity magnitude
         let velocity_magnitude = length(particle.v);
-        set_breadcrumb(id.x % 1024u, 0u, 0u, id.x, velocity_magnitude, create_tag_mls(), create_tag_compute());
+        let shader = create_tag_mls();
+        let stage = create_tag_compute();
+        set_breadcrumb(0u, 0u, id.x, velocity_magnitude, shader[0], shader[1], stage[0], stage[1]);
     }
 }
