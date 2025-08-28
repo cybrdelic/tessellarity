@@ -180,9 +180,6 @@ fn set_breadcrumb(frame: u32, error_code: u32, subject: u32, value: f32, shader_
   introspectBuffer.slots[idx].stage_tag1 = stage_tag1;
   introspectBuffer.slots[idx].value = value;
 }
-    introspectBuffer[idx].stage_tag = stage;
-    introspectBuffer[idx].value = value;
-}
 
 // Seam probe (optional). Disabled by default. When true outputs discrepancy visualization early.
 override SEAM_PROBE: bool = false;

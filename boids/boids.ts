@@ -196,13 +196,13 @@ export class BoidsSimulator implements ISimulator {
         this.updatePipeline = device.createComputePipeline({
             label: "boids update pipeline",
             layout: 'auto',
-            compute: { module: boidsUpdateModule }
+            compute: { module: boidsUpdateModule, entryPoint: 'update_boids' }
         });
 
         this.copyPositionPipeline = device.createComputePipeline({
             label: "boids copy position pipeline",
             layout: 'auto',
-            compute: { module: copyPositionModule }
+            compute: { module: copyPositionModule, entryPoint: 'copy_position' }
         });
 
         // Create parameters buffer

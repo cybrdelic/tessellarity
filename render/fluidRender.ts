@@ -332,17 +332,17 @@ export class FluidRenderer {
         this.temporalPipeline = device.createComputePipeline({
             label: 'temporal surface compute',
             layout: 'auto',
-            compute: { module: temporalModule }
+            compute: { module: temporalModule, entryPoint: 'main' }
         });
         this.normalizePipeline = device.createComputePipeline({
             label: 'normalize thickness compute',
             layout: 'auto',
-            compute: { module: normalizeModule }
+            compute: { module: normalizeModule, entryPoint: 'main' }
         })
         this.heightPipeline = device.createComputePipeline({
             label: 'height reconstruction compute',
             layout: 'auto',
-            compute: { module: heightModule }
+            compute: { module: heightModule, entryPoint: 'main' }
         });
         // Explicit shared bind group layout for height range reduction (depthTex, atoms, encoding)
         this.heightRangeBGL = device.createBindGroupLayout({
@@ -375,23 +375,23 @@ fn main(@builtin(global_invocation_id) gid: vec3u){
     this.heightReferencePipeline = device.createComputePipeline({
         label: 'height reference compute (r32)',
         layout: 'auto',
-        compute: { module: heightReferenceModule }
+        compute: { module: heightReferenceModule, entryPoint: 'main' }
     });
         this.heightDiffusePipeline = device.createComputePipeline({
             label: 'height diffusion compute',
             layout: 'auto',
-            compute: { module: heightDiffuseModule }
+            compute: { module: heightDiffuseModule, entryPoint: 'main' }
         });
         const heightDebandModule = makeShaderModule(device, heightDeband);
         this.heightDebandPipeline = device.createComputePipeline({
             label: 'height deband compute',
             layout: 'auto',
-            compute: { module: heightDebandModule }
+            compute: { module: heightDebandModule, entryPoint: 'main' }
         });
         this.heightPhysicalPipeline = device.createComputePipeline({
             label: 'height physical metrics compute',
             layout: 'auto',
-            compute: { module: heightPhysicalModule }
+            compute: { module: heightPhysicalModule, entryPoint: 'main' }
         });
         this.heightBlur2Pipeline = device.createComputePipeline({
             label: 'height blur radius2 compute',
@@ -406,7 +406,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u){
         this.velocityPipeline = device.createComputePipeline({
             label: 'velocity from height compute',
             layout: 'auto',
-            compute: { module: velocityModule }
+            compute: { module: velocityModule, entryPoint: 'main' }
         });
         this.fluidPipeline = device.createRenderPipeline({
             label: 'fluid rendering pipeline',
