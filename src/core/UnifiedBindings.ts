@@ -21,20 +21,22 @@ export interface UnifiedBindingSlots {
   gridData: 5;            // Grid cell data (read_write)
   prefixSum: 6;           // Prefix sum for sorting (read)
   
-  // Introspection system (reserved slot)
-  introspection: 7;       // ShaderIntrospector buffer (read_write)
+  // Legacy/external bindings (preserved for compatibility)
+  effectsToggle: 7;       // EffectsToggle buffer (uniform) - preserves existing fluid shader bindings
   
   // Rendering and output buffers
   positionOutput: 8;      // Position output for rendering (read_write)
   renderUniforms: 9;      // Rendering uniforms (uniform)
   
-  // Future expansion slots (10-15 reserved)
+  // Future expansion slots (10-14 reserved)
   reserved10: 10;
   reserved11: 11;
   reserved12: 12;
   reserved13: 13;
   reserved14: 14;
-  reserved15: 15;
+  
+  // Introspection system (moved to avoid conflicts)
+  introspection: 15;      // ShaderIntrospector buffer (read_write) - moved from slot 7 to avoid EffectsToggle conflict
 }
 
 export const UNIFIED_BINDING_SLOTS: UnifiedBindingSlots = {
@@ -45,7 +47,7 @@ export const UNIFIED_BINDING_SLOTS: UnifiedBindingSlots = {
   boxSize: 4,
   gridData: 5,
   prefixSum: 6,
-  introspection: 7,
+  effectsToggle: 7,
   positionOutput: 8,
   renderUniforms: 9,
   reserved10: 10,
@@ -53,7 +55,7 @@ export const UNIFIED_BINDING_SLOTS: UnifiedBindingSlots = {
   reserved12: 12,
   reserved13: 13,
   reserved14: 14,
-  reserved15: 15,
+  introspection: 15,
 };
 
 /**
@@ -104,10 +106,10 @@ export const UNIFIED_BINDING_LAYOUT: Record<keyof UnifiedBindingSlots, BindingRe
     visibility: GPUShaderStage.COMPUTE,
     optional: true,
   },
-  introspection: {
+  effectsToggle: {
     type: 'buffer',
-    usage: 'storage',
-    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+    usage: 'uniform',
+    visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
     optional: true,
   },
   positionOutput: {
@@ -152,10 +154,10 @@ export const UNIFIED_BINDING_LAYOUT: Record<keyof UnifiedBindingSlots, BindingRe
     visibility: GPUShaderStage.COMPUTE,
     optional: true,
   },
-  reserved15: {
+  introspection: {
     type: 'buffer',
     usage: 'storage',
-    visibility: GPUShaderStage.COMPUTE,
+    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
     optional: true,
   },
 };

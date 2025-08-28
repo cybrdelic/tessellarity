@@ -75,7 +75,7 @@ export async function validateUnifiedBindings(device: GPUDevice): Promise<boolea
     console.log('  ✓ Test 7: Testing pipeline creation helpers...');
     
     const simpleComputeShader = `
-      @group(0) @binding(7) var<storage, read_write> introspectBuffer: array<vec4f>;
+      @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<vec4f>;
       
       @compute @workgroup_size(1)
       fn main() {
@@ -133,9 +133,9 @@ export async function validateUnifiedBindings(device: GPUDevice): Promise<boolea
       }
     }
     
-    // Verify introspection slot is 7
-    if (UNIFIED_BINDING_SLOTS.introspection !== 7) {
-      throw new Error('Introspection slot not at expected position 7');
+    // Verify introspection slot is 15 (moved from 7 to avoid EffectsToggle conflict)
+    if (UNIFIED_BINDING_SLOTS.introspection !== 15) {
+      throw new Error('Introspection slot not at expected position 15');
     }
     
     console.log('✅ All unified binding system tests passed!');

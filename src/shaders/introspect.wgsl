@@ -11,9 +11,10 @@ struct IntrospectSlot {
   value: f32,
 }
 
-// UNIFIED BINDING: Always @group(0) @binding(7) for introspection buffer
+// UNIFIED BINDING: Always @group(0) @binding(15) for introspection buffer
 // This slot is reserved in the unified binding layout and never conflicts
-@group(0) @binding(7)
+// Moved from slot 7 to avoid conflict with existing EffectsToggle usage
+@group(0) @binding(15)
 var<storage, read_write> introspectBuffer: array<IntrospectSlot, 1024>;
 
 fn pack8(a: array<u8,8>) -> array<u32,2> {
@@ -37,5 +38,33 @@ fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f3
   introspectBuffer[idx].value = value;
 }
 
+// Helper function to create byte array from string literals
+// WGSL doesn't support character literals, so we use numeric byte values
+fn create_tag_mlsmpm() -> array<u8,8> {
+  var tag: array<u8,8>;
+  tag[0] = 77u;  // 'M'
+  tag[1] = 76u;  // 'L' 
+  tag[2] = 83u;  // 'S'
+  tag[3] = 77u;  // 'M'
+  tag[4] = 80u;  // 'P'
+  tag[5] = 77u;  // 'M'
+  tag[6] = 0u;   // null terminator
+  tag[7] = 0u;   // null terminator
+  return tag;
+}
+
+fn create_tag_compute() -> array<u8,8> {
+  var tag: array<u8,8>;
+  tag[0] = 99u;  // 'c'
+  tag[1] = 111u; // 'o'
+  tag[2] = 109u; // 'm'
+  tag[3] = 112u; // 'p'
+  tag[4] = 117u; // 'u'
+  tag[5] = 116u; // 't'
+  tag[6] = 101u; // 'e'
+  tag[7] = 0u;   // null terminator
+  return tag;
+}
+
 // Example usage inside a compute shader:
-// set_breadcrumb(global_invocation_id.x, uniforms.frame, 0u, particleId, density, array<u8,8>('M','L','S','M','P','M',0,0), array<u8,8>('c','o','m','p','u','t','e',0));
+// set_breadcrumb(global_invocation_id.x, uniforms.frame, 0u, particleId, density, create_tag_mlsmpm(), create_tag_compute());

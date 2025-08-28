@@ -47,7 +47,8 @@ struct IntrospectSlot {
 @group(0) @binding(3) var<uniform> simulationParams: vec4f;                    // Simulation params
 @group(0) @binding(4) var<uniform> boxSize: vec4f;                             // Box dimensions
 // Slots 5-6 available for grid systems (unused in this example)
-@group(0) @binding(7) var<storage, read_write> introspectBuffer: array<IntrospectSlot>; // INTROSPECTION - ALWAYS SLOT 7
+// Slot 7 preserved for EffectsToggle (legacy fluid shader compatibility)
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>; // INTROSPECTION - MOVED TO SLOT 15
 
 // Introspection helper functions
 fn pack8(a: array<u8,8>) -> array<u32,2> {
@@ -55,6 +56,32 @@ fn pack8(a: array<u8,8>) -> array<u32,2> {
   out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
   out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
   return out;
+}
+
+fn create_tag_unified() -> array<u8,8> {
+  var tag: array<u8,8>;
+  tag[0] = 85u;  // 'U'
+  tag[1] = 78u;  // 'N'
+  tag[2] = 73u;  // 'I'
+  tag[3] = 70u;  // 'F'
+  tag[4] = 73u;  // 'I'
+  tag[5] = 69u;  // 'E'
+  tag[6] = 68u;  // 'D'
+  tag[7] = 0u;   // null terminator
+  return tag;
+}
+
+fn create_tag_compute() -> array<u8,8> {
+  var tag: array<u8,8>;
+  tag[0] = 99u;  // 'c'
+  tag[1] = 111u; // 'o'
+  tag[2] = 109u; // 'm'
+  tag[3] = 112u; // 'p'
+  tag[4] = 117u; // 'u'
+  tag[5] = 116u; // 't'
+  tag[6] = 101u; // 'e'
+  tag[7] = 0u;   // null terminator
+  return tag;
 }
 
 fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
@@ -74,15 +101,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
   
   let frameCount = u32(environment.w); // Using environment.w as frame counter
   
-  // Emit introspection breadcrumb - automatic slot 7 binding, no conflicts!
+  // Emit introspection breadcrumb - automatic slot 15 binding, no conflicts!
   set_breadcrumb(
     index % 1024u, 
     frameCount, 
     0u, 
     index, 
     length(particles[index].velocity),
-    array<u8,8>('U','N','I','F','I','E','D',0),
-    array<u8,8>('c','o','m','p','u','t','e',0)
+    create_tag_unified(),
+    create_tag_compute()
   );
   
   // Simple particle physics
@@ -135,13 +162,39 @@ struct IntrospectSlot {
 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(2) var<uniform> environment: vec4f;
 @group(0) @binding(3) var<uniform> simulationParams: vec4f;
-@group(0) @binding(7) var<storage, read_write> introspectBuffer: array<IntrospectSlot>; // Always slot 7!
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>; // Always slot 15!
 
 fn pack8(a: array<u8,8>) -> array<u32,2> {
   var out: array<u32,2>;
   out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
   out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
   return out;
+}
+
+fn create_tag_forces() -> array<u8,8> {
+  var tag: array<u8,8>;
+  tag[0] = 70u;  // 'F'
+  tag[1] = 79u;  // 'O'
+  tag[2] = 82u;  // 'R'
+  tag[3] = 67u;  // 'C'
+  tag[4] = 69u;  // 'E'
+  tag[5] = 83u;  // 'S'
+  tag[6] = 0u;   // null terminator
+  tag[7] = 0u;   // null terminator
+  return tag;
+}
+
+fn create_tag_compute() -> array<u8,8> {
+  var tag: array<u8,8>;
+  tag[0] = 99u;  // 'c'
+  tag[1] = 111u; // 'o'
+  tag[2] = 109u; // 'm'
+  tag[3] = 112u; // 'p'
+  tag[4] = 117u; // 'u'
+  tag[5] = 116u; // 't'
+  tag[6] = 101u; // 'e'
+  tag[7] = 0u;   // null terminator
+  return tag;
 }
 
 fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
@@ -188,8 +241,8 @@ fn forces_main(@builtin(global_invocation_id) global_id: vec3u) {
     0u, 
     index, 
     length(force),
-    array<u8,8>('F','O','R','C','E','S',0,0),
-    array<u8,8>('c','o','m','p','u','t','e',0)
+    create_tag_forces(),
+    create_tag_compute()
   );
 }
 `;

@@ -7,7 +7,7 @@ This document describes the enhanced implementation with unified binding layout 
 The system now uses a "frozen interface" approach that eliminates pipeline rebuild issues:
 
 - **Stable Binding Slots**: All possible GPU resource bindings are predefined and never change
-- **No Conflicts**: Introspection always uses slot 7, other systems use designated slots
+- **No Conflicts**: Introspection always uses slot 15, other systems use designated slots
 - **Reusable Bind Groups**: Single bind group works across all pipelines using the unified layout
 - **No Pipeline Rebuilds**: Adding/removing features doesn't require pipeline recreation
 
@@ -39,7 +39,7 @@ The system now uses a "frozen interface" approach that eliminates pipeline rebui
 | (total) |     | 32 | Multiple of 16 (alignment safe) |
 
 ## Lifecycle
-1. Shaders call `set_breadcrumb()` writing into `introspectBuffer[idx]` at slot 7.
+1. Shaders call `set_breadcrumb()` writing into `introspectBuffer[idx]` at slot 15.
 2. CPU encodes copy to a MAP_READ buffer each frame (`ShaderIntrospector.encodeCopy`).
 3. Panel (or caller) invokes `fetch()` to parse entries.
 4. Debug panel displays recent records.
@@ -76,11 +76,11 @@ const bindGroup = device.createBindGroup({
 
 ## WGSL Usage
 
-Always use slot 7 for introspection (conflict-free):
+Always use slot 15 for introspection (conflict-free):
 
 ```wgsl
 // Unified binding - no conflicts possible
-@group(0) @binding(7) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
 
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) global_id: vec3u) {

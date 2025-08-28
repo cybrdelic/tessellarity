@@ -7,7 +7,8 @@ import { UnifiedResourceManager, UNIFIED_BINDING_SLOTS } from './UnifiedBindings
  * Enhanced runtime shader breadcrumb & metrics capture for WebGPU with unified binding layout.
  *
  * Now uses the stable binding layout system to eliminate pipeline rebuild issues.
- * Always binds to slot 7 (@group(0) @binding(7)) as defined in the unified layout.
+ * Always binds to slot 15 (@group(0) @binding(15)) as defined in the unified layout.
+ * Moved from slot 7 to avoid conflict with existing EffectsToggle usage in fluid shaders.
  *
  * Slot Layout (32 bytes) per index i:
  * 0  - 3  u32 frame

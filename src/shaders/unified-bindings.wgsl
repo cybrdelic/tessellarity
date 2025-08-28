@@ -13,16 +13,19 @@
 // @group(0) @binding(5) - Grid cell data (read_write)
 // @group(0) @binding(6) - Prefix sum for sorting (read)
 
-// Introspection system (reserved slot)
-// @group(0) @binding(7) - ShaderIntrospector buffer (read_write)
+// Legacy/external bindings (preserved for compatibility)
+// @group(0) @binding(7) - EffectsToggle buffer (uniform) - preserves existing fluid shader bindings
 
 // Rendering and output buffers
 // @group(0) @binding(8) - Position output for rendering (read_write)
 // @group(0) @binding(9) - Rendering uniforms (uniform)
 
-// Future expansion slots (10-15 reserved)
-// @group(0) @binding(10-15) - Reserved for future use
+// Future expansion slots (10-14 reserved)
+// @group(0) @binding(10-14) - Reserved for future use
+
+// Introspection system (moved to avoid conflicts)
+// @group(0) @binding(15) - ShaderIntrospector buffer (read_write) - moved from slot 7 to avoid EffectsToggle conflict
 
 // Example usage:
 // @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
-// @group(0) @binding(7) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+// @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
