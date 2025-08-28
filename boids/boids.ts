@@ -17,12 +17,14 @@ export class BoidsSimulator implements ISimulator {
 
     particleBuffer: GPUBuffer;
     boidsParamsBuffer: GPUBuffer;
+    introspectionBuffer?: GPUBuffer;
 
-    constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice) {
+    constructor(particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice, introspectionBuffer?: GPUBuffer) {
         this.device = device;
         this.renderDiameter = renderDiameter;
+        this.introspectionBuffer = introspectionBuffer;
 
-        // WGSL compute shader for boids behavior
+        // WGSL compute shader for boids behavior with introspection
     const boidsUpdateModule = makeShaderModule(this.device, `
                 struct Particle {
                     position: vec3f,
@@ -42,8 +44,61 @@ export class BoidsSimulator implements ISimulator {
                     n: u32,
                 }
 
+                struct IntrospectSlot {
+                    frame: u32,
+                    error_code: u32,
+                    subject_id: u32,
+                    shader_tag: array<u32,2>,
+                    stage_tag: array<u32,2>,
+                    value: f32,
+                }
+
                 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
                 @group(0) @binding(1) var<uniform> params: BoidsParams;
+                @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+
+                fn pack8(a: array<u8,8>) -> array<u32,2> {
+                    var out: array<u32,2>;
+                    out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
+                    out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
+                    return out;
+                }
+
+                fn create_tag_boids() -> array<u8,8> {
+                    var tag: array<u8,8>;
+                    tag[0] = 98u;  // 'b'
+                    tag[1] = 111u; // 'o'
+                    tag[2] = 105u; // 'i'
+                    tag[3] = 100u; // 'd'
+                    tag[4] = 115u; // 's'
+                    tag[5] = 0u;   // null terminator
+                    tag[6] = 0u;
+                    tag[7] = 0u;
+                    return tag;
+                }
+
+                fn create_tag_compute() -> array<u8,8> {
+                    var tag: array<u8,8>;
+                    tag[0] = 99u;  // 'c'
+                    tag[1] = 111u; // 'o'
+                    tag[2] = 109u; // 'm'
+                    tag[3] = 112u; // 'p'
+                    tag[4] = 117u; // 'u'
+                    tag[5] = 116u; // 't'
+                    tag[6] = 101u; // 'e'
+                    tag[7] = 0u;   // null terminator
+                    return tag;
+                }
+
+                fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+                    if (idx >= arrayLength(&introspectBuffer)) { return; }
+                    introspectBuffer[idx].frame = frame;
+                    introspectBuffer[idx].error_code = error_code;
+                    introspectBuffer[idx].subject_id = subject;
+                    introspectBuffer[idx].shader_tag = pack8(shader);
+                    introspectBuffer[idx].stage_tag = pack8(stage);
+                    introspectBuffer[idx].value = value;
+                }
 
                 @compute @workgroup_size(64)
                 fn update_boids(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -113,6 +168,10 @@ export class BoidsSimulator implements ISimulator {
                         new_position.z = clamp(new_position.z, 2.0, params.box_size.z - 2.0);
                     }
 
+                    // Emit introspection breadcrumb for velocity magnitude tracking
+                    let velocity_magnitude = length(new_velocity);
+                    set_breadcrumb(id.x % 1024u, 0u, 0u, id.x, velocity_magnitude, create_tag_boids(), create_tag_compute());
+
                     particles[id.x].position = new_position;
                     particles[id.x].velocity = new_velocity;
                 }
@@ -170,6 +229,7 @@ export class BoidsSimulator implements ISimulator {
             entries: [
                 { binding: 0, resource: { buffer: particleBuffer } },
                 { binding: 1, resource: { buffer: this.boidsParamsBuffer } },
+                { binding: 15, resource: { buffer: this.introspectionBuffer || particleBuffer } }, // Fallback to dummy if not provided
             ],
         });
 

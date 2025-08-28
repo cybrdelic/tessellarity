@@ -121,8 +121,20 @@ const DEFAULT_WIND_DIR: vec3f = vec3f(0.8, 0.0, 0.2);
 @group(0) @binding(12) var foamAccumTex: texture_2d<f32>; // temporally accumulated foam (R in .r)
 @group(0) @binding(13) var velocityTex: texture_2d<f32>; // xy velocity (screen/world projected) for stabilization
 @group(0) @binding(14) var backgroundTex: texture_2d<f32>; // scene color buffer pre-water
-@group(0) @binding(15) var<uniform> transmissionParams: TransmissionParams;
-@group(0) @binding(16) var<uniform> sphereContain: SphereContain;
+
+// Introspection system for runtime debugging and monitoring
+struct IntrospectSlot {
+    frame: u32,
+    error_code: u32,
+    subject_id: u32,
+    shader_tag: array<u32,2>,
+    stage_tag: array<u32,2>,
+    value: f32,
+}
+@group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
+
+@group(0) @binding(16) var<uniform> transmissionParams: TransmissionParams;
+@group(0) @binding(22) var<uniform> sphereContain: SphereContain;
 @group(0) @binding(17) var original_height_texture: texture_2d<f32>; // pre-diffusion snapshot
 // New: intermediate depth filter views for pass delta diagnostics (optional; if unbound, modes gracefully skip)
 @group(0) @binding(18) var depth_pass_x_texture: texture_2d<f32>; // after horizontal pass
@@ -133,6 +145,50 @@ struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
 @group(0) @binding(21) var<uniform> heightEncoding: HeightEncoding;
 
 struct FragmentInput { @builtin(position) pos: vec4f }
+
+// Introspection helper functions for runtime debugging
+fn pack8(a: array<u8,8>) -> array<u32,2> {
+    var out: array<u32,2>;
+    out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
+    out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
+    return out;
+}
+
+fn create_tag_fluid() -> array<u8,8> {
+    var tag: array<u8,8>;
+    tag[0] = 102u; // 'f'
+    tag[1] = 108u; // 'l'
+    tag[2] = 117u; // 'u'
+    tag[3] = 105u; // 'i'
+    tag[4] = 100u; // 'd'
+    tag[5] = 0u;   // null terminator
+    tag[6] = 0u;
+    tag[7] = 0u;
+    return tag;
+}
+
+fn create_tag_fragment() -> array<u8,8> {
+    var tag: array<u8,8>;
+    tag[0] = 102u; // 'f'
+    tag[1] = 114u; // 'r'
+    tag[2] = 97u;  // 'a'
+    tag[3] = 103u; // 'g'
+    tag[4] = 0u;   // null terminator
+    tag[5] = 0u;
+    tag[6] = 0u;
+    tag[7] = 0u;
+    return tag;
+}
+
+fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+    if (idx >= arrayLength(&introspectBuffer)) { return; }
+    introspectBuffer[idx].frame = frame;
+    introspectBuffer[idx].error_code = error_code;
+    introspectBuffer[idx].subject_id = subject;
+    introspectBuffer[idx].shader_tag = pack8(shader);
+    introspectBuffer[idx].stage_tag = pack8(stage);
+    introspectBuffer[idx].value = value;
+}
 
 // Seam probe (optional). Disabled by default. When true outputs discrepancy visualization early.
 override SEAM_PROBE: bool = false;
@@ -1754,5 +1810,10 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
   let baseTone = lit - specPart;
   let premulColor = max(baseTone, vec3f(0.0)) * alpha + specPart;
+  
+  // Emit introspection breadcrumb for alpha tracking
+  let pixel_id = u32(input.pos.x) + u32(input.pos.y) * 1920u; // approximate screen width
+  set_breadcrumb(pixel_id % 1024u, 0u, 0u, pixel_id, alpha, create_tag_fluid(), create_tag_fragment());
+  
   return vec4f(premulColor, alpha);
 }

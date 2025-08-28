@@ -119,6 +119,7 @@ export class FluidRenderer {
     lightingControlsBuffer: GPUBuffer
     effectParametersBuffer: GPUBuffer
     compositionParamsBuffer: GPUBuffer
+    introspectionBuffer?: GPUBuffer
     sampler: GPUSampler
     width: number
     height: number
@@ -176,6 +177,7 @@ export class FluidRenderer {
         lightingControlsBuffer: GPUBuffer,
         effectParametersBuffer: GPUBuffer,
     compositionParamsBuffer: GPUBuffer,
+    introspectionBuffer?: GPUBuffer,
     ) {
         this.device = device
     this.width = canvas.width
@@ -187,6 +189,7 @@ export class FluidRenderer {
         this.lightingControlsBuffer = lightingControlsBuffer
         this.effectParametersBuffer = effectParametersBuffer
         this.compositionParamsBuffer = compositionParamsBuffer
+        this.introspectionBuffer = introspectionBuffer
 
         const maxFilterSize = 100
         const blurdDepthScale = 10
@@ -994,8 +997,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u){
                 { binding: 12, resource: this.foamAccumTextureView! },
                 { binding: 13, resource: this.velocityTextureView },
                 { binding: 14, resource: this._backgroundTextureView! },
-                { binding: 15, resource: { buffer: this._transmissionParamsBuffer! } },
-                { binding: 16, resource: { buffer: this._sphereContainBuffer! } },
+                { binding: 15, resource: { buffer: this.introspectionBuffer || this.renderUniformBuffer } }, // Introspection buffer (fallback to dummy if not provided)
+                { binding: 16, resource: { buffer: this._transmissionParamsBuffer! } },
+                { binding: 22, resource: { buffer: this._sphereContainBuffer! } },
                 { binding: 17, resource: this.originalHeightTextureView ?? opts.heightTexView },
                 // New intermediate depth filter pass textures for diagnostics (bindings 18 & 19)
                 { binding: 18, resource: this.tmpDepthMapTextureView }, // after horizontal (X) pass
