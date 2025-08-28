@@ -25,29 +25,19 @@ fn encodeFixedPoint(floating_point: f32) -> i32 {
 	return i32(floating_point * fixed_point_multiplier);
 }
 
-fn pack8(a: array<u8,8>) -> array<u32,2> {
-    var out: array<u32,2>;
-    out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-    out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-    return out;
-}
-
-fn create_tag_mls() -> array<u8,8> {
-    var tag: array<u8,8>;
-    tag[0] = 109u; // 'm'
-    tag[1] = 108u; // 'l'
-    tag[2] = 115u; // 's'
-    tag[3] = 0u;   // null terminator
-    tag[4] = 0u;
-    tag[5] = 0u;
-    tag[6] = 0u;
-    tag[7] = 0u;
+fn create_tag_mls() -> array<u32,2> {
+    var tag: array<u32,2>;
+    tag[0] = 109u | (108u << 8u) | (115u << 16u) | (0u << 24u);  // 'mls\0'
+    tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);        // '\0\0\0\0'
     return tag;
 }
 
-fn create_tag_p2g() -> array<u8,8> {
-    var tag: array<u8,8>;
-    tag[0] = 112u; // 'p'
+fn create_tag_p2g() -> array<u32,2> {
+    var tag: array<u32,2>;
+    tag[0] = 112u | (50u << 8u) | (103u << 16u) | (0u << 24u);  // 'p2g\0'
+    tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);       // '\0\0\0\0'
+    return tag;
+}
     tag[1] = 50u;  // '2'
     tag[2] = 103u; // 'g'
     tag[3] = 0u;   // null terminator
@@ -58,13 +48,20 @@ fn create_tag_p2g() -> array<u8,8> {
     return tag;
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+fn create_tag_compute() -> array<u32,2> {
+    var tag: array<u32,2>;
+    tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
+    tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
+    return tag;
+}
+
+fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
     if (idx >= arrayLength(&introspectBuffer)) { return; }
     introspectBuffer[idx].frame = frame;
     introspectBuffer[idx].error_code = error_code;
     introspectBuffer[idx].subject_id = subject;
-    introspectBuffer[idx].shader_tag = pack8(shader);
-    introspectBuffer[idx].stage_tag = pack8(stage);
+    introspectBuffer[idx].shader_tag = shader;
+    introspectBuffer[idx].stage_tag = stage;
     introspectBuffer[idx].value = value;
 }
 
@@ -117,6 +114,6 @@ fn p2g_1(@builtin(global_invocation_id) id: vec3<u32>) {
         
         // Emit introspection breadcrumb for particle velocity magnitude
         let velocity_magnitude = length(particle.v);
-        set_breadcrumb(id.x % 1024u, 0u, 0u, id.x, velocity_magnitude, create_tag_mls(), create_tag_p2g());
+        set_breadcrumb(id.x % 1024u, 0u, 0u, id.x, velocity_magnitude, create_tag_mls(), create_tag_compute());
     }
 }

@@ -148,8 +148,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
             0u,                                                  // error code (0 = OK)
             idx,                                                 // subject ID (particle index)
             density,                                             // value to log
-            array<u8,8>('U','N','I','F','I','E','D',0),         // shader tag  
-            array<u8,8>('c','o','m','p','u','t','e',0)          // stage tag
+            create_tag_unified(),                                // shader tag  
+            create_tag_compute()                                 // stage tag
         );
     }
 }

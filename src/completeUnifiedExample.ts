@@ -51,46 +51,27 @@ struct IntrospectSlot {
 @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>; // INTROSPECTION - MOVED TO SLOT 15
 
 // Introspection helper functions
-fn pack8(a: array<u8,8>) -> array<u32,2> {
-  var out: array<u32,2>;
-  out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-  out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-  return out;
-}
-
-fn create_tag_unified() -> array<u8,8> {
-  var tag: array<u8,8>;
-  tag[0] = 85u;  // 'U'
-  tag[1] = 78u;  // 'N'
-  tag[2] = 73u;  // 'I'
-  tag[3] = 70u;  // 'F'
-  tag[4] = 73u;  // 'I'
-  tag[5] = 69u;  // 'E'
-  tag[6] = 68u;  // 'D'
-  tag[7] = 0u;   // null terminator
+fn create_tag_unified() -> array<u32,2> {
+  var tag: array<u32,2>;
+  tag[0] = 85u | (78u << 8u) | (73u << 16u) | (70u << 24u);  // 'UNIF'
+  tag[1] = 73u | (69u << 8u) | (68u << 16u) | (0u << 24u);   // 'IED\0'
   return tag;
 }
 
-fn create_tag_compute() -> array<u8,8> {
-  var tag: array<u8,8>;
-  tag[0] = 99u;  // 'c'
-  tag[1] = 111u; // 'o'
-  tag[2] = 109u; // 'm'
-  tag[3] = 112u; // 'p'
-  tag[4] = 117u; // 'u'
-  tag[5] = 116u; // 't'
-  tag[6] = 101u; // 'e'
-  tag[7] = 0u;   // null terminator
+fn create_tag_compute() -> array<u32,2> {
+  var tag: array<u32,2>;
+  tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
+  tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
   return tag;
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
   if (idx >= arrayLength(&introspectBuffer)) { return; }
   introspectBuffer[idx].frame = frame;
   introspectBuffer[idx].error_code = error_code;
   introspectBuffer[idx].subject_id = subject;
-  introspectBuffer[idx].shader_tag = pack8(shader);
-  introspectBuffer[idx].stage_tag = pack8(stage);
+  introspectBuffer[idx].shader_tag = shader;
+  introspectBuffer[idx].stage_tag = stage;
   introspectBuffer[idx].value = value;
 }
 
@@ -164,46 +145,27 @@ struct IntrospectSlot {
 @group(0) @binding(3) var<uniform> simulationParams: vec4f;
 @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>; // Always slot 15!
 
-fn pack8(a: array<u8,8>) -> array<u32,2> {
-  var out: array<u32,2>;
-  out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-  out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-  return out;
-}
-
-fn create_tag_forces() -> array<u8,8> {
-  var tag: array<u8,8>;
-  tag[0] = 70u;  // 'F'
-  tag[1] = 79u;  // 'O'
-  tag[2] = 82u;  // 'R'
-  tag[3] = 67u;  // 'C'
-  tag[4] = 69u;  // 'E'
-  tag[5] = 83u;  // 'S'
-  tag[6] = 0u;   // null terminator
-  tag[7] = 0u;   // null terminator
+fn create_tag_forces() -> array<u32,2> {
+  var tag: array<u32,2>;
+  tag[0] = 70u | (79u << 8u) | (82u << 16u) | (67u << 24u);  // 'FORC'
+  tag[1] = 69u | (83u << 8u) | (0u << 16u) | (0u << 24u);    // 'ES\0\0'
   return tag;
 }
 
-fn create_tag_compute() -> array<u8,8> {
-  var tag: array<u8,8>;
-  tag[0] = 99u;  // 'c'
-  tag[1] = 111u; // 'o'
-  tag[2] = 109u; // 'm'
-  tag[3] = 112u; // 'p'
-  tag[4] = 117u; // 'u'
-  tag[5] = 116u; // 't'
-  tag[6] = 101u; // 'e'
-  tag[7] = 0u;   // null terminator
+fn create_tag_compute() -> array<u32,2> {
+  var tag: array<u32,2>;
+  tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
+  tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
   return tag;
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
   if (idx >= arrayLength(&introspectBuffer)) { return; }
   introspectBuffer[idx].frame = frame;
   introspectBuffer[idx].error_code = error_code;
   introspectBuffer[idx].subject_id = subject;
-  introspectBuffer[idx].shader_tag = pack8(shader);
-  introspectBuffer[idx].stage_tag = pack8(stage);
+  introspectBuffer[idx].shader_tag = shader;
+  introspectBuffer[idx].stage_tag = stage;
   introspectBuffer[idx].value = value;
 }
 

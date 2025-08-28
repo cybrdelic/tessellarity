@@ -147,46 +147,27 @@ struct HeightEncoding { minH: f32, invRange: f32, range: f32, padding: f32 }
 struct FragmentInput { @builtin(position) pos: vec4f }
 
 // Introspection helper functions for runtime debugging
-fn pack8(a: array<u8,8>) -> array<u32,2> {
-    var out: array<u32,2>;
-    out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-    out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-    return out;
-}
-
-fn create_tag_fluid() -> array<u8,8> {
-    var tag: array<u8,8>;
-    tag[0] = 102u; // 'f'
-    tag[1] = 108u; // 'l'
-    tag[2] = 117u; // 'u'
-    tag[3] = 105u; // 'i'
-    tag[4] = 100u; // 'd'
-    tag[5] = 0u;   // null terminator
-    tag[6] = 0u;
-    tag[7] = 0u;
+fn create_tag_fluid() -> array<u32,2> {
+    var tag: array<u32,2>;
+    tag[0] = 102u | (108u << 8u) | (117u << 16u) | (105u << 24u); // 'flui'
+    tag[1] = 100u | (0u << 8u) | (0u << 16u) | (0u << 24u);       // 'd\0\0\0'
     return tag;
 }
 
-fn create_tag_fragment() -> array<u8,8> {
-    var tag: array<u8,8>;
-    tag[0] = 102u; // 'f'
-    tag[1] = 114u; // 'r'
-    tag[2] = 97u;  // 'a'
-    tag[3] = 103u; // 'g'
-    tag[4] = 0u;   // null terminator
-    tag[5] = 0u;
-    tag[6] = 0u;
-    tag[7] = 0u;
+fn create_tag_fragment() -> array<u32,2> {
+    var tag: array<u32,2>;
+    tag[0] = 102u | (114u << 8u) | (97u << 16u) | (103u << 24u);  // 'frag'
+    tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);         // '\0\0\0\0'
     return tag;
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
     if (idx >= arrayLength(&introspectBuffer)) { return; }
     introspectBuffer[idx].frame = frame;
     introspectBuffer[idx].error_code = error_code;
     introspectBuffer[idx].subject_id = subject;
-    introspectBuffer[idx].shader_tag = pack8(shader);
-    introspectBuffer[idx].stage_tag = pack8(stage);
+    introspectBuffer[idx].shader_tag = shader;
+    introspectBuffer[idx].stage_tag = stage;
     introspectBuffer[idx].value = value;
 }
 

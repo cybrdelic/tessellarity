@@ -82,26 +82,33 @@ struct IntrospectSlot {
 @group(0) @binding(0)
 var<storage, read_write> introspectBuffer: array<IntrospectSlot, 16>;
 
-fn pack8(a: array<u8,8>) -> array<u32,2> {
-  var out: array<u32,2>;
-  out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-  out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-  return out;
+fn create_tag_test() -> array<u32,2> {
+  var tag: array<u32,2>;
+  tag[0] = 116u | (101u << 8u) | (115u << 16u) | (116u << 24u);  // 'test'
+  tag[1] = 0u | (0u << 8u) | (0u << 16u) | (0u << 24u);          // '\0\0\0\0'
+  return tag;
 }
 
-fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+fn create_tag_compute() -> array<u32,2> {
+  var tag: array<u32,2>;
+  tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
+  tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
+  return tag;
+}
+
+fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
   if (idx >= 16u) { return; }
   introspectBuffer[idx].frame = frame;
   introspectBuffer[idx].error_code = error_code;
   introspectBuffer[idx].subject_id = subject;
-  introspectBuffer[idx].shader_tag = pack8(shader);
-  introspectBuffer[idx].stage_tag = pack8(stage);
+  introspectBuffer[idx].shader_tag = shader;
+  introspectBuffer[idx].stage_tag = stage;
   introspectBuffer[idx].value = value;
 }
 
 @compute @workgroup_size(1)
 fn test_main() {
-  set_breadcrumb(0u, 1u, 0u, 42u, 3.14, array<u8,8>('t','e','s','t',0,0,0,0), array<u8,8>('c','o','m','p','u','t','e',0));
+  set_breadcrumb(0u, 1u, 0u, 42u, 3.14, create_tag_test(), create_tag_compute());
 }
         `;
 

@@ -57,46 +57,27 @@ export class BoidsSimulator implements ISimulator {
                 @group(0) @binding(1) var<uniform> params: BoidsParams;
                 @group(0) @binding(15) var<storage, read_write> introspectBuffer: array<IntrospectSlot>;
 
-                fn pack8(a: array<u8,8>) -> array<u32,2> {
-                    var out: array<u32,2>;
-                    out[0] = u32(a[0]) | (u32(a[1]) << 8u) | (u32(a[2]) << 16u) | (u32(a[3]) << 24u);
-                    out[1] = u32(a[4]) | (u32(a[5]) << 8u) | (u32(a[6]) << 16u) | (u32(a[7]) << 24u);
-                    return out;
-                }
-
-                fn create_tag_boids() -> array<u8,8> {
-                    var tag: array<u8,8>;
-                    tag[0] = 98u;  // 'b'
-                    tag[1] = 111u; // 'o'
-                    tag[2] = 105u; // 'i'
-                    tag[3] = 100u; // 'd'
-                    tag[4] = 115u; // 's'
-                    tag[5] = 0u;   // null terminator
-                    tag[6] = 0u;
-                    tag[7] = 0u;
+                fn create_tag_boids() -> array<u32,2> {
+                    var tag: array<u32,2>;
+                    tag[0] = 98u | (111u << 8u) | (105u << 16u) | (100u << 24u);  // 'boid'
+                    tag[1] = 115u | (0u << 8u) | (0u << 16u) | (0u << 24u);       // 's\0\0\0'
                     return tag;
                 }
 
-                fn create_tag_compute() -> array<u8,8> {
-                    var tag: array<u8,8>;
-                    tag[0] = 99u;  // 'c'
-                    tag[1] = 111u; // 'o'
-                    tag[2] = 109u; // 'm'
-                    tag[3] = 112u; // 'p'
-                    tag[4] = 117u; // 'u'
-                    tag[5] = 116u; // 't'
-                    tag[6] = 101u; // 'e'
-                    tag[7] = 0u;   // null terminator
+                fn create_tag_compute() -> array<u32,2> {
+                    var tag: array<u32,2>;
+                    tag[0] = 99u | (111u << 8u) | (109u << 16u) | (112u << 24u);  // 'comp'
+                    tag[1] = 117u | (116u << 8u) | (101u << 16u) | (0u << 24u);   // 'ute\0'
                     return tag;
                 }
 
-                fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u8,8>, stage: array<u8,8>) {
+                fn set_breadcrumb(idx: u32, frame: u32, error_code: u32, subject: u32, value: f32, shader: array<u32,2>, stage: array<u32,2>) {
                     if (idx >= arrayLength(&introspectBuffer)) { return; }
                     introspectBuffer[idx].frame = frame;
                     introspectBuffer[idx].error_code = error_code;
                     introspectBuffer[idx].subject_id = subject;
-                    introspectBuffer[idx].shader_tag = pack8(shader);
-                    introspectBuffer[idx].stage_tag = pack8(stage);
+                    introspectBuffer[idx].shader_tag = shader;
+                    introspectBuffer[idx].stage_tag = stage;
                     introspectBuffer[idx].value = value;
                 }
 
